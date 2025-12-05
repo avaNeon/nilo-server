@@ -10,6 +10,12 @@
     <name>nilo-parent</name>
     <description>nilo-parent</description>
 
+    <modules>
+        <module>nilo-common</module>
+        <module>nilo-admin</module>
+        <module>nilo-web</module>
+    </modules>
+
     <url/>
     <licenses>
         <license/>
@@ -27,6 +33,11 @@
     <properties>
         <java.version>17</java.version>
         <springboot.version>3.3.4</springboot.version>
+        <mybatis.version>3.0.5</mybatis.version>
+        <lombok.version>1.18.34</lombok.version>
+        <fastjson2.version>2.0.58</fastjson2.version>
+        <commons-io.version>2.16.1</commons-io.version>
+        <hutool-captcha.version>5.8.40</hutool-captcha.version>
     </properties>
 
     <dependencies>
@@ -40,6 +51,34 @@
                 <version>${springboot.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <!--  mybatis  -->
+            <dependency>
+                <groupId>org.mybatis.spring.boot</groupId>
+                <artifactId>mybatis-spring-boot-starter</artifactId>
+                <version>${mybatis.version}</version>
+            </dependency>
+            <!--  redis:直接在子模块引入 spring-boot-starter-data-redis 即可  -->
+            <!--  Elasticsearch:直接在子模块引入 spring-boot-starter-data-elasticsearch 即可  -->
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.alibaba.fastjson2</groupId>
+                <artifactId>fastjson2-extension-spring6</artifactId>
+                <version>${fastjson2.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-io</groupId>
+                <artifactId>commons-io</artifactId>
+                <version>${commons-io.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>cn.hutool</groupId>
+                <artifactId>hutool-captcha</artifactId>
+                <version>${hutool-captcha.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

@@ -1,0 +1,794 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neon.niloweb.mapper.UserInfoMapper">
+
+    <!--实体映射-->
+    <resultMap id="base_result_map" type="com.neon.nilocommon.entity.po.UserInfo">
+        <!--用户id-->
+        <result column="user_id" property="userId"/>
+        <!--昵称-->
+        <result column="nick_name" property="nickName"/>
+        <!--邮箱-->
+        <result column="email" property="email"/>
+        <!--密码-->
+        <result column="password" property="password"/>
+        <!--0:女 1:男 2:未知-->
+        <result column="gender" property="gender"/>
+        <!--出生日期-->
+        <result column="birthday" property="birthday"/>
+        <!--学校-->
+        <result column="school" property="school"/>
+        <!--个人简介-->
+        <result column="personal_introduction" property="personalIntroduction"/>
+        <!--加入时间-->
+        <result column="register_time" property="registerTime"/>
+        <!--最后登录时间-->
+        <result column="last_login_time" property="lastLoginTime"/>
+        <!--最后登录IP-->
+        <result column="last_login_ip" property="lastLoginIp"/>
+        <!--0:禁用 1:正常-->
+        <result column="status" property="status"/>
+        <!--空间公告-->
+        <result column="notice_info" property="noticeInfo"/>
+        <!--硬币总数里-->
+        <result column="total_coin" property="totalCoin"/>
+        <!--当前硬币数-->
+        <result column="current_coin" property="currentCoin"/>
+        <!--主题-->
+        <result column="theme" property="theme"/>
+    </resultMap>
+
+
+    <!-- 通用查询结果列-->
+    <sql id="base_column_list">
+        u.user_id,u.nick_name,u.email,u.password,u.gender,
+		 u.birthday,u.school,u.personal_introduction,u.register_time,u.last_login_time,
+		 u.last_login_ip,u.status,u.notice_info,u.total_coin,u.current_coin,
+		 u.theme
+    </sql>
+
+    <!--  基础完全匹配查询  -->
+    <sql id="base_condition_filed">
+        <if test="query.userId != null and query.userId!=''">
+            and u.user_id = #{query.userId}
+        </if>
+        <if test="query.nickName != null and query.nickName!=''">
+            and u.nick_name = #{query.nickName}
+        </if>
+        <if test="query.email != null and query.email!=''">
+            and u.email = #{query.email}
+        </if>
+        <if test="query.password != null and query.password!=''">
+            and u.password = #{query.password}
+        </if>
+        <if test="query.gender != null">
+            and u.gender = #{query.gender}
+        </if>
+        <if test="query.birthday != null and query.birthday!=''">
+            and u.birthday = #{query.birthday}
+        </if>
+        <if test="query.school != null and query.school!=''">
+            and u.school = #{query.school}
+        </if>
+        <if test="query.personalIntroduction != null and query.personalIntroduction!=''">
+            and u.personal_introduction = #{query.personalIntroduction}
+        </if>
+        <if test="query.registerTime != null and query.registerTime!=''">
+            <![CDATA[ and  u.register_time=str_to_date(#{query.registerTime}, '%Y-%m-%d') ]]>
+        </if>
+        <if test="query.lastLoginTime != null and query.lastLoginTime!=''">
+            <![CDATA[ and  u.last_login_time=str_to_date(#{query.lastLoginTime}, '%Y-%m-%d') ]]>
+        </if>
+        <if test="query.lastLoginIp != null and query.lastLoginIp!=''">
+            and u.last_login_ip = #{query.lastLoginIp}
+        </if>
+        <if test="query.status != null">
+            and u.status = #{query.status}
+        </if>
+        <if test="query.noticeInfo != null and query.noticeInfo!=''">
+            and u.notice_info = #{query.noticeInfo}
+        </if>
+        <if test="query.totalCoin != null">
+            and u.total_coin = #{query.totalCoin}
+        </if>
+        <if test="query.currentCoin != null">
+            and u.current_coin = #{query.currentCoin}
+        </if>
+        <if test="query.theme != null">
+            and u.theme = #{query.theme}
+        </if>
+    </sql>
+
+    <!-- 通用查询条件列（包含模糊查询） -->
+    <sql id="query_condition">
+        <where>
+            <include refid="base_condition_filed"/>
+            <if test="query.userIdFuzzy!= null  and query.userIdFuzzy!=''">
+                and u.user_id like concat('%', #{query.userIdFuzzy}, '%')
+            </if>
+            <if test="query.nickNameFuzzy!= null  and query.nickNameFuzzy!=''">
+                and u.nick_name like concat('%', #{query.nickNameFuzzy}, '%')
+            </if>
+            <if test="query.emailFuzzy!= null  and query.emailFuzzy!=''">
+                and u.email like concat('%', #{query.emailFuzzy}, '%')
+            </if>
+            <if test="query.passwordFuzzy!= null  and query.passwordFuzzy!=''">
+                and u.password like concat('%', #{query.passwordFuzzy}, '%')
+            </if>
+            <if test="query.birthdayFuzzy!= null  and query.birthdayFuzzy!=''">
+                and u.birthday like concat('%', #{query.birthdayFuzzy}, '%')
+            </if>
+            <if test="query.schoolFuzzy!= null  and query.schoolFuzzy!=''">
+                and u.school like concat('%', #{query.schoolFuzzy}, '%')
+            </if>
+            <if test="query.personalIntroductionFuzzy!= null  and query.personalIntroductionFuzzy!=''">
+                and u.personal_introduction like concat('%', #{query.personalIntroductionFuzzy}, '%')
+            </if>
+            <if test="query.registerTimeStart!= null and query.registerTimeStart!=''">
+                <![CDATA[ and  u.register_time>=str_to_date(#{query.registerTimeStart}, '%Y-%m-%d') ]]>
+            </if>
+            <if test="query.registerTimeEnd!= null and query.registerTimeEnd!=''">
+                <![CDATA[ and  u.register_time< date_sub(str_to_date(#{query.registerTimeEnd},'%Y-%m-%d'),interval -1 day) ]]>
+            </if>
+            <if test="query.lastLoginTimeStart!= null and query.lastLoginTimeStart!=''">
+                <![CDATA[ and  u.last_login_time>=str_to_date(#{query.lastLoginTimeStart}, '%Y-%m-%d') ]]>
+            </if>
+            <if test="query.lastLoginTimeEnd!= null and query.lastLoginTimeEnd!=''">
+                <![CDATA[ and  u.last_login_time< date_sub(str_to_date(#{query.lastLoginTimeEnd},'%Y-%m-%d'),interval -1 day) ]]>
+            </if>
+            <if test="query.lastLoginIpFuzzy!= null  and query.lastLoginIpFuzzy!=''">
+                and u.last_login_ip like concat('%', #{query.lastLoginIpFuzzy}, '%')
+            </if>
+            <if test="query.noticeInfoFuzzy!= null  and query.noticeInfoFuzzy!=''">
+                and u.notice_info like concat('%', #{query.noticeInfoFuzzy}, '%')
+            </if>
+        </where>
+    </sql>
+
+    <!-- 查询集合-->
+    <select id="selectList" resultMap="base_result_map">
+        SELECT
+        <include refid="base_column_list"/>
+        FROM user_info u
+        <include refid="query_condition"/>
+        <if test="query.orderBy!=null">
+            order by ${query.orderBy}
+        </if>
+        <if test="query.pageCalculator!=null">
+            limit #{query.pageCalculator.start},#{query.pageCalculator.size}
+        </if>
+    </select>
+
+    <!-- 查询数量-->
+    <select id="selectCount" resultType="java.lang.Integer">
+        SELECT count(1) FROM user_info u
+        <include refid="query_condition"/>
+    </select>
+
+    <!-- 插入 （匹配有值的字段）-->
+    <insert id="insert" parameterType="com.neon.nilocommon.entity.po.UserInfo">
+        INSERT INTO user_info
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="bean.userId != null">
+                user_id,
+            </if>
+            <if test="bean.nickName != null">
+                nick_name,
+            </if>
+            <if test="bean.email != null">
+                email,
+            </if>
+            <if test="bean.password != null">
+                password,
+            </if>
+            <if test="bean.gender != null">
+                gender,
+            </if>
+            <if test="bean.birthday != null">
+                birthday,
+            </if>
+            <if test="bean.school != null">
+                school,
+            </if>
+            <if test="bean.personalIntroduction != null">
+                personal_introduction,
+            </if>
+            <if test="bean.registerTime != null">
+                register_time,
+            </if>
+            <if test="bean.lastLoginTime != null">
+                last_login_time,
+            </if>
+            <if test="bean.lastLoginIp != null">
+                last_login_ip,
+            </if>
+            <if test="bean.status != null">
+                status,
+            </if>
+            <if test="bean.noticeInfo != null">
+                notice_info,
+            </if>
+            <if test="bean.totalCoin != null">
+                total_coin,
+            </if>
+            <if test="bean.currentCoin != null">
+                current_coin,
+            </if>
+            <if test="bean.theme != null">
+                theme,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="bean.userId!=null">
+                #{bean.userId},
+            </if>
+            <if test="bean.nickName!=null">
+                #{bean.nickName},
+            </if>
+            <if test="bean.email!=null">
+                #{bean.email},
+            </if>
+            <if test="bean.password!=null">
+                #{bean.password},
+            </if>
+            <if test="bean.gender!=null">
+                #{bean.gender},
+            </if>
+            <if test="bean.birthday!=null">
+                #{bean.birthday},
+            </if>
+            <if test="bean.school!=null">
+                #{bean.school},
+            </if>
+            <if test="bean.personalIntroduction!=null">
+                #{bean.personalIntroduction},
+            </if>
+            <if test="bean.registerTime!=null">
+                #{bean.registerTime},
+            </if>
+            <if test="bean.lastLoginTime!=null">
+                #{bean.lastLoginTime},
+            </if>
+            <if test="bean.lastLoginIp!=null">
+                #{bean.lastLoginIp},
+            </if>
+            <if test="bean.status!=null">
+                #{bean.status},
+            </if>
+            <if test="bean.noticeInfo!=null">
+                #{bean.noticeInfo},
+            </if>
+            <if test="bean.totalCoin!=null">
+                #{bean.totalCoin},
+            </if>
+            <if test="bean.currentCoin!=null">
+                #{bean.currentCoin},
+            </if>
+            <if test="bean.theme!=null">
+                #{bean.theme},
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 插入或者更新 （匹配有值的字段）-->
+    <insert id="insertOrUpdate" parameterType="com.neon.nilocommon.entity.po.UserInfo">
+        INSERT INTO user_info
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="bean.userId != null">
+                user_id,
+            </if>
+            <if test="bean.nickName != null">
+                nick_name,
+            </if>
+            <if test="bean.email != null">
+                email,
+            </if>
+            <if test="bean.password != null">
+                password,
+            </if>
+            <if test="bean.gender != null">
+                gender,
+            </if>
+            <if test="bean.birthday != null">
+                birthday,
+            </if>
+            <if test="bean.school != null">
+                school,
+            </if>
+            <if test="bean.personalIntroduction != null">
+                personal_introduction,
+            </if>
+            <if test="bean.registerTime != null">
+                register_time,
+            </if>
+            <if test="bean.lastLoginTime != null">
+                last_login_time,
+            </if>
+            <if test="bean.lastLoginIp != null">
+                last_login_ip,
+            </if>
+            <if test="bean.status != null">
+                status,
+            </if>
+            <if test="bean.noticeInfo != null">
+                notice_info,
+            </if>
+            <if test="bean.totalCoin != null">
+                total_coin,
+            </if>
+            <if test="bean.currentCoin != null">
+                current_coin,
+            </if>
+            <if test="bean.theme != null">
+                theme,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="bean.userId!=null">
+                #{bean.userId},
+            </if>
+            <if test="bean.nickName!=null">
+                #{bean.nickName},
+            </if>
+            <if test="bean.email!=null">
+                #{bean.email},
+            </if>
+            <if test="bean.password!=null">
+                #{bean.password},
+            </if>
+            <if test="bean.gender!=null">
+                #{bean.gender},
+            </if>
+            <if test="bean.birthday!=null">
+                #{bean.birthday},
+            </if>
+            <if test="bean.school!=null">
+                #{bean.school},
+            </if>
+            <if test="bean.personalIntroduction!=null">
+                #{bean.personalIntroduction},
+            </if>
+            <if test="bean.registerTime!=null">
+                #{bean.registerTime},
+            </if>
+            <if test="bean.lastLoginTime!=null">
+                #{bean.lastLoginTime},
+            </if>
+            <if test="bean.lastLoginIp!=null">
+                #{bean.lastLoginIp},
+            </if>
+            <if test="bean.status!=null">
+                #{bean.status},
+            </if>
+            <if test="bean.noticeInfo!=null">
+                #{bean.noticeInfo},
+            </if>
+            <if test="bean.totalCoin!=null">
+                #{bean.totalCoin},
+            </if>
+            <if test="bean.currentCoin!=null">
+                #{bean.currentCoin},
+            </if>
+            <if test="bean.theme!=null">
+                #{bean.theme},
+            </if>
+        </trim>
+        on DUPLICATE key update
+        <trim prefix="" suffix="" suffixOverrides=",">
+            <if test="bean.userId!=null">
+                user_id = VALUES(user_id),
+            </if>
+            <if test="bean.nickName!=null">
+                nick_name = VALUES(nick_name),
+            </if>
+            <if test="bean.email!=null">
+                email = VALUES(email),
+            </if>
+            <if test="bean.password!=null">
+                password = VALUES(password),
+            </if>
+            <if test="bean.gender!=null">
+                gender = VALUES(gender),
+            </if>
+            <if test="bean.birthday!=null">
+                birthday = VALUES(birthday),
+            </if>
+            <if test="bean.school!=null">
+                school = VALUES(school),
+            </if>
+            <if test="bean.personalIntroduction!=null">
+                personal_introduction = VALUES(personal_introduction),
+            </if>
+            <if test="bean.registerTime!=null">
+                register_time = VALUES(register_time),
+            </if>
+            <if test="bean.lastLoginTime!=null">
+                last_login_time = VALUES(last_login_time),
+            </if>
+            <if test="bean.lastLoginIp!=null">
+                last_login_ip = VALUES(last_login_ip),
+            </if>
+            <if test="bean.status!=null">
+                status = VALUES(status),
+            </if>
+            <if test="bean.noticeInfo!=null">
+                notice_info = VALUES(notice_info),
+            </if>
+            <if test="bean.totalCoin!=null">
+                total_coin = VALUES(total_coin),
+            </if>
+            <if test="bean.currentCoin!=null">
+                current_coin = VALUES(current_coin),
+            </if>
+            <if test="bean.theme!=null">
+                theme = VALUES(theme),
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 添加 （批量插入）-->
+    <insert id="insertBatch" parameterType="com.neon.nilocommon.entity.po.UserInfo">
+        INSERT INTO user_info(
+        user_id,
+        nick_name,
+        email,
+        password,
+        gender,
+        birthday,
+        school,
+        personal_introduction,
+        register_time,
+        last_login_time,
+        last_login_ip,
+        status,
+        notice_info,
+        total_coin,
+        current_coin,
+        theme
+        )values
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.userId},
+            #{item.nickName},
+            #{item.email},
+            #{item.password},
+            #{item.gender},
+            #{item.birthday},
+            #{item.school},
+            #{item.personalIntroduction},
+            #{item.registerTime},
+            #{item.lastLoginTime},
+            #{item.lastLoginIp},
+            #{item.status},
+            #{item.noticeInfo},
+            #{item.totalCoin},
+            #{item.currentCoin},
+            #{item.theme}
+            )
+        </foreach>
+    </insert>
+
+    <!-- 批量新增修改 （批量插入）-->
+    <insert id="insertOrUpdateBatch" parameterType="com.neon.nilocommon.entity.po.UserInfo">
+        INSERT INTO user_info(
+        user_id,
+        nick_name,
+        email,
+        password,
+        gender,
+        birthday,
+        school,
+        personal_introduction,
+        register_time,
+        last_login_time,
+        last_login_ip,
+        status,
+        notice_info,
+        total_coin,
+        current_coin,
+        theme
+        )values
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.userId},
+            #{item.nickName},
+            #{item.email},
+            #{item.password},
+            #{item.gender},
+            #{item.birthday},
+            #{item.school},
+            #{item.personalIntroduction},
+            #{item.registerTime},
+            #{item.lastLoginTime},
+            #{item.lastLoginIp},
+            #{item.status},
+            #{item.noticeInfo},
+            #{item.totalCoin},
+            #{item.currentCoin},
+            #{item.theme}
+            )
+        </foreach>
+        on DUPLICATE key update
+        user_id = VALUES(user_id),
+        nick_name = VALUES(nick_name),
+        email = VALUES(email),
+        password = VALUES(password),
+        gender = VALUES(gender),
+        birthday = VALUES(birthday),
+        school = VALUES(school),
+        personal_introduction = VALUES(personal_introduction),
+        register_time = VALUES(register_time),
+        last_login_time = VALUES(last_login_time),
+        last_login_ip = VALUES(last_login_ip),
+        status = VALUES(status),
+        notice_info = VALUES(notice_info),
+        total_coin = VALUES(total_coin),
+        current_coin = VALUES(current_coin),
+        theme = VALUES(theme)
+    </insert>
+
+    <!--多条件修改-->
+    <update id="updateByParam" parameterType="com.neon.nilocommon.entity.query.UserInfoQuery">
+        UPDATE user_info u
+        <set>
+            <if test="bean.userId != null">
+                user_id = #{bean.userId},
+            </if>
+            <if test="bean.nickName != null">
+                nick_name = #{bean.nickName},
+            </if>
+            <if test="bean.email != null">
+                email = #{bean.email},
+            </if>
+            <if test="bean.password != null">
+                password = #{bean.password},
+            </if>
+            <if test="bean.gender != null">
+                gender = #{bean.gender},
+            </if>
+            <if test="bean.birthday != null">
+                birthday = #{bean.birthday},
+            </if>
+            <if test="bean.school != null">
+                school = #{bean.school},
+            </if>
+            <if test="bean.personalIntroduction != null">
+                personal_introduction = #{bean.personalIntroduction},
+            </if>
+            <if test="bean.registerTime != null">
+                register_time = #{bean.registerTime},
+            </if>
+            <if test="bean.lastLoginTime != null">
+                last_login_time = #{bean.lastLoginTime},
+            </if>
+            <if test="bean.lastLoginIp != null">
+                last_login_ip = #{bean.lastLoginIp},
+            </if>
+            <if test="bean.status != null">
+                status = #{bean.status},
+            </if>
+            <if test="bean.noticeInfo != null">
+                notice_info = #{bean.noticeInfo},
+            </if>
+            <if test="bean.totalCoin != null">
+                total_coin = #{bean.totalCoin},
+            </if>
+            <if test="bean.currentCoin != null">
+                current_coin = #{bean.currentCoin},
+            </if>
+            <if test="bean.theme != null">
+                theme = #{bean.theme},
+            </if>
+        </set>
+        <include refid="query_condition"/>
+    </update>
+
+    <!--多条件删除-->
+    <delete id="deleteByParam">
+        delete u from user_info u
+        <include refid="query_condition"/>
+    </delete>
+
+    <!-- 根据UserId修改-->
+    <update id="updateByUserId" parameterType="com.neon.nilocommon.entity.po.UserInfo">
+        UPDATE user_info
+        <set>
+            <if test="bean.nickName != null">
+                nick_name = #{bean.nickName},
+            </if>
+            <if test="bean.email != null">
+                email = #{bean.email},
+            </if>
+            <if test="bean.password != null">
+                password = #{bean.password},
+            </if>
+            <if test="bean.gender != null">
+                gender = #{bean.gender},
+            </if>
+            <if test="bean.birthday != null">
+                birthday = #{bean.birthday},
+            </if>
+            <if test="bean.school != null">
+                school = #{bean.school},
+            </if>
+            <if test="bean.personalIntroduction != null">
+                personal_introduction = #{bean.personalIntroduction},
+            </if>
+            <if test="bean.registerTime != null">
+                register_time = #{bean.registerTime},
+            </if>
+            <if test="bean.lastLoginTime != null">
+                last_login_time = #{bean.lastLoginTime},
+            </if>
+            <if test="bean.lastLoginIp != null">
+                last_login_ip = #{bean.lastLoginIp},
+            </if>
+            <if test="bean.status != null">
+                status = #{bean.status},
+            </if>
+            <if test="bean.noticeInfo != null">
+                notice_info = #{bean.noticeInfo},
+            </if>
+            <if test="bean.totalCoin != null">
+                total_coin = #{bean.totalCoin},
+            </if>
+            <if test="bean.currentCoin != null">
+                current_coin = #{bean.currentCoin},
+            </if>
+            <if test="bean.theme != null">
+                theme = #{bean.theme},
+            </if>
+        </set>
+        where user_id=#{userId}
+    </update>
+
+    <!-- 根据UserId删除-->
+    <delete id="deleteByUserId">
+        delete
+        from user_info
+        where user_id = #{userId}
+    </delete>
+
+    <!-- 根据PrimaryKey获取对象-->
+    <select id="selectByUserId" resultMap="base_result_map">
+        select
+        <include refid="base_column_list"/>
+        from user_info u where user_id=#{userId}
+    </select>
+
+    <!-- 根据Email修改-->
+    <update id="updateByEmail" parameterType="com.neon.nilocommon.entity.po.UserInfo">
+        UPDATE user_info
+        <set>
+            <if test="bean.userId != null">
+                user_id = #{bean.userId},
+            </if>
+            <if test="bean.nickName != null">
+                nick_name = #{bean.nickName},
+            </if>
+            <if test="bean.password != null">
+                password = #{bean.password},
+            </if>
+            <if test="bean.gender != null">
+                gender = #{bean.gender},
+            </if>
+            <if test="bean.birthday != null">
+                birthday = #{bean.birthday},
+            </if>
+            <if test="bean.school != null">
+                school = #{bean.school},
+            </if>
+            <if test="bean.personalIntroduction != null">
+                personal_introduction = #{bean.personalIntroduction},
+            </if>
+            <if test="bean.registerTime != null">
+                register_time = #{bean.registerTime},
+            </if>
+            <if test="bean.lastLoginTime != null">
+                last_login_time = #{bean.lastLoginTime},
+            </if>
+            <if test="bean.lastLoginIp != null">
+                last_login_ip = #{bean.lastLoginIp},
+            </if>
+            <if test="bean.status != null">
+                status = #{bean.status},
+            </if>
+            <if test="bean.noticeInfo != null">
+                notice_info = #{bean.noticeInfo},
+            </if>
+            <if test="bean.totalCoin != null">
+                total_coin = #{bean.totalCoin},
+            </if>
+            <if test="bean.currentCoin != null">
+                current_coin = #{bean.currentCoin},
+            </if>
+            <if test="bean.theme != null">
+                theme = #{bean.theme},
+            </if>
+        </set>
+        where email=#{email}
+    </update>
+
+    <!-- 根据Email删除-->
+    <delete id="deleteByEmail">
+        delete
+        from user_info
+        where email = #{email}
+    </delete>
+
+    <!-- 根据PrimaryKey获取对象-->
+    <select id="selectByEmail" resultMap="base_result_map">
+        select
+        <include refid="base_column_list"/>
+        from user_info u where email=#{email}
+    </select>
+
+    <!-- 根据NickName修改-->
+    <update id="updateByNickName" parameterType="com.neon.nilocommon.entity.po.UserInfo">
+        UPDATE user_info
+        <set>
+            <if test="bean.userId != null">
+                user_id = #{bean.userId},
+            </if>
+            <if test="bean.email != null">
+                email = #{bean.email},
+            </if>
+            <if test="bean.password != null">
+                password = #{bean.password},
+            </if>
+            <if test="bean.gender != null">
+                gender = #{bean.gender},
+            </if>
+            <if test="bean.birthday != null">
+                birthday = #{bean.birthday},
+            </if>
+            <if test="bean.school != null">
+                school = #{bean.school},
+            </if>
+            <if test="bean.personalIntroduction != null">
+                personal_introduction = #{bean.personalIntroduction},
+            </if>
+            <if test="bean.registerTime != null">
+                register_time = #{bean.registerTime},
+            </if>
+            <if test="bean.lastLoginTime != null">
+                last_login_time = #{bean.lastLoginTime},
+            </if>
+            <if test="bean.lastLoginIp != null">
+                last_login_ip = #{bean.lastLoginIp},
+            </if>
+            <if test="bean.status != null">
+                status = #{bean.status},
+            </if>
+            <if test="bean.noticeInfo != null">
+                notice_info = #{bean.noticeInfo},
+            </if>
+            <if test="bean.totalCoin != null">
+                total_coin = #{bean.totalCoin},
+            </if>
+            <if test="bean.currentCoin != null">
+                current_coin = #{bean.currentCoin},
+            </if>
+            <if test="bean.theme != null">
+                theme = #{bean.theme},
+            </if>
+        </set>
+        where nick_name=#{nickName}
+    </update>
+
+    <!-- 根据NickName删除-->
+    <delete id="deleteByNickName">
+        delete
+        from user_info
+        where nick_name = #{nickName}
+    </delete>
+
+    <!-- 根据PrimaryKey获取对象-->
+    <select id="selectByNickName" resultMap="base_result_map">
+        select
+        <include refid="base_column_list"/>
+        from user_info u where nick_name=#{nickName}
+    </select>
+
+</mapper>

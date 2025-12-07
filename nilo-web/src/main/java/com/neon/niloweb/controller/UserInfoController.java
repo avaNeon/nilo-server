@@ -27,8 +27,8 @@ public class UserInfoController
     /**
      * 根据UserId查询对象
      */
-    @GetMapping("/getUserInfoByUserId")
-    public ResponseVO <Object> getUserInfoByUserId(String userId)
+    @GetMapping("/getUserInfoByUserId/{userId}")
+    public ResponseVO <Object> getUserInfoByUserId(@PathVariable("userId") String userId)
     {
         return success(userInfoService.getUserInfoByUserId(userId));
     }
@@ -36,8 +36,8 @@ public class UserInfoController
     /**
      * 根据UserId修改对象
      */
-    @PutMapping("/updateUserInfoByUserId")
-    public ResponseVO <Object> updateUserInfoByUserId(UserInfo bean, String userId)
+    @PutMapping("/updateUserInfoByUserId/{userId}")
+    public ResponseVO <Object> updateUserInfoByUserId(UserInfo bean, @PathVariable("userId") String userId)
     {
         userInfoService.updateUserInfoByUserId(bean, userId);
         return success(null);
@@ -46,8 +46,8 @@ public class UserInfoController
     /**
      * 根据UserId删除
      */
-    @DeleteMapping("/deleteUserInfoByUserId")
-    public ResponseVO <Object> deleteUserInfoByUserId(String userId)
+    @DeleteMapping("/deleteUserInfoByUserId/{userId}")
+    public ResponseVO <Object> deleteUserInfoByUserId(@PathVariable("userId") String userId)
     {
         userInfoService.deleteUserInfoByUserId(userId);
         return success(null);
@@ -56,8 +56,8 @@ public class UserInfoController
     /**
      * 根据Email查询对象
      */
-    @GetMapping("/getUserInfoByEmail")
-    public ResponseVO <Object> getUserInfoByEmail(String email)
+    @GetMapping("/getUserInfoByEmail/{email}")
+    public ResponseVO <Object> getUserInfoByEmail(@PathVariable("email") String email)
     {
         return success(userInfoService.getUserInfoByEmail(email));
     }
@@ -65,8 +65,8 @@ public class UserInfoController
     /**
      * 根据Email修改对象
      */
-    @PutMapping("/updateUserInfoByEmail")
-    public ResponseVO <Object> updateUserInfoByEmail(UserInfo bean, String email)
+    @PutMapping("/updateUserInfoByEmail/{email}")
+    public ResponseVO <Object> updateUserInfoByEmail(UserInfo bean, @PathVariable("email") String email)
     {
         userInfoService.updateUserInfoByEmail(bean, email);
         return success(null);
@@ -75,8 +75,8 @@ public class UserInfoController
     /**
      * 根据Email删除
      */
-    @DeleteMapping("/deleteUserInfoByEmail")
-    public ResponseVO <Object> deleteUserInfoByEmail(String email)
+    @DeleteMapping("/deleteUserInfoByEmail/{email}")
+    public ResponseVO <Object> deleteUserInfoByEmail(@PathVariable("email") String email)
     {
         userInfoService.deleteUserInfoByEmail(email);
         return success(null);
@@ -85,8 +85,8 @@ public class UserInfoController
     /**
      * 根据NickName查询对象
      */
-    @GetMapping("/getUserInfoByNickName")
-    public ResponseVO <Object> getUserInfoByNickName(String nickName)
+    @GetMapping("/getUserInfoByNickName/{nickname}")
+    public ResponseVO <Object> getUserInfoByNickName(@PathVariable("nickname") String nickName)
     {
         return success(userInfoService.getUserInfoByNickName(nickName));
     }
@@ -94,8 +94,8 @@ public class UserInfoController
     /**
      * 根据NickName修改对象
      */
-    @PutMapping("/updateUserInfoByNickName")
-    public ResponseVO <Object> updateUserInfoByNickName(UserInfo bean, String nickName)
+    @PutMapping("/updateUserInfoByNickName/{nickname}")
+    public ResponseVO <Object> updateUserInfoByNickName(UserInfo bean, @PathVariable("nickname") String nickName)
     {
         userInfoService.updateUserInfoByNickName(bean, nickName);
         return success(null);
@@ -104,8 +104,8 @@ public class UserInfoController
     /**
      * 根据NickName删除
      */
-    @DeleteMapping("/deleteUserInfoByNickName")
-    public ResponseVO <Object> deleteUserInfoByNickName(String nickName)
+    @DeleteMapping("/deleteUserInfoByNickName/{nickname}")
+    public ResponseVO <Object> deleteUserInfoByNickName(@PathVariable("nickname") String nickName)
     {
         userInfoService.deleteUserInfoByNickName(nickName);
         return success(null);

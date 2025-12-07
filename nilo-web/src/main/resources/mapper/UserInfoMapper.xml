@@ -75,10 +75,10 @@
             and u.personal_introduction = #{query.personalIntroduction}
         </if>
         <if test="query.registerTime != null and query.registerTime!=''">
-            <![CDATA[ and  u.register_time=str_to_date(#{query.registerTime}, '%Y-%m-%d') ]]>
+            <![CDATA[ and  u.register_time=str_to_date(#{query.registerTime}, '%Y-%m-%d %H:%i:%s') ]]>
         </if>
         <if test="query.lastLoginTime != null and query.lastLoginTime!=''">
-            <![CDATA[ and  u.last_login_time=str_to_date(#{query.lastLoginTime}, '%Y-%m-%d') ]]>
+            <![CDATA[ and  u.last_login_time=str_to_date(#{query.lastLoginTime}, '%Y-%m-%d %H:%i:%s') ]]>
         </if>
         <if test="query.lastLoginIp != null and query.lastLoginIp!=''">
             and u.last_login_ip = #{query.lastLoginIp}
@@ -126,16 +126,16 @@
                 and u.personal_introduction like concat('%', #{query.personalIntroductionFuzzy}, '%')
             </if>
             <if test="query.registerTimeStart!= null and query.registerTimeStart!=''">
-                <![CDATA[ and  u.register_time>=str_to_date(#{query.registerTimeStart}, '%Y-%m-%d') ]]>
+                <![CDATA[ and  u.register_time>=str_to_date(#{query.registerTimeStart}, '%Y-%m-%d %H:%i:%s') ]]>
             </if>
             <if test="query.registerTimeEnd!= null and query.registerTimeEnd!=''">
-                <![CDATA[ and  u.register_time< date_sub(str_to_date(#{query.registerTimeEnd},'%Y-%m-%d'),interval -1 day) ]]>
+                <![CDATA[ and  u.register_time< date_sub(str_to_date(#{query.registerTimeEnd},'%Y-%m-%d %H:%i:%s'),interval -1 day) ]]>
             </if>
             <if test="query.lastLoginTimeStart!= null and query.lastLoginTimeStart!=''">
-                <![CDATA[ and  u.last_login_time>=str_to_date(#{query.lastLoginTimeStart}, '%Y-%m-%d') ]]>
+                <![CDATA[ and  u.last_login_time>=str_to_date(#{query.lastLoginTimeStart}, '%Y-%m-%d %H:%i:%s') ]]>
             </if>
             <if test="query.lastLoginTimeEnd!= null and query.lastLoginTimeEnd!=''">
-                <![CDATA[ and  u.last_login_time< date_sub(str_to_date(#{query.lastLoginTimeEnd},'%Y-%m-%d'),interval -1 day) ]]>
+                <![CDATA[ and  u.last_login_time< date_sub(str_to_date(#{query.lastLoginTimeEnd},'%Y-%m-%d %H:%i:%s'),interval -1 day) ]]>
             </if>
             <if test="query.lastLoginIpFuzzy!= null  and query.lastLoginIpFuzzy!=''">
                 and u.last_login_ip like concat('%', #{query.lastLoginIpFuzzy}, '%')

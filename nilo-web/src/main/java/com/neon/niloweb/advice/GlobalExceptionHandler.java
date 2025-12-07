@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.List;
 
@@ -29,7 +30,8 @@ public class GlobalExceptionHandler
 {
 
     /**
-     * 没有对应接口异常处理
+     * 没有对应接口异常处理<hr/>
+     * 目前不被使用
      */
     @ExceptionHandler(NoHandlerFoundException.class)
     ResponseVO <Object> handleNoHandlerException(NoHandlerFoundException e, HttpServletRequest request)
@@ -39,6 +41,22 @@ public class GlobalExceptionHandler
         response.setCode(ResponseCodeEnum.NOT_FOUND.getCode());
         response.setInfo(ResponseCodeEnum.NOT_FOUND.getMsg());
         response.setStatus(STATUS_ERROR);
+        response.setData("没有对应的接口，请检查请求URI");
+        return response;
+    }
+
+    /**
+     * 没有对应静态资源异常处理（也处理NoHandlerFoundException）
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    ResponseVO <Object> handleNoResourceFoundException(NoResourceFoundException e, HttpServletRequest request)
+    {
+        log.error("请求错误，请求地址{},错误信息:", request.getRequestURL(), e);
+        ResponseVO <Object> response = new ResponseVO <>();
+        response.setCode(ResponseCodeEnum.NOT_FOUND.getCode());
+        response.setInfo(ResponseCodeEnum.NOT_FOUND.getMsg());
+        response.setStatus(STATUS_ERROR);
+        response.setData("没有对应的静态资源（也可能是没有对应的接口），请检查请求URI");
         return response;
     }
 

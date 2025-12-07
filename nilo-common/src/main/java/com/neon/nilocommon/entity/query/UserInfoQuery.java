@@ -3,6 +3,7 @@ package com.neon.nilocommon.entity.query;
 
 import com.neon.nilocommon.entity.annotation.BlankRestriction;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -72,26 +73,25 @@ public class UserInfoQuery extends BaseQuery
     /**
      * 加入时间
      */
+    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$", message = "时间格式必须为 yyyy-MM-dd HH:mm:ss")
     private String registerTime;
-
+    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$", message = "时间格式必须为 yyyy-MM-dd HH:mm:ss")
     private String registerTimeStart;
-
+    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$", message = "时间格式必须为 yyyy-MM-dd HH:mm:ss")
     private String registerTimeEnd;
 
     /**
      * 最后登录时间
      */
+    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$", message = "时间格式必须为 yyyy-MM-dd HH:mm:ss")
     private String lastLoginTime;
-
+    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$", message = "时间格式必须为 yyyy-MM-dd HH:mm:ss")
     private String lastLoginTimeStart;
-
+    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$", message = "时间格式必须为 yyyy-MM-dd HH:mm:ss")
     private String lastLoginTimeEnd;
 
-    /**
-     * 最后登录IP
-     */
-    private String lastLoginIp;
 
+    private String lastLoginIp;
     private String lastLoginIpFuzzy;
 
     /**

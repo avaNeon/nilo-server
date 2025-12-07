@@ -1,13 +1,18 @@
 package com.neon.nilocommon.entity.query;
 
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+
+import com.neon.nilocommon.entity.annotation.BlankRestriction;
+import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * {@link com.neon.nilocommon.entity.po.UserInfo}的查询类，可以实现属性模糊搜索的功能
  */
-@EqualsAndHashCode(callSuper = false) // 不要比较父类的属性
-@Data
+@Getter
+@Setter
+@NotNull
+@BlankRestriction
 public class UserInfoQuery extends BaseQuery
 {
     /**

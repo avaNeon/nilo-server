@@ -6,6 +6,7 @@ import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -13,6 +14,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
+
+import java.util.List;
 
 import static com.neon.nilocommon.entity.vo.ResponseVO.STATUS_ERROR;
 
@@ -50,6 +53,13 @@ public class GlobalExceptionHandler
         response.setCode(ResponseCodeEnum.INVALID_ARGUMENTS.getCode());
         response.setInfo(ResponseCodeEnum.INVALID_ARGUMENTS.getMsg());
         response.setStatus(STATUS_ERROR);
+        // 将我们在校验注解中设置的message放到response的data中，显示给前端
+        List <String> messageList = e.getBindingResult()
+                                     .getAllErrors()
+                                     .stream()
+                                     .map(DefaultMessageSourceResolvable::getDefaultMessage)
+                                     .toList();
+        response.setData(messageList);
         return response;
     }
 

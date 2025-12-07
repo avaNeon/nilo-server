@@ -4,6 +4,7 @@ import com.neon.nilocommon.entity.po.UserInfo;
 import com.neon.nilocommon.entity.query.UserInfoQuery;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.niloweb.service.UserInfoService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,45 +23,6 @@ public class UserInfoController
 {
 
     private final UserInfoService userInfoService;
-
-    /**
-     * 根据条件分页查询
-     */
-    @GetMapping("/loadDataList")
-    public ResponseVO <Object> loadDataList(UserInfoQuery query)
-    {
-        return success(userInfoService.findListByPage(query));
-    }
-
-    /**
-     * 新增
-     */
-    @PostMapping("/add")
-    public ResponseVO <Object> add(UserInfo bean)
-    {
-        userInfoService.add(bean);
-        return success(null);
-    }
-
-    /**
-     * 批量新增
-     */
-    @PostMapping("/addBatch")
-    public ResponseVO <Object> addBatch(@RequestBody List <UserInfo> listBean)
-    {
-        userInfoService.addBatch(listBean);
-        return success(null);
-    }
-
-    /**
-     * 批量新增/修改
-     */
-    @PutMapping("/addOrUpdateBatch")
-    public ResponseVO <Object> addOrUpdateBatch(@RequestBody List <UserInfo> listBean)
-    {
-        userInfoService.addBatch(listBean);
-        return success(null);
-    }
 
     /**
      * 根据UserId查询对象
@@ -146,6 +108,46 @@ public class UserInfoController
     public ResponseVO <Object> deleteUserInfoByNickName(String nickName)
     {
         userInfoService.deleteUserInfoByNickName(nickName);
+        return success(null);
+    }
+
+    /**
+     * 根据条件分页查询<hr/>
+     * 不提供不分页查询是防止用非索引字段查询过多条数影响性能
+     */
+    @GetMapping("/loadDataList")
+    public ResponseVO <Object> loadDataList(@Valid UserInfoQuery query)
+    {
+        return success(userInfoService.findListByPage(query));
+    }
+
+    /**
+     * 新增
+     */
+    @PostMapping("/add")
+    public ResponseVO <Object> add(@Valid UserInfo bean)
+    {
+        userInfoService.add(bean);
+        return success(null);
+    }
+
+    /**
+     * 批量新增
+     */
+    @PostMapping("/addBatch")
+    public ResponseVO <Object> addBatch(@RequestBody @Valid List <UserInfo> listBean)
+    {
+        userInfoService.addBatch(listBean);
+        return success(null);
+    }
+
+    /**
+     * 批量新增/修改 （必须要写全所有的字段，否则无效）
+     */
+    @PutMapping("/addOrUpdateBatch")
+    public ResponseVO <Object> addOrUpdateBatch(@RequestBody @Valid List <UserInfo> listBean)
+    {
+        userInfoService.addOrUpdateBatch(listBean);
         return success(null);
     }
 }

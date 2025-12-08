@@ -1,6 +1,6 @@
 package com.neon.nilocommon.entity.annotation;
 
-import com.neon.nilocommon.entity.validator.BlankRestrictionValidator;
+import com.neon.nilocommon.validator.BlankRestrictionValidator;
 import jakarta.validation.Constraint;
 import jakarta.validation.Payload;
 

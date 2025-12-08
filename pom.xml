@@ -38,6 +38,7 @@
         <fastjson2.version>2.0.58</fastjson2.version>
         <commons-io.version>2.16.1</commons-io.version>
         <hutool-captcha.version>5.8.40</hutool-captcha.version>
+        <knife4j.version>4.4.0</knife4j.version>
     </properties>
 
     <dependencies>
@@ -79,6 +80,11 @@
                 <groupId>cn.hutool</groupId>
                 <artifactId>hutool-captcha</artifactId>
                 <version>${hutool-captcha.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.xiaoymin</groupId>
+                <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
+                <version>${knife4j.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

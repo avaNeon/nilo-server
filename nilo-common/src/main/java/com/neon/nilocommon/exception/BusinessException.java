@@ -1,7 +1,7 @@
 package com.neon.nilocommon.exception;
 
 
-import com.neon.nilocommon.entity.enums.ResponseCodeEnum;
+import com.neon.nilocommon.entity.enums.ResponseCode;
 import lombok.Getter;
 
 /**
@@ -9,9 +9,6 @@ import lombok.Getter;
  */
 public class BusinessException extends RuntimeException
 {
-
-    @Getter
-    private ResponseCodeEnum codeEnum;
     @Getter
     private Integer code;
 
@@ -19,6 +16,7 @@ public class BusinessException extends RuntimeException
 
     /**
      * 使用异常消息来构建业务异常
+     *
      * @param message 异常消息
      */
     public BusinessException(String message)
@@ -45,12 +43,11 @@ public class BusinessException extends RuntimeException
         super(e);
     }
 
-    public BusinessException(ResponseCodeEnum codeEnum)
+    public BusinessException(ResponseCode codeEnum)
     {
         super(codeEnum.getMsg());
-        this.codeEnum = codeEnum;
-        this.code = codeEnum.getCode();
-        this.message = codeEnum.getMsg();
+        code = codeEnum.getCode();
+        message = codeEnum.getMsg();
     }
 
     @Override

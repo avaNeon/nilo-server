@@ -1,7 +1,7 @@
 package com.neon.nilocommon.entity.query;
 
 
-import com.neon.nilocommon.entity.enums.PageSizeEnum;
+import com.neon.nilocommon.entity.enums.PageSize;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -84,7 +84,7 @@ public class PageCalculator
      */
     public void calculate()
     {
-        if (this.pageSize <= 0) this.pageSize = PageSizeEnum.SIZE20.getSize();
+        if (this.pageSize <= 0) this.pageSize = PageSize.SIZE20.getSize();
         if (this.countTotal > 0)
             this.pageTotal = this.countTotal % this.pageSize == 0 ? this.countTotal / this.pageSize : this.countTotal / this.pageSize + 1;
         else pageTotal = 1;

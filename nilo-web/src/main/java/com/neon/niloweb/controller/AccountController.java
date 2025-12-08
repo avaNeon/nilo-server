@@ -2,15 +2,21 @@ package com.neon.niloweb.controller;
 
 import cn.hutool.captcha.CaptchaUtil;
 import cn.hutool.captcha.LineCaptcha;
+import com.neon.nilocommon.captcha.RedisCaptcha;
+import com.neon.nilocommon.entity.constans.Constants;
+import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.vo.ResponseVO;
-import com.neon.niloweb.captcha.RedisCaptcha;
+import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.service.UserInfoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpSession;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,12 +27,13 @@ import java.util.Map;
 
 @Tag(name = "账户管理")
 @RequiredArgsConstructor
+@Validated
 @RestController
 @RequestMapping("/account")
 public class AccountController
 {
     private final UserInfoService userInfoService;
-    private final RedisTemplate <String, String> redisTemplate;
+
     private final RedisCaptcha redisCaptcha;
 
     /**
@@ -47,16 +54,30 @@ public class AccountController
 
     /**
      * 验证验证码答案<hr/>
-     * 根据之前发的session-id和内存中的session-id做对比，找出对应的验证码答案
+     * 根据传入的captchaKey找到对应的redis中的captchaKey，验证用户验证码是否正确
      *
-     * @param code 用户的验证码答案
+     * @param code 用户的填入的验证码
      */
     @Operation(summary = "注册接口", description = "检验验证码，在data字段中保存验证码通过/失败")
     @GetMapping(path = "/register")
-    public ResponseVO <Boolean> register(@Parameter(hidden = true) HttpSession session,
-                                         @Parameter(description = "用户填写的验证码结果") @RequestParam(name = "code") String code)
+    public ResponseVO <Boolean> register(
+            @RequestParam(name = "email") @NotBlank(message = "email不能为空") @Email(message = "email不符合格式")
+            @Size(max = 150, message = "email长度过大") String email,
+            @RequestParam(name = "nickName") @NotBlank(message = "nickName不能为空") @Size(max = 20, message = "nickName长度过大")
+            String nickName,
+            @RequestParam(name = "password") @Pattern(regexp = Constants.PASSWORD_REGEXP, message = "密码格式不合法") String password,
+            @RequestParam(name = "captchaKey") @NotBlank String captchaKey,
+            @Parameter(description = "用户填写的验证码结果") @NotBlank @RequestParam(name = "code") String code)
     {
-        // TODO 在分布式环境下将验证码结果放在redis中保存
-        return ResponseVO.success(session.getAttribute("verification-code").toString().equalsIgnoreCase(code));
+        try
+        {
+            if (!redisCaptcha.verifyCaptchaCode(captchaKey, code)) throw new BusinessException(ResponseCode.CAPTCHA_FAILED);
+            userInfoService.register(email, nickName, password);
+        }
+        finally
+        {
+            redisCaptcha.deleteCaptcha(captchaKey);
+        }
+        return ResponseVO.success(null);
     }
 }

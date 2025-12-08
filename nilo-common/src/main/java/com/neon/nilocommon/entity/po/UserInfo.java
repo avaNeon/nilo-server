@@ -22,6 +22,9 @@ public class UserInfo
     @NotBlank(message = "email不能为空")
     private String email;
 
+    /**
+     * 密码加密后固定60位
+     */
     @NotBlank(message = "password不能为空")
     private String password;
 

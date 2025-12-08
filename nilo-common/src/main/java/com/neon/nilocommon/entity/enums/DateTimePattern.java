@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
  */
 @Getter
 @RequiredArgsConstructor
-public enum DateTimePatternEnum
+public enum DateTimePattern
 {
     DATE_TIME("yyyy-MM-dd HH:mm:ss"), DATE("yyyy-MM-dd");
 

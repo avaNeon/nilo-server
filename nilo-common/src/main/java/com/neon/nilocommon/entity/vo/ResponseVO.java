@@ -1,20 +1,25 @@
 package com.neon.nilocommon.entity.vo;
 
-import com.neon.nilocommon.entity.enums.ResponseCodeEnum;
+import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.exception.BusinessException;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.Setter;
 
+@Schema(name = "标准返回对象")
 @Getter
 @Setter
 public class ResponseVO<T>
 {
     public static final String STATUS_SUCCESS = "success";
     public static final String STATUS_ERROR = "error";
-
+    @Schema(name = "状态")
     private String status;
+    @Schema(name = "响应码")
     private Integer code;
+    @Schema(name = "响应信息")
     private String info;
+    @Schema(name = "详细信息或数据")
     private T data;
 
     /**
@@ -28,8 +33,8 @@ public class ResponseVO<T>
     {
         ResponseVO <T> responseVO = new ResponseVO <>();
         responseVO.setStatus(STATUS_SUCCESS);
-        responseVO.setCode(ResponseCodeEnum.SUCCESS.getCode());
-        responseVO.setInfo(ResponseCodeEnum.SUCCESS.getMsg());
+        responseVO.setCode(ResponseCode.SUCCESS.getCode());
+        responseVO.setInfo(ResponseCode.SUCCESS.getMsg());
         responseVO.setData(t);
         return responseVO;
     }
@@ -45,8 +50,8 @@ public class ResponseVO<T>
     {
         ResponseVO <T> vo = new ResponseVO <>();
         vo.setStatus(STATUS_ERROR);
-        vo.setCode(ResponseCodeEnum.UNKNOWN_ERROR.getCode());
-        vo.setInfo(ResponseCodeEnum.UNKNOWN_ERROR.getMsg());
+        vo.setCode(ResponseCode.UNKNOWN_ERROR.getCode());
+        vo.setInfo(ResponseCode.UNKNOWN_ERROR.getMsg());
         vo.setData(t);
         return vo;
     }
@@ -63,7 +68,7 @@ public class ResponseVO<T>
     {
         ResponseVO <T> vo = new ResponseVO <>();
         vo.setStatus(STATUS_ERROR);
-        if (e.getCode() == null) vo.setCode(ResponseCodeEnum.UNKNOWN_ERROR.getCode());
+        if (e.getCode() == null) vo.setCode(ResponseCode.UNKNOWN_ERROR.getCode());
         else vo.setCode(e.getCode());
         vo.setInfo(e.getMessage());
         vo.setData(t);

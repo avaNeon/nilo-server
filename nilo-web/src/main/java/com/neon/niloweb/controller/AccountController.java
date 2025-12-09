@@ -8,11 +8,11 @@ import com.neon.nilocommon.entity.dto.TokenUserInfo;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.nilocommon.util.ServletUtil;
 import com.neon.niloweb.service.UserInfoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.Email;
@@ -56,7 +56,8 @@ public class AccountController
     }
 
     /**
-     * 验证验证码答案<hr/>
+     * 注册<hr/>
+     * 验证验证码答案<br/>
      * 根据传入的captchaKey找到对应的redis中的captchaKey，验证用户验证码是否正确
      *
      * @param code 用户的填入的验证码
@@ -84,24 +85,31 @@ public class AccountController
         return ResponseVO.success(null);
     }
 
+    /**
+     * 登录<hr/>
+     * 登录成功后会返回新生成的一个token，并且删除cookie原来的登录token<br/>
+     * 不过redis中这个token没有删除，因为我们也不知道token具体值是多少，不过它会自动过期
+     * @return 将查询到的用户数据返回给前端
+     */
     @Operation(summary = "登录接口", description = "检验登录信息和验证码")
     @GetMapping(path = "/login")
-    public ResponseVO <Object> login(@Parameter(hidden = true) HttpServletRequest request,
-                                     @Parameter(hidden = true) HttpServletResponse response,
-                                     @RequestHeader(name = "token", required = false) String token,
-                                     @RequestParam(name = "email") @Email(message = "email不符合格式") String email,
-                                     @RequestParam(name = "password")
-                                     @Pattern(regexp = Constants.PASSWORD_REGEXP, message = "密码格式不合法") String password,
-                                     @RequestParam(name = "captchaKey") @NotBlank String captchaKey,
-                                     @Parameter(description = "用户填写的验证码结果") @NotBlank @RequestParam(name = "code") String code)
+    public ResponseVO <TokenUserInfo> login(@Parameter(hidden = true) HttpServletRequest request,
+                                            @Parameter(hidden = true) HttpServletResponse response,
+                                            @RequestParam(name = "email") @Email(message = "email不符合格式") String email,
+                                            @RequestParam(name = "password")
+                                            @Pattern(regexp = Constants.PASSWORD_REGEXP, message = "密码格式不合法") String password,
+                                            @RequestParam(name = "captchaKey") @NotBlank String captchaKey,
+                                            @Parameter(description = "用户填写的验证码结果") @NotBlank @RequestParam(name = "code")
+                                            String code)
     {
         try
         {
             if (!redisCaptcha.verifyCaptchaCode(captchaKey, code)) throw new BusinessException(ResponseCode.CAPTCHA_FAILED);
-            String clientIp = getClientIp(request);
+            String clientIp = ServletUtil.getClientIp(request);
             // TODO 头像、粉丝数、关注数（或许还有硬币数）还没有设置
-            TokenUserInfo tokenUserInfo = userInfoService.login(token, email, password, clientIp);
-            setCookie(response, Constants.COOKIE_WEB_TOKEN_KEY, tokenUserInfo.getToken(), 7, TimeUnit.DAYS);
+            TokenUserInfo tokenUserInfo = userInfoService.login(email, password, clientIp);
+            ServletUtil.removeCookie(request, response, Constants.COOKIE_TOKEN_ADMIN_KEY);
+            ServletUtil.setCookie(response, Constants.COOKIE_TOKEN_WEB_KEY, tokenUserInfo.getToken(), 7, TimeUnit.DAYS);
             return ResponseVO.success(tokenUserInfo);
         }
         finally
@@ -117,100 +125,14 @@ public class AccountController
         return ResponseVO.success(userInfoService.autoLogin(token));
     }
 
-    @Operation(summary = "登出接口", description = "检验token，如果token有效，则从redis中删除token")
+    @Operation(summary = "登出接口", description = "检验token，如果token有效，则从redis和cookie中删除token")
     @GetMapping(path = "/logout")
     public ResponseVO <Boolean> logout(@Parameter(hidden = true) HttpServletRequest request,
                                        @Parameter(hidden = true) HttpServletResponse response,
                                        @RequestHeader(name = "token") String token)
     {
-        removeCookie(request, response, Constants.COOKIE_WEB_TOKEN_KEY);
+        ServletUtil.removeCookie(request, response, Constants.COOKIE_TOKEN_WEB_KEY);
         return ResponseVO.success(userInfoService.logout(token));
     }
 
-    /**
-     * 获取用户IP
-     *
-     * @return 用户IP
-     */
-    private static String getClientIp(HttpServletRequest request)
-    {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip))
-        {
-            // X-Forwarded-For 可能有多个 IP，如： client, proxy1, proxy2 ...
-            return ip.split(",")[0].trim();
-        }
-
-        ip = request.getHeader("X-Real-IP");
-        if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip))
-        {
-            return ip;
-        }
-
-        ip = request.getHeader("Proxy-Client-IP");
-        if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip))
-        {
-            return ip;
-        }
-
-        ip = request.getHeader("WL-Proxy-Client-IP");
-        if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip))
-        {
-            return ip;
-        }
-
-        ip = request.getHeader("HTTP_CLIENT_IP");
-        if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip))
-        {
-            return ip;
-        }
-
-        ip = request.getHeader("HTTP_X_FORWARDED_FOR");
-        if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip))
-        {
-            return ip;
-        }
-
-        return request.getRemoteAddr();
-    }
-
-    /**
-     * 向Cookie中加入键-值对
-     *
-     * @param response HttpsServletResponse
-     * @param key      键
-     * @param value    值
-     * @param time     时间长度
-     * @param timeUnit 时间长度单位
-     */
-    private void setCookie(HttpServletResponse response, String key, String value, int time, TimeUnit timeUnit)
-    {
-        Cookie cookie = new Cookie(key, value);
-        cookie.setMaxAge(timeUnit.toSeconds(time) > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) timeUnit.toSeconds(time));
-        cookie.setPath("/");
-        response.addCookie(cookie);
-    }
-
-    /**
-     * 删除Cookie中指定键
-     *
-     * @param request  HttpServletRequest
-     * @param response HttpServletResponse
-     * @param key      删除的键名
-     */
-    private void removeCookie(HttpServletRequest request, HttpServletResponse response, String key)
-    {
-        Cookie[] cookies = request.getCookies();
-        if (cookies == null) return;
-        for (Cookie cookie : cookies)
-        {
-            if (cookie.getName().equals(key))
-            {
-                cookie.setMaxAge(0);
-                cookie.setPath("/");
-                response.addCookie(cookie);
-                break;
-            }
-        }
-    }
 }

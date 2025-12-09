@@ -9,7 +9,11 @@ public class Constants
     // redis中web token前缀
     public static final String REDIS_TOKEN_WEB_PREFIX = REDIS_KEY_PREFIX + "token:web:";
     // cookie中web token键名
-    public static final String COOKIE_WEB_TOKEN_KEY = "token";
+    public static final String COOKIE_TOKEN_WEB_KEY = "token_normal";
+    // redis中admin token前缀
+    public static final String REDIS_TOKEN_ADMIN_PREFIX = REDIS_KEY_PREFIX + "token:admin:";
+    // cookie中admin token键名
+    public static final String COOKIE_TOKEN_ADMIN_KEY = "token_admin";
     // 密码的正则表达式，要求：
     // 8–20 位
     // 必须包含：数字 + 字母

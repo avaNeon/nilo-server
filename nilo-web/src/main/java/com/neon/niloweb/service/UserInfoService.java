@@ -65,23 +65,22 @@ public class UserInfoService
     /**
      * 登录
      */
-    public TokenUserInfo login(String token, String email, String password, String ip)
+    public TokenUserInfo login(String email, String password, String ip)
     {
         UserInfo userInfo = userInfoMapper.selectByEmail(email);
         // 校验
         if (userInfo == null || !passwordEncoder.matches(password, userInfo.getPassword()))
             throw new BusinessException(ResponseCode.LOGIN_FAILURE);
         if (userInfo.getStatus() == UserStatus.DISABLE.status) throw new BusinessException(ResponseCode.BANNED_USER);
-        // 更新登陆信息
+        // 更新登录信息
         UserInfo updatedUserInfo = new UserInfo();
         updatedUserInfo.setLastLoginIp(ip);
         updatedUserInfo.setLastLoginTime(LocalDateTime.now());
         userInfoMapper.updateByUserId(updatedUserInfo, userInfo.getUserId()); // 就用主键执行UPDATE不用回表，效率更高
         // 设置token
-        // 如果token不存在，创建一个7天时长的token，否则不创建新token，也不延长时间
+        // 新建一个7天时长的token
         TokenUserInfo tokenUserInfo = BeanUtil.copyProperties(userInfo, TokenUserInfo.class);
-        if (token == null || token.isBlank()) generateAndSaveToken(tokenUserInfo, 7, TimeUnit.DAYS); //TODO 测试
-        else tokenUserInfo = (TokenUserInfo) redisTemplate.opsForValue().get(token);
+        generateAndSaveToken(tokenUserInfo, 7, TimeUnit.DAYS);
         return tokenUserInfo;
     }
 

@@ -1,9 +1,12 @@
 package com.neon.niloweb.service;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.neon.nilocommon.entity.constans.Constants;
+import com.neon.nilocommon.entity.dto.TokenUserInfo;
 import com.neon.nilocommon.entity.enums.PageSize;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.userInfo.UserGender;
+import com.neon.nilocommon.entity.enums.userInfo.UserStatus;
 import com.neon.nilocommon.entity.po.UserInfo;
 import com.neon.nilocommon.entity.query.PageCalculator;
 import com.neon.nilocommon.entity.query.UserInfoQuery;
@@ -13,11 +16,14 @@ import com.neon.niloweb.mapper.UserInfoMapper;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 
 /**
@@ -27,8 +33,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class UserInfoService
 {
-
     private final UserInfoMapper <UserInfo, UserInfoQuery> userInfoMapper;
+
+    private final RedisTemplate <String, Object> redisTemplate;
 
     private BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
@@ -53,6 +60,64 @@ public class UserInfoService
         userInfo.setGender(UserGender.UNKNOWN.gender);
         // TODO 设置用户初始硬币数
         userInfoMapper.insert(userInfo);
+    }
+
+    /**
+     * 登录
+     */
+    public TokenUserInfo login(String token, String email, String password, String ip)
+    {
+        UserInfo userInfo = userInfoMapper.selectByEmail(email);
+        // 校验
+        if (userInfo == null || !passwordEncoder.matches(password, userInfo.getPassword()))
+            throw new BusinessException(ResponseCode.LOGIN_FAILURE);
+        if (userInfo.getStatus() == UserStatus.DISABLE.status) throw new BusinessException(ResponseCode.BANNED_USER);
+        // 更新登陆信息
+        UserInfo updatedUserInfo = new UserInfo();
+        updatedUserInfo.setLastLoginIp(ip);
+        updatedUserInfo.setLastLoginTime(LocalDateTime.now());
+        userInfoMapper.updateByUserId(updatedUserInfo, userInfo.getUserId()); // 就用主键执行UPDATE不用回表，效率更高
+        // 设置token
+        // 如果token不存在，创建一个7天时长的token，否则不创建新token，也不延长时间
+        TokenUserInfo tokenUserInfo = BeanUtil.copyProperties(userInfo, TokenUserInfo.class);
+        if (token == null || token.isBlank()) generateAndSaveToken(tokenUserInfo, 7, TimeUnit.DAYS); //TODO 测试
+        else tokenUserInfo = (TokenUserInfo) redisTemplate.opsForValue().get(token);
+        return tokenUserInfo;
+    }
+
+    /**
+     * 使用Token自动登录
+     */
+    public TokenUserInfo autoLogin(String token)
+    {
+        TokenUserInfo tokenUserInfo = (TokenUserInfo) redisTemplate.opsForValue().get(Constants.REDIS_TOKEN_WEB_PREFIX + token);
+        if (tokenUserInfo == null) return null;
+            // 如果过期时间小于1天，则自动延长至7天
+        else if (tokenUserInfo.getExpireTime() - System.currentTimeMillis() < TimeUnit.DAYS.toMillis(1))
+        {
+            tokenUserInfo.setExpireTime(System.currentTimeMillis() + TimeUnit.DAYS.toMillis(7));
+            redisTemplate.opsForValue().set(Constants.REDIS_TOKEN_WEB_PREFIX + token, tokenUserInfo, 7, TimeUnit.DAYS); // 延长时间至7天
+        }
+        return tokenUserInfo;
+    }
+
+    /**
+     * 登出
+     */
+    public Boolean logout(String token)
+    {
+        return redisTemplate.delete(Constants.REDIS_TOKEN_WEB_PREFIX + token);
+    }
+
+    /**
+     * 生成Token并保存到Redis中
+     */
+    private void generateAndSaveToken(TokenUserInfo tokenUserInfo, int time, TimeUnit timeUnit)
+    {
+        String token = UUID.randomUUID().toString();
+        tokenUserInfo.setExpireTime(System.currentTimeMillis() + timeUnit.toMillis(time));
+        tokenUserInfo.setToken(token);
+        redisTemplate.opsForValue().set(Constants.REDIS_TOKEN_WEB_PREFIX + token, tokenUserInfo, time, timeUnit);
     }
 
     /**

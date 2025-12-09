@@ -13,7 +13,9 @@ public enum ResponseCode
     SERVER_ERROR(500, "服务器返回错误，请联系管理员"),
     UNKNOWN_ERROR(1000, "未知错误"),
     DATA_EXISTED(1001, "数据已存在"),
-    CAPTCHA_FAILED(1002, "验证码校验失败");
+    CAPTCHA_FAILED(1002, "验证码校验失败"),
+    LOGIN_FAILURE(1003, "账号或密码错误"),
+    BANNED_USER(1004, "账户已禁用");
 
     private final Integer code;
 

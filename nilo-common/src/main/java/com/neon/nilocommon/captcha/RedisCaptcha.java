@@ -4,13 +4,14 @@ import com.neon.nilocommon.entity.constans.Constants;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @RequiredArgsConstructor
 public class RedisCaptcha
 {
-    private final RedisTemplate <String, String> redisTemplate;
+    private final RedisTemplate <String, Object> redisTemplate;
 
     /**
      * 将验证码结果保存在redis中
@@ -34,12 +35,13 @@ public class RedisCaptcha
      */
     public boolean verifyCaptchaCode(String captchaKey, String code)
     {
-        String trueCode = redisTemplate.opsForValue().get(Constants.REDIS_KEY_CAPTCHA + captchaKey);
+        String trueCode = Objects.requireNonNull(redisTemplate.opsForValue().get(Constants.REDIS_KEY_CAPTCHA + captchaKey)).toString();
         return trueCode != null && trueCode.equals(code);
     }
 
     /**
      * 删除验证码
+     *
      * @return 是否删除成功
      */
     public Boolean deleteCaptcha(String captchaKey)

@@ -1,4 +1,4 @@
-package com.neon.nilocommon.entity.constans;
+package com.neon.nilocommon.entity.constants;
 
 public class Constants
 {

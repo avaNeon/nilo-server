@@ -1,6 +1,6 @@
 package com.neon.nilocommon.captcha;
 
-import com.neon.nilocommon.entity.constans.Constants;
+import com.neon.nilocommon.entity.constants.Constants;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 

@@ -4,7 +4,8 @@ import cn.hutool.captcha.CaptchaUtil;
 import cn.hutool.captcha.LineCaptcha;
 import com.neon.niloadmin.service.AdminService;
 import com.neon.nilocommon.captcha.RedisCaptcha;
-import com.neon.nilocommon.entity.constans.Constants;
+import com.neon.nilocommon.entity.constants.Constants;
+import com.neon.nilocommon.entity.dto.TokenAdmin;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.exception.BusinessException;
@@ -28,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 @Validated
 @RestController
-@RequestMapping("/admin")
+@RequestMapping("/account")
 public class AdminController
 {
 
@@ -60,21 +61,22 @@ public class AdminController
      */
     @Operation(summary = "登录接口", description = "检验登录信息和验证码")
     @GetMapping(path = "/login")
-    public ResponseVO <String> login(@Parameter(hidden = true) HttpServletRequest request,
-                                     @Parameter(hidden = true) HttpServletResponse response,
-                                     @RequestParam(name = "account") String account,
-                                     @RequestParam(name = "password")
-                                     @Pattern(regexp = Constants.PASSWORD_REGEXP, message = "密码格式不合法") String password,
-                                     @RequestParam(name = "captchaKey") @NotBlank String captchaKey,
-                                     @Parameter(description = "用户填写的验证码结果") @NotBlank @RequestParam(name = "code") String code)
+    public ResponseVO <TokenAdmin> login(@Parameter(hidden = true) HttpServletRequest request,
+                                         @Parameter(hidden = true) HttpServletResponse response,
+                                         @RequestParam(name = "account") String account,
+                                         @RequestParam(name = "password")
+                                         @Pattern(regexp = Constants.PASSWORD_REGEXP, message = "密码格式不合法") String password,
+                                         @RequestParam(name = "captchaKey") @NotBlank String captchaKey,
+                                         @Parameter(description = "用户填写的验证码结果") @NotBlank @RequestParam(name = "code")
+                                         String code)
     {
         try
         {
             if (!redisCaptcha.verifyCaptchaCode(captchaKey, code)) throw new BusinessException(ResponseCode.CAPTCHA_FAILED);
-            String token = service.login(account, password);
+            TokenAdmin tokenAdmin = service.login(account, password);
             ServletUtil.removeCookie(request, response, Constants.COOKIE_TOKEN_ADMIN_KEY);
-            ServletUtil.setCookie(response, Constants.COOKIE_TOKEN_ADMIN_KEY, token, 7, TimeUnit.DAYS);
-            return ResponseVO.success(token);
+            ServletUtil.setCookie(response, Constants.COOKIE_TOKEN_ADMIN_KEY, tokenAdmin.getToken(), -1, TimeUnit.DAYS);
+            return ResponseVO.success(tokenAdmin);
         }
         finally
         {
@@ -89,7 +91,7 @@ public class AdminController
      */
     @Operation(summary = "自动登录接口", description = "检验token，如果token有效，则返回是否登录成功")
     @GetMapping(path = "/autoLogin")
-    public ResponseVO <Boolean> autoLogin(@RequestHeader(name = "token") String token)
+    public ResponseVO <TokenAdmin> autoLogin(@RequestHeader(name = "token") String token)
     {
         return ResponseVO.success(service.autoLogin(token));
     }

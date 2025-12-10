@@ -64,13 +64,14 @@ public class ServletUtil
      * @param response HttpsServletResponse
      * @param key      键
      * @param value    值
-     * @param time     时间长度
+     * @param time     时间长度（如果是负数代表会话级）
      * @param timeUnit 时间长度单位
      */
     public static void setCookie(HttpServletResponse response, String key, String value, int time, TimeUnit timeUnit)
     {
         Cookie cookie = new Cookie(key, value);
-        cookie.setMaxAge(timeUnit.toSeconds(time) > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) timeUnit.toSeconds(time));
+        if (time < 0) cookie.setMaxAge(-1); // 会话级
+        else cookie.setMaxAge(timeUnit.toSeconds(time) > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) timeUnit.toSeconds(time));
         cookie.setPath("/");
         response.addCookie(cookie);
     }
@@ -96,5 +97,26 @@ public class ServletUtil
                 break;
             }
         }
+    }
+
+    /**
+     * 从Cookie中获取指定值
+     *
+     * @param request HttpServletRequest
+     * @param key     键名
+     * @return key所对应的值
+     */
+    public static String getFromCookie(HttpServletRequest request, String key)
+    {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) return null;
+        for (Cookie cookie : cookies)
+        {
+            if (cookie.getName().equals(key))
+            {
+                return cookie.getValue();
+            }
+        }
+        return null;
     }
 }

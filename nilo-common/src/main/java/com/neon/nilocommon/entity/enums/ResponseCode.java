@@ -15,7 +15,8 @@ public enum ResponseCode
     DATA_EXISTED(1001, "数据已存在"),
     CAPTCHA_FAILED(1002, "验证码校验失败"),
     LOGIN_FAILURE(1003, "账号或密码错误"),
-    BANNED_USER(1004, "账户已禁用");
+    BANNED_USER(1004, "账户已禁用"),
+    NOT_LOGIN(1005, "未登录");
 
     private final Integer code;
 

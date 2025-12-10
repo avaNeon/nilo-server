@@ -16,9 +16,9 @@ import static com.neon.nilocommon.entity.vo.ResponseVO.success;
 /**
  * 用户信息 Controller
  */
-@RestController
-@RequestMapping("/userInfo")
 @RequiredArgsConstructor
+//@RestController
+//@RequestMapping("/userInfo")
 public class UserInfoController
 {
 

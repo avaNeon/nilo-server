@@ -1,5 +1,6 @@
 package com.neon.niloadmin.config;
 
+import com.neon.nilocommon.entity.po.Admin;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -11,6 +12,5 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class AdminConfig
 {
-    private String account;
-    private String password;
+    private Admin[] admins;
 }

@@ -1,7 +1,7 @@
 package com.neon.niloweb.service;
 
 import cn.hutool.core.bean.BeanUtil;
-import com.neon.nilocommon.entity.constans.Constants;
+import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.dto.TokenUserInfo;
 import com.neon.nilocommon.entity.enums.PageSize;
 import com.neon.nilocommon.entity.enums.ResponseCode;

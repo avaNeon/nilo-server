@@ -3,7 +3,7 @@ package com.neon.niloweb.controller;
 import cn.hutool.captcha.CaptchaUtil;
 import cn.hutool.captcha.LineCaptcha;
 import com.neon.nilocommon.captcha.RedisCaptcha;
-import com.neon.nilocommon.entity.constans.Constants;
+import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.dto.TokenUserInfo;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.vo.ResponseVO;

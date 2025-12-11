@@ -12,6 +12,7 @@ import lombok.Setter;
  * 异常处理：当pageSize多于总数量时，会自动限制为总数。当startIndex不合法时，会自动设置为0
  */
 @Getter
+
 @NoArgsConstructor
 public class PageCalculator
 {

@@ -71,7 +71,44 @@
         </where>
     </sql>
 
+    <!--  获取指定分类在父分类中的最大sort  -->
+    <select id="selectMaxSort" resultType="java.lang.Integer">
+        SELECT max(sort)
+        FROM category_info
+        WHERE p_category_id = #{parentId};
+    </select>
+
+    <!--  如果PCategoryId为指定参数，则删除这条数据  -->
+    <delete id="deleteByPCategoryId">
+        DELETE
+        FROM category_info
+        WHERE p_category_id = #{parentId};
+    </delete>
+
+    <select id="selectByIdOrParentIds" resultType="com.neon.nilocommon.entity.dto.CategoryDTO">
+        SELECT c.category_id, c.category_number, c.category_name, c.p_category_id, c.icon, c.background
+        FROM category_info c
+        WHERE c.category_id IN
+        <foreach collection="idOrParentIds" item="id" separator="," open="(" close=")">
+            #{id}
+        </foreach>
+        OR c.p_category_id IN
+        <foreach collection="idOrParentIds" item="id" separator="," open="(" close=")">
+            #{id}
+        </foreach>;
+    </select>
+
+    <update id="updateSort">
+        <foreach collection="categories" separator=";" item="category">
+            UPDATE category_info SET sort = #{category.sort} WHERE category_id = #{category.categoryId} AND
+            p_category_id = #{category.pCategoryId}
+        </foreach>
+    </update>
+
+    <!--  基础CRUD ↓  -->
+
     <!-- 查询集合-->
+    <!--  数字类型只要不是null就查，varchar类型只要不是null且不是空字符串就查  -->
     <select id="selectList" resultMap="base_result_map">
         SELECT
         <include refid="base_column_list"/>
@@ -81,7 +118,7 @@
             order by ${query.orderBy}
         </if>
         <if test="query.pageCalculator!=null">
-            limit #{query.pageCalculator.start},#{query.pageCalculator.end}
+            limit #{query.pageCalculator.start},#{query.pageCalculator.size}
         </if>
     </select>
 

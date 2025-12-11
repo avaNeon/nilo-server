@@ -14,6 +14,7 @@ import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -61,7 +62,7 @@ public class GlobalExceptionHandler
     /**
      * DTO参数不合法异常处理
      */
-    @ExceptionHandler(MethodArgumentNotValidException.class)
+    @ExceptionHandler({MethodArgumentNotValidException.class,HandlerMethodValidationException.class})
     ResponseVO <Object> handleDTOInvalidException(MethodArgumentNotValidException e, HttpServletRequest request)
     {
         log.error("请求错误，请求地址{},错误信息:", request.getRequestURL(), e);

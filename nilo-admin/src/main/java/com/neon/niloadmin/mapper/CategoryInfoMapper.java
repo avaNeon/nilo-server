@@ -1,12 +1,29 @@
 package com.neon.niloadmin.mapper;
 
+import com.neon.nilocommon.entity.dto.CategoryDTO;
+import com.neon.nilocommon.entity.po.CategoryInfo;
 import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
 
 /**
  * 分类信息 数据库操作接口
  */
 public interface CategoryInfoMapper<T, P> extends BaseMapper <T, P>
 {
+
+    /**
+     * 查询分类在父分类下的最大序号
+     * @param parentId 父分类id
+     * @return 最大sort
+     */
+    Integer selectMaxSort(@Param("parentId") Integer parentId);
+
+    Integer deleteByPCategoryId(@Param("parentId") Integer parentId);
+
+    List <CategoryDTO> selectByIdOrParentIds(@Param("idOrParentIds") List<Integer> idOrParentIds);
+
+    void updateSort(@Param("categories") List <CategoryInfo> categories);
 
     /**
      * 根据CategoryId更新

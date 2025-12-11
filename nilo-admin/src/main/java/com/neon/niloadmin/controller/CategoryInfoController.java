@@ -1,13 +1,12 @@
 package com.neon.niloadmin.controller;
 
-import com.neon.niloadmin.service.CategoryInfoService;
+import com.neon.niloadmin.service.CategoryService;
 import com.neon.nilocommon.entity.po.CategoryInfo;
 import com.neon.nilocommon.entity.query.CategoryInfoQuery;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
@@ -19,7 +18,7 @@ import java.util.List;
 //@RequestMapping("/category")
 public class CategoryInfoController
 {
-    private final CategoryInfoService categoryInfoService;
+    private final CategoryService categoryService;
 
     /**
      * 根据条件分页查询
@@ -27,7 +26,7 @@ public class CategoryInfoController
     @RequestMapping("/loadDataList")
     public ResponseVO <Object> loadDataList(CategoryInfoQuery query)
     {
-        return ResponseVO.success(categoryInfoService.findListByPage(query));
+        return ResponseVO.success(categoryService.findListByPage(query));
     }
 
     /**
@@ -36,7 +35,7 @@ public class CategoryInfoController
     @RequestMapping("/add")
     public ResponseVO <Object> add(CategoryInfo bean)
     {
-        categoryInfoService.add(bean);
+        categoryService.add(bean);
         return ResponseVO.success(null);
     }
 
@@ -46,7 +45,7 @@ public class CategoryInfoController
     @RequestMapping("/addBatch")
     public ResponseVO <Object> addBatch(@RequestBody List <CategoryInfo> listBean)
     {
-        categoryInfoService.addBatch(listBean);
+        categoryService.addBatch(listBean);
         return ResponseVO.success(null);
     }
 
@@ -56,7 +55,7 @@ public class CategoryInfoController
     @RequestMapping("/addOrUpdateBatch")
     public ResponseVO <Object> addOrUpdateBatch(@RequestBody List <CategoryInfo> listBean)
     {
-        categoryInfoService.addBatch(listBean);
+        categoryService.addBatch(listBean);
         return ResponseVO.success(null);
     }
 
@@ -66,7 +65,7 @@ public class CategoryInfoController
     @RequestMapping("/getCategoryInfoByCategoryId")
     public ResponseVO <Object> getCategoryInfoByCategoryId(Integer categoryId)
     {
-        return ResponseVO.success(categoryInfoService.getCategoryInfoByCategoryId(categoryId));
+        return ResponseVO.success(categoryService.getCategoryInfoByCategoryId(categoryId));
     }
 
     /**
@@ -75,7 +74,7 @@ public class CategoryInfoController
     @RequestMapping("/updateCategoryInfoByCategoryId")
     public ResponseVO <Object> updateCategoryInfoByCategoryId(CategoryInfo bean, Integer categoryId)
     {
-        categoryInfoService.updateCategoryInfoByCategoryId(bean, categoryId);
+        categoryService.updateCategoryInfoByCategoryId(bean, categoryId);
         return ResponseVO.success(null);
     }
 
@@ -85,7 +84,7 @@ public class CategoryInfoController
     @RequestMapping("/deleteCategoryInfoByCategoryId")
     public ResponseVO <Object> deleteCategoryInfoByCategoryId(Integer categoryId)
     {
-        categoryInfoService.deleteCategoryInfoByCategoryId(categoryId);
+        categoryService.deleteCategoryInfoByCategoryId(categoryId);
         return ResponseVO.success(null);
     }
 
@@ -95,7 +94,7 @@ public class CategoryInfoController
     @RequestMapping("/getCategoryInfoByCategoryNumber")
     public ResponseVO <Object> getCategoryInfoByCategoryNumber(String categoryNumber)
     {
-        return ResponseVO.success(categoryInfoService.getCategoryInfoByCategoryNumber(categoryNumber));
+        return ResponseVO.success(categoryService.getCategoryInfoByCategoryNumber(categoryNumber));
     }
 
     /**
@@ -104,7 +103,7 @@ public class CategoryInfoController
     @RequestMapping("/updateCategoryInfoByCategoryNumber")
     public ResponseVO <Object> updateCategoryInfoByCategoryNumber(CategoryInfo bean, String categoryNumber)
     {
-        categoryInfoService.updateCategoryInfoByCategoryNumber(bean, categoryNumber);
+        categoryService.updateCategoryInfoByCategoryNumber(bean, categoryNumber);
         return ResponseVO.success(null);
     }
 
@@ -114,7 +113,7 @@ public class CategoryInfoController
     @RequestMapping("/deleteCategoryInfoByCategoryNumber")
     public ResponseVO <Object> deleteCategoryInfoByCategoryNumber(String categoryNumber)
     {
-        categoryInfoService.deleteCategoryInfoByCategoryNumber(categoryNumber);
+        categoryService.deleteCategoryInfoByCategoryNumber(categoryNumber);
         return ResponseVO.success(null);
     }
 }

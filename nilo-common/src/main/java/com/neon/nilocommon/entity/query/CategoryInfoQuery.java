@@ -2,21 +2,20 @@ package com.neon.nilocommon.entity.query;
 
 
 import com.neon.nilocommon.entity.annotation.BlankRestriction;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.Setter;
 
 /**
  * 分类信息参数
  */
+@Schema(description = "分类信息分页查询")
 @Setter
 @Getter
 @BlankRestriction
 public class CategoryInfoQuery extends BaseQuery
 {
-
-    /**
-     * 自增分类ID
-     */
+    @Schema(description = "自增分类ID")
     private Integer categoryId;
 
     /**
@@ -56,6 +55,5 @@ public class CategoryInfoQuery extends BaseQuery
      * 排序号
      */
     private Integer sort;
-
 
 }

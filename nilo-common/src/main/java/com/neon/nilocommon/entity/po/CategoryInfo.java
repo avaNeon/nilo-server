@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * 分类信息
@@ -13,12 +14,14 @@ import java.io.Serializable;
 public class CategoryInfo implements Serializable
 {
     /**
-     * 自增分类ID
+     * 自增分类ID<hr/>
+     * 避免暴露给用户，可以暴露给后台管理系统
      */
     private Integer categoryId;
 
     /**
-     * 分类编码
+     * 分类编码<hr/>
+     * 业务主键，有语义，方便在未来的场景标识数据唯一性
      */
     private String categoryNumber;
 
@@ -46,6 +49,8 @@ public class CategoryInfo implements Serializable
      * 排序号
      */
     private Integer sort;
+
+    private List <CategoryInfo> children;
 
 
     @Override

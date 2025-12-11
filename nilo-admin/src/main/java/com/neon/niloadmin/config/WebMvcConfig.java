@@ -19,6 +19,6 @@ public class WebMvcConfig implements WebMvcConfigurer
     public void addInterceptors(InterceptorRegistry registry)
     {
         // 让登陆验证拦截器拦截所有请求
-        registry.addInterceptor(loginVerificationInterceptor).addPathPatterns("/**");
+//        registry.addInterceptor(loginVerificationInterceptor).addPathPatterns("/**");
     }
 }

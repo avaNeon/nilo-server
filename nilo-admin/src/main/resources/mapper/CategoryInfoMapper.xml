@@ -85,7 +85,7 @@
         WHERE p_category_id = #{parentId};
     </delete>
 
-    <select id="selectByIdOrParentIds" resultType="com.neon.nilocommon.entity.dto.CategoryDTO">
+    <select id="selectByIdOrParentIds" resultType="com.neon.nilocommon.entity.po.CategoryInfo">
         SELECT c.category_id, c.category_number, c.category_name, c.p_category_id, c.icon, c.background
         FROM category_info c
         WHERE c.category_id IN

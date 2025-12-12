@@ -6,6 +6,7 @@ public class Constants
     public static final String REDIS_KEY_PREFIX = "nilo:";
     // 验证码相关前缀
     public static final String REDIS_KEY_CAPTCHA = REDIS_KEY_PREFIX + "captcha:";
+
     // redis中web token前缀
     public static final String REDIS_TOKEN_WEB_PREFIX = REDIS_KEY_PREFIX + "token:web:";
     // cookie中web token键名
@@ -14,6 +15,18 @@ public class Constants
     public static final String REDIS_TOKEN_ADMIN_PREFIX = REDIS_KEY_PREFIX + "token:admin:";
     // cookie中admin token键名
     public static final String COOKIE_TOKEN_ADMIN_KEY = "token_admin";
+
+    // redis中保存分类信息的键名
+    public static final String REDIS_CATEGORIES_INFO_KEY = REDIS_KEY_PREFIX + "categories_info:";
+
+    public static final String FILE_FOLDER_NAME = "/file";
+
+    public static final String COVER_FOLDER_NAME = "/cover";
+
+    public static final String VIDEO_FOLDER_NAME = "/video";
+
+    public static final String TMP_FOLDER_NAME = "/tmp";
+
     // 密码的正则表达式，要求：
     // 8–20 位
     // 必须包含：数字 + 字母

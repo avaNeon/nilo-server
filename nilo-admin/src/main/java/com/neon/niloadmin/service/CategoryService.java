@@ -2,7 +2,7 @@ package com.neon.niloadmin.service;
 
 
 import com.neon.niloadmin.mapper.CategoryInfoMapper;
-import com.neon.nilocommon.entity.dto.CategoryDTO;
+import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.enums.PageSize;
 import com.neon.nilocommon.entity.po.CategoryInfo;
 import com.neon.nilocommon.entity.query.CategoryInfoQuery;
@@ -11,6 +11,7 @@ import com.neon.nilocommon.entity.vo.PaginationResponseVO;
 import com.neon.nilocommon.exception.BusinessException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -28,13 +29,15 @@ public class CategoryService
 
     private final CategoryInfoMapper <CategoryInfo, CategoryInfoQuery> mapper;
 
+    private final RedisTemplate <String, Object> redisTemplate;
+
     /**
      * 保存分类信息
      *
      * @param categoryInfo 分类信息
      * @return categoryId
      */
-    public Integer saveCategory(CategoryInfo categoryInfo)
+    public void saveCategory(CategoryInfo categoryInfo)
     {
         // category_number是唯一的
         CategoryInfo existedInfo = mapper.selectByCategoryNumber(categoryInfo.getCategoryNumber());
@@ -47,7 +50,7 @@ public class CategoryService
         categoryInfo.setSort(maxSort + 1);
         if (existedInfo == null) mapper.insert(categoryInfo);
         else mapper.updateByCategoryId(categoryInfo, existedInfo.getCategoryId());
-        return mapper.selectByCategoryNumber(categoryInfo.getCategoryNumber()).getCategoryId();
+        drawBack2Redis(); // 刷新缓存
     }
 
     /**
@@ -57,21 +60,22 @@ public class CategoryService
     {
         mapper.deleteByCategoryId(categoryId);
         mapper.deleteByPCategoryId(categoryId);
+        drawBack2Redis(); // 刷新缓存
     }
 
     /**
      * 根据条件查询列表，分类下一级的子分类会被加入children属性中
      */
-    public List <CategoryDTO> findListWithChildren(List <Integer> idOrParentIds)
+    public List <CategoryInfo> findListWithChildren(List <Integer> idOrParentIds)
     {
-        List <CategoryDTO> dtos = mapper.selectByIdOrParentIds(idOrParentIds);
-        return buildTree(dtos, 0);
+        List <CategoryInfo> list = mapper.selectByIdOrParentIds(idOrParentIds);
+        return buildTree(list, 0);
     }
 
     /**
      * 给分类重新排序，序号从1开始
      */
-    public void sortCategory(List <Integer> categoryIds,Integer parentId)
+    public void sortCategory(List <Integer> categoryIds, Integer parentId)
     {
         AtomicInteger count = new AtomicInteger(0);
         List <CategoryInfo> list = categoryIds.stream().map(id ->
@@ -83,6 +87,7 @@ public class CategoryService
                                                                 return categoryInfo;
                                                             }).toList();
         mapper.updateSort(list);
+        drawBack2Redis(); //刷新缓存
     }
 
     /**
@@ -218,17 +223,30 @@ public class CategoryService
      * @param parentId 从哪个parentId开始
      * @return 转换为树形结构的列表
      */
-    private List <CategoryDTO> buildTree(List <CategoryDTO> list, int parentId)
+    private List <CategoryInfo> buildTree(List <CategoryInfo> list, int parentId)
     {
-        List <CategoryDTO> children = new ArrayList <>();
-        for (CategoryDTO categoryDTO : list)
+        List <CategoryInfo> children = new ArrayList <>();
+        for (CategoryInfo categoryInfo : list)
         {
-            if (categoryDTO.getPCategoryId().equals(parentId))
+            if (categoryInfo.getPCategoryId().equals(parentId))
             {
-                categoryDTO.setChildren(buildTree(list, categoryDTO.getCategoryId()));
-                children.add(categoryDTO);
+                categoryInfo.setChildren(buildTree(list, categoryInfo.getCategoryId()));
+                children.add(categoryInfo);
             }
         }
         return children;
+    }
+
+    /**
+     * 从MySQL查询所有分类数据<br/>
+     * 将所有数据回写至Redis中
+     */
+    private void drawBack2Redis()
+    {
+        CategoryInfoQuery param = new CategoryInfoQuery();
+        param.setOrderBy("sort asc");
+        List <CategoryInfo> list = mapper.selectList(param);
+        List <CategoryInfo> treeList = buildTree(list, 0);
+        redisTemplate.opsForValue().set(Constants.REDIS_CATEGORIES_INFO_KEY, treeList);
     }
 }

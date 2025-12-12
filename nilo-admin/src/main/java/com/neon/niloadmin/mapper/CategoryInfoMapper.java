@@ -1,6 +1,5 @@
 package com.neon.niloadmin.mapper;
 
-import com.neon.nilocommon.entity.dto.CategoryDTO;
 import com.neon.nilocommon.entity.po.CategoryInfo;
 import org.apache.ibatis.annotations.Param;
 
@@ -21,7 +20,7 @@ public interface CategoryInfoMapper<T, P> extends BaseMapper <T, P>
 
     Integer deleteByPCategoryId(@Param("parentId") Integer parentId);
 
-    List <CategoryDTO> selectByIdOrParentIds(@Param("idOrParentIds") List<Integer> idOrParentIds);
+    List <CategoryInfo> selectByIdOrParentIds(@Param("idOrParentIds") List<Integer> idOrParentIds);
 
     void updateSort(@Param("categories") List <CategoryInfo> categories);
 

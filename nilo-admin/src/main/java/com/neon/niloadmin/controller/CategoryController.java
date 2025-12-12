@@ -1,8 +1,6 @@
 package com.neon.niloadmin.controller;
 
-import cn.hutool.core.bean.BeanUtil;
 import com.neon.niloadmin.service.CategoryService;
-import com.neon.nilocommon.entity.dto.CategoryDTO;
 import com.neon.nilocommon.entity.po.CategoryInfo;
 import com.neon.nilocommon.entity.query.CategoryInfoQuery;
 import com.neon.nilocommon.entity.vo.ResponseVO;
@@ -29,14 +27,10 @@ public class CategoryController
      */
     @Operation(summary = "分页获取分类", description = "如果你想不分层地查询分类，你可以使用这个方法")
     @PostMapping("/categories") //分页查询应该用POST
-    public ResponseVO <List <CategoryDTO>> getCategories(@RequestBody @Valid @NotNull CategoryInfoQuery query)
+    public ResponseVO <List <CategoryInfo>> getCategories(@RequestBody @Valid @NotNull CategoryInfoQuery query)
     {
         query.setOrderBy("sort asc");
-        List <CategoryDTO> dtoList = service.findListByPage(query)
-                                            .getList()
-                                            .stream()
-                                            .map(categoryInfo -> BeanUtil.copyProperties(categoryInfo, CategoryDTO.class))
-                                            .toList();
+        List <CategoryInfo> dtoList = service.findListByPage(query).getList();
         return ResponseVO.success(dtoList);
     }
 
@@ -48,7 +42,7 @@ public class CategoryController
      */
     @Operation(summary = "分层获取分类", description = "如果你想获取指定分类和其子分类，则可以使用方法")
     @GetMapping(path = "/categories")
-    public ResponseVO <List <CategoryDTO>> getCategoriesWithChildren(
+    public ResponseVO <List <CategoryInfo>> getCategoriesWithChildren(
             @Parameter(name = "parentIds", description = "所有要获取的分类id") @RequestParam(name = "parentIds") @NotNull
             List <Integer> parentIds)
     {
@@ -62,10 +56,10 @@ public class CategoryController
      */
     @Operation(summary = "增加或修改分类", description = "如果要修改分类，必须指定id")
     @PutMapping(path = "/category")
-    public ResponseVO <Integer> saveCategory(@RequestBody @Valid @NotNull CategoryDTO categoryDTO)
+    public ResponseVO <Object> saveCategory(@RequestBody @Valid @NotNull CategoryInfo categoryInfo)
     {
-        CategoryInfo categoryInfo = BeanUtil.copyProperties(categoryDTO, CategoryInfo.class);
-        return ResponseVO.success(service.saveCategory(categoryInfo));
+        service.saveCategory(categoryInfo);
+        return ResponseVO.success(null);
     }
 
     /**

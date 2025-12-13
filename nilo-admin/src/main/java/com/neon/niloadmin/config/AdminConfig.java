@@ -17,4 +17,7 @@ public class AdminConfig
 
     @Value("${project.folder}")
     private String rootFilePath;
+
+    @Value("${log.command}")
+    private boolean showCommandLogs;
 }

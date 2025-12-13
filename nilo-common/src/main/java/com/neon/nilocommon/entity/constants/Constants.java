@@ -19,13 +19,21 @@ public class Constants
     // redis中保存分类信息的键名
     public static final String REDIS_CATEGORIES_INFO_KEY = REDIS_KEY_PREFIX + "categories_info:";
 
-    public static final String FILE_FOLDER_NAME = "/file";
+    public static final String FILE_FOLDER_NAME = "file";
 
-    public static final String COVER_FOLDER_NAME = "/cover";
+    public static final String COVER_FOLDER_NAME = "cover";
 
-    public static final String VIDEO_FOLDER_NAME = "/video";
+    public static final String VIDEO_FOLDER_NAME = "video";
 
-    public static final String TMP_FOLDER_NAME = "/tmp";
+    public static final String TMP_FOLDER_NAME = "tmp";
+
+    // 缩略图前缀
+    public static final String THUMBNAIL_SUFFIX = "_thumb";
+
+    // 路径最大长度
+    public static final int MAX_PATH_LENGTH = 4096;
+    // 文件名最大长度
+    public static final int MAX_FILENAME_LENGTH = 255;
 
     // 密码的正则表达式，要求：
     // 8–20 位

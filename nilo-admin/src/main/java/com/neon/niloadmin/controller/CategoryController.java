@@ -22,6 +22,8 @@ public class CategoryController
 {
     private final CategoryService service;
 
+    // TODO 利用缓存，设计一个获取全部分类接口
+
     /**
      * 根据条件分页查询
      */
@@ -48,7 +50,6 @@ public class CategoryController
     {
         return ResponseVO.success(service.findListWithChildren(parentIds));
     }
-
 
     /**
      * 保存一个分类<hr/>

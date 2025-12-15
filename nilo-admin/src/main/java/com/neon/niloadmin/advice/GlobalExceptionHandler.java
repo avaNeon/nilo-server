@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSourceResolvable;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.validation.BindException;
@@ -62,7 +63,7 @@ public class GlobalExceptionHandler
     /**
      * DTO参数不合法异常处理
      */
-    @ExceptionHandler({MethodArgumentNotValidException.class,HandlerMethodValidationException.class})
+    @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseVO <Object> handleDTOInvalidException(MethodArgumentNotValidException e, HttpServletRequest request)
     {
         log.error("请求错误，请求地址{},错误信息:", request.getRequestURL(), e);
@@ -93,6 +94,25 @@ public class GlobalExceptionHandler
         response.setStatus(STATUS_ERROR);
         // 将我们在校验注解中设置的message放到response的data中，显示给前端
         List <String> messageList = e.getConstraintViolations().stream().map(ConstraintViolation::getMessage).toList();
+        response.setData(messageList);
+        return response;
+    }
+
+    /**
+     * Springboot3 方法参数校验失败
+     */
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseVO <Object> handleHandlerMethodValidation(HandlerMethodValidationException e, HttpServletRequest request)
+    {
+        log.error("方法参数校验失败，请求地址 {}, 错误信息:", request.getRequestURL(), e);
+
+        // e.getAllErrors() 直接拿到 List<? extends MessageSourceResolvable>
+        List <String> messageList = e.getAllErrors().stream().map(MessageSourceResolvable::getDefaultMessage).toList();
+
+        ResponseVO <Object> response = new ResponseVO <>();
+        response.setCode(ResponseCode.INVALID_ARGUMENTS.getCode());
+        response.setInfo(ResponseCode.INVALID_ARGUMENTS.getMsg());
+        response.setStatus(STATUS_ERROR);
         response.setData(messageList);
         return response;
     }

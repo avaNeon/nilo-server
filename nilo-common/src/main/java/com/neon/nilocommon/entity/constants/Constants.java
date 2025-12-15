@@ -17,7 +17,7 @@ public class Constants
     public static final String COOKIE_TOKEN_ADMIN_KEY = "token_admin";
 
     // redis中保存分类信息的键名
-    public static final String REDIS_CATEGORIES_INFO_KEY = REDIS_KEY_PREFIX + "categories_info:";
+    public static final String REDIS_CATEGORIES_INFO_KEY = REDIS_KEY_PREFIX + "category:info";
 
     public static final String FILE_FOLDER_NAME = "file";
 
@@ -26,6 +26,8 @@ public class Constants
     public static final String VIDEO_FOLDER_NAME = "video";
 
     public static final String TMP_FOLDER_NAME = "tmp";
+
+    public static final String REDIS_CATEGORY_UPDATE_LOCK = REDIS_KEY_PREFIX + "category:update:lock";
 
     // 缩略图前缀
     public static final String THUMBNAIL_SUFFIX = "_thumb";

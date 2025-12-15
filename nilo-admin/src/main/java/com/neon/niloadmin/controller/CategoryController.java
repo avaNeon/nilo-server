@@ -22,14 +22,13 @@ public class CategoryController
 {
     private final CategoryService service;
 
-    // TODO 利用缓存，设计一个获取全部分类接口
-
     /**
-     * 根据条件分页查询
+     * 根据条件分页查询<hr/>
+     * 结果平铺
      */
     @Operation(summary = "分页获取分类", description = "如果你想不分层地查询分类，你可以使用这个方法")
     @PostMapping("/categories") //分页查询应该用POST
-    public ResponseVO <List <CategoryInfo>> getCategories(@RequestBody @Valid @NotNull CategoryInfoQuery query)
+    public ResponseVO <List <CategoryInfo>> getCategories(@RequestBody @NotNull CategoryInfoQuery query)
     {
         query.setOrderBy("sort asc");
         List <CategoryInfo> dtoList = service.findListByPage(query).getList();
@@ -49,6 +48,18 @@ public class CategoryController
             List <Integer> parentIds)
     {
         return ResponseVO.success(service.findListWithChildren(parentIds));
+    }
+
+    /**
+     * 获取所有分类及其子分类（只能获取下面一层）
+     *
+     * @return 指定分类及其子分类
+     */
+    @Operation(summary = "分层获取所有分类")
+    @GetMapping(path = "/categories/all")
+    public ResponseVO <List <CategoryInfo>> getAllCategoriesWithChildren()
+    {
+        return ResponseVO.success(service.findAllWithChildren());
     }
 
     /**

@@ -2,26 +2,33 @@ package com.neon.niloadmin.service;
 
 
 import com.neon.niloadmin.mapper.CategoryInfoMapper;
-import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.enums.PageSize;
 import com.neon.nilocommon.entity.po.CategoryInfo;
 import com.neon.nilocommon.entity.query.CategoryInfoQuery;
 import com.neon.nilocommon.entity.query.PageCalculator;
 import com.neon.nilocommon.entity.vo.PaginationResponseVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.nilocommon.util.RedisQueryUtil;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static com.neon.nilocommon.entity.constants.Constants.REDIS_CATEGORIES_INFO_KEY;
+import static com.neon.nilocommon.entity.constants.Constants.REDIS_CATEGORY_UPDATE_LOCK;
 
 
 /**
  * 分类信息 业务接口实现
  */
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class CategoryService
@@ -30,6 +37,94 @@ public class CategoryService
     private final CategoryInfoMapper <CategoryInfo, CategoryInfoQuery> mapper;
 
     private final RedisTemplate <String, Object> redisTemplate;
+
+    private final RedissonClient redisson;
+
+    /**
+     * 分页查询方法
+     */
+    public PaginationResponseVO <CategoryInfo> findListByPage(CategoryInfoQuery param)
+    {
+        checkCache();
+        if (redisTemplate.hasKey(REDIS_CATEGORIES_INFO_KEY)) // Redis
+        {
+            List <CategoryInfo> categoryList = (ArrayList <CategoryInfo>) redisTemplate.opsForValue().get(REDIS_CATEGORIES_INFO_KEY);
+            // 1. 先过滤和排序
+            categoryList = RedisQueryUtil.filterAndSort(categoryList, param, CategoryInfo.class);
+
+            // 2. 计算过滤后的总数
+            int count = categoryList.size();
+            int pageSize = param.getPageSize() == null ? PageSize.SIZE15.getSize() : param.getPageSize();
+            PageCalculator page = new PageCalculator(param.getPageNo(), count, pageSize);
+            // 3. 最后分页
+            if (count > 0)
+            {
+                int fromIndex = page.getStart();
+                int toIndex = Math.min(page.getStart() + page.getSize(), count);
+                categoryList = categoryList.subList(fromIndex, toIndex);
+            }
+            else
+            {
+                categoryList = Collections.emptyList();
+            }
+
+            return new PaginationResponseVO <>(count, page.getPageSize(), page.getPageNo(), page.getPageTotal(), categoryList);
+        }
+        else // MySQL
+        {
+            int count = this.findCountByParam(param);
+            int pageSize = param.getPageSize() == null ? PageSize.SIZE15.getSize() : param.getPageSize();
+            PageCalculator page = new PageCalculator(param.getPageNo(), count, pageSize);
+            param.setPageCalculator(page);
+            List <CategoryInfo> list = this.findListByParam(param);
+            return new PaginationResponseVO <>(count, page.getPageSize(), page.getPageNo(), page.getPageTotal(), list);
+        }
+    }
+
+    /**
+     * 根据条件查询列表，分类下一级的子分类会被加入children属性中
+     */
+    public List <CategoryInfo> findListWithChildren(List <Integer> idOrParentIds)
+    {
+        checkCache();
+        List <CategoryInfo> list;
+        if (redisTemplate.hasKey(REDIS_CATEGORIES_INFO_KEY))
+        {
+            list = (ArrayList <CategoryInfo>) redisTemplate.opsForValue().get(REDIS_CATEGORIES_INFO_KEY);
+            if (list == null) return new ArrayList <>();
+            Set <Integer> set = new HashSet <>(idOrParentIds);
+            list.removeIf(categoryInfo ->
+                          {
+                              Integer id = categoryInfo.getCategoryId();
+                              Integer pId = categoryInfo.getPCategoryId();
+                              return !(id != null && set.contains(id)) && !(pId != null && set.contains(pId));
+                          });
+        }
+        else
+        {
+            list = mapper.selectByIdOrParentIds(idOrParentIds);
+        }
+        return buildTree(list, 0);
+    }
+
+    /**
+     * 查询所有分类，分类下一级的子分类会被加入children属性中
+     */
+    public List <CategoryInfo> findAllWithChildren()
+    {
+        checkCache();
+        List <CategoryInfo> list;
+        if (redisTemplate.hasKey(REDIS_CATEGORIES_INFO_KEY))
+        {
+            list = (ArrayList <CategoryInfo>) redisTemplate.opsForValue().get(REDIS_CATEGORIES_INFO_KEY);
+            if (list == null) return new ArrayList <>();
+        }
+        else
+        {
+            list = mapper.selectList(new CategoryInfoQuery());
+        }
+        return buildTree(list, 0);
+    }
 
     /**
      * 保存分类信息
@@ -50,7 +145,7 @@ public class CategoryService
         categoryInfo.setSort(maxSort + 1);
         if (existedInfo == null) mapper.insert(categoryInfo);
         else mapper.updateByCategoryId(categoryInfo, existedInfo.getCategoryId());
-        drawBack2Redis(); // 刷新缓存
+        redisTemplate.delete(REDIS_CATEGORIES_INFO_KEY);
     }
 
     /**
@@ -60,16 +155,7 @@ public class CategoryService
     {
         mapper.deleteByCategoryId(categoryId);
         mapper.deleteByPCategoryId(categoryId);
-        drawBack2Redis(); // 刷新缓存
-    }
-
-    /**
-     * 根据条件查询列表，分类下一级的子分类会被加入children属性中
-     */
-    public List <CategoryInfo> findListWithChildren(List <Integer> idOrParentIds)
-    {
-        List <CategoryInfo> list = mapper.selectByIdOrParentIds(idOrParentIds);
-        return buildTree(list, 0);
+        redisTemplate.delete(REDIS_CATEGORIES_INFO_KEY);
     }
 
     /**
@@ -87,7 +173,7 @@ public class CategoryService
                                                                 return categoryInfo;
                                                             }).toList();
         mapper.updateSort(list);
-        drawBack2Redis(); //刷新缓存
+        redisTemplate.delete(REDIS_CATEGORIES_INFO_KEY);
     }
 
     /**
@@ -104,20 +190,6 @@ public class CategoryService
     public Integer findCountByParam(CategoryInfoQuery param)
     {
         return this.mapper.selectCount(param);
-    }
-
-    /**
-     * 分页查询方法
-     */
-    public PaginationResponseVO <CategoryInfo> findListByPage(CategoryInfoQuery param)
-    {
-        int count = this.findCountByParam(param);
-        int pageSize = param.getPageSize() == null ? PageSize.SIZE15.getSize() : param.getPageSize();
-
-        PageCalculator page = new PageCalculator(param.getPageNo(), count, pageSize);
-        param.setPageCalculator(page);
-        List <CategoryInfo> list = this.findListByParam(param);
-        return new PaginationResponseVO <>(count, page.getPageSize(), page.getPageNo(), page.getPageTotal(), list);
     }
 
     /**
@@ -238,15 +310,44 @@ public class CategoryService
     }
 
     /**
-     * 从MySQL查询所有分类数据<br/>
-     * 将所有数据回写至Redis中
+     * 检查缓存中是否有分类缓存
      */
-    private void drawBack2Redis()
+    private void checkCache()
     {
-        CategoryInfoQuery param = new CategoryInfoQuery();
-        param.setOrderBy("sort asc");
-        List <CategoryInfo> list = mapper.selectList(param);
-        List <CategoryInfo> treeList = buildTree(list, 0);
-        redisTemplate.opsForValue().set(Constants.REDIS_CATEGORIES_INFO_KEY, treeList);
+        if (!redisTemplate.hasKey(REDIS_CATEGORIES_INFO_KEY))
+        {
+            RLock lock = redisson.getLock(REDIS_CATEGORY_UPDATE_LOCK);
+            boolean locked = false;
+            try
+            {
+                locked = lock.tryLock(5, 20, TimeUnit.SECONDS);
+                if (locked && !redisTemplate.hasKey(REDIS_CATEGORIES_INFO_KEY)) // 抢到锁了，进行第二次检查
+                {
+                    CategoryInfoQuery param = new CategoryInfoQuery();
+                    param.setOrderBy("sort asc");
+                    List <CategoryInfo> list = mapper.selectList(param);
+                    redisTemplate.opsForValue().set(REDIS_CATEGORIES_INFO_KEY, list);
+                }
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException(e);
+            }
+            finally
+            {
+                if (locked)
+                {
+                    if (lock.isHeldByCurrentThread())
+                    {
+                        lock.unlock();
+                    }
+                    else
+                    {
+                        log.warn("RLock在业务完成前释放");
+                    }
+                }
+            }
+        }
     }
+
 }

@@ -1,7 +1,6 @@
 package com.neon.nilocommon.entity.query;
 
 
-import com.neon.nilocommon.entity.annotation.BlankRestriction;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.Setter;
@@ -12,7 +11,6 @@ import lombok.Setter;
 @Schema(description = "分类信息分页查询")
 @Setter
 @Getter
-@BlankRestriction
 public class CategoryInfoQuery extends BaseQuery
 {
     @Schema(description = "自增分类ID")

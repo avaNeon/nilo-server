@@ -9,7 +9,6 @@ import com.neon.nilocommon.entity.query.PageCalculator;
 import com.neon.nilocommon.entity.vo.PaginationResponseVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.RedisQueryUtil;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -198,94 +197,6 @@ public class CategoryService
     public Integer add(CategoryInfo bean)
     {
         return this.mapper.insert(bean);
-    }
-
-    /**
-     * 批量新增
-     */
-    public Integer addBatch(List <CategoryInfo> listBean)
-    {
-        if (listBean == null || listBean.isEmpty())
-        {
-            return 0;
-        }
-        return this.mapper.insertBatch(listBean);
-    }
-
-    /**
-     * 批量新增或者修改
-     */
-    public Integer addOrUpdateBatch(List <CategoryInfo> listBean)
-    {
-        if (listBean == null || listBean.isEmpty())
-        {
-            return 0;
-        }
-        return this.mapper.insertOrUpdateBatch(listBean);
-    }
-
-    /**
-     * 多条件更新
-     */
-    public Integer updateByParam(CategoryInfo bean, @Valid CategoryInfoQuery param)
-    {
-        return this.mapper.updateByParam(bean, param);
-    }
-
-    /**
-     * 多条件删除
-     */
-    public Integer deleteByParam(@Valid CategoryInfoQuery param)
-    {
-        return this.mapper.deleteByParam(param);
-    }
-
-    /**
-     * 根据CategoryId获取对象
-     */
-    public CategoryInfo getCategoryInfoByCategoryId(Integer categoryId)
-    {
-        return this.mapper.selectByCategoryId(categoryId);
-    }
-
-    /**
-     * 根据CategoryId修改
-     */
-    public Integer updateCategoryInfoByCategoryId(CategoryInfo bean, Integer categoryId)
-    {
-        return this.mapper.updateByCategoryId(bean, categoryId);
-    }
-
-    /**
-     * 根据CategoryId删除
-     */
-    public Integer deleteCategoryInfoByCategoryId(Integer categoryId)
-    {
-        return this.mapper.deleteByCategoryId(categoryId);
-    }
-
-    /**
-     * 根据CategoryNumber获取对象
-     */
-    public CategoryInfo getCategoryInfoByCategoryNumber(String categoryNumber)
-    {
-        return this.mapper.selectByCategoryNumber(categoryNumber);
-    }
-
-    /**
-     * 根据CategoryNumber修改
-     */
-    public Integer updateCategoryInfoByCategoryNumber(CategoryInfo bean, String categoryNumber)
-    {
-        return this.mapper.updateByCategoryNumber(bean, categoryNumber);
-    }
-
-    /**
-     * 根据CategoryNumber删除
-     */
-    public Integer deleteCategoryInfoByCategoryNumber(String categoryNumber)
-    {
-        return this.mapper.deleteByCategoryNumber(categoryNumber);
     }
 
     /**

@@ -1,7 +1,6 @@
 package com.neon.niloweb.mapper;
 
 
-import com.neon.nilocommon.entity.query.BaseQuery;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
@@ -9,9 +8,9 @@ import java.util.List;
 /**
  * 基础通用CRUD接口
  * @param <T> 返回数据类型
- * @param <P> 传入参数类型（必须继承BaseQuery）
+ * @param <P> 传入参数类型
  */
-public interface BaseMapper<T, P extends BaseQuery>
+public interface BaseMapper<T, P>
 {
     /**
      * selectList:(根据参数查询集合)

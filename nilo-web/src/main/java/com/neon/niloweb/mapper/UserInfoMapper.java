@@ -13,17 +13,17 @@ public interface UserInfoMapper<T, P extends BaseQuery> extends BaseMapper <T, P
      * 根据UserId更新<hr/>
      * 所有的更新操作都只修改非空字段
      */
-    Integer updateByUserId(@Param("bean") T t, @Param("userId") String userId);
+    Integer updateByUserId(@Param("bean") T t, @Param("userId") Long userId);
 
     /**
      * 根据UserId删除
      */
-    Integer deleteByUserId(@Param("userId") String userId);
+    Integer deleteByUserId(@Param("userId") Long userId);
 
     /**
      * 根据UserId获取对象
      */
-    T selectByUserId(@Param("userId") String userId);
+    T selectByUserId(@Param("userId") Long userId);
 
     /**
      * 根据Email更新

@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @ToString
 public class UserInfo
 {
-    private String userId;
+    private Long userId;
 
     private String nickName;
 

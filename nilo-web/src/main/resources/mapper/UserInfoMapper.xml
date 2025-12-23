@@ -104,9 +104,6 @@
     <sql id="query_condition">
         <where>
             <include refid="base_condition_filed"/>
-            <if test="query.userIdFuzzy!= null  and query.userIdFuzzy!=''">
-                and u.user_id like concat('%', #{query.userIdFuzzy}, '%')
-            </if>
             <if test="query.nickNameFuzzy!= null  and query.nickNameFuzzy!=''">
                 and u.nick_name like concat('%', #{query.nickNameFuzzy}, '%')
             </if>

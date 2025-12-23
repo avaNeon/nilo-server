@@ -19,9 +19,7 @@ public class UserInfoQuery extends BaseQuery
     /**
      * 用户id
      */
-    private String userId;
-
-    private String userIdFuzzy;
+    private Long userId;
 
     /**
      * 昵称

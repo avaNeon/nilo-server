@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * 基础通用CRUD接口
  * @param <T> 返回数据类型
- * @param <P> 传入参数类型
+ * @param <P> 传入参数类型——必须要继承BaseQuery
  */
 public interface BaseMapper<T, P>
 {

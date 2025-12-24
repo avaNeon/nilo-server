@@ -23,9 +23,7 @@ public class VideoInfoFileUploadQuery extends BaseQuery
     /**
      * 上传ID
      */
-    private String uploadId;
-
-    private String uploadIdFuzzy;
+    private Long uploadId;
 
     /**
      * 用户ID

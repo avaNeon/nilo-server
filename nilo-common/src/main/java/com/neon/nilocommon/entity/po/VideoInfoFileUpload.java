@@ -3,8 +3,6 @@ package com.neon.nilocommon.entity.po;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.io.Serializable;
-
 
 /**
  * 视频文件信息
@@ -21,7 +19,7 @@ public class VideoInfoFileUpload
     /**
      * 上传ID
      */
-    private String uploadId;
+    private Long uploadId;
 
     /**
      * 用户ID

@@ -9,7 +9,7 @@ import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.ServletUtil;
-import com.neon.niloweb.service.UserInfoService;
+import com.neon.niloweb.service.AccountService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,7 +34,7 @@ import java.util.concurrent.TimeUnit;
 @RequestMapping("/account")
 public class AccountController
 {
-    private final UserInfoService userInfoService;
+    private final AccountService accountService;
 
     private final RedisCaptcha redisCaptcha;
 
@@ -76,7 +76,7 @@ public class AccountController
         try
         {
             if (!redisCaptcha.verifyCaptchaCode(captchaKey, code)) throw new BusinessException(ResponseCode.CAPTCHA_FAILED);
-            userInfoService.register(email, nickName, password);
+            accountService.register(email, nickName, password);
         }
         finally
         {
@@ -107,7 +107,7 @@ public class AccountController
             if (!redisCaptcha.verifyCaptchaCode(captchaKey, code)) throw new BusinessException(ResponseCode.CAPTCHA_FAILED);
             String clientIp = ServletUtil.getClientIp(request);
             // TODO 头像、粉丝数、关注数（或许还有硬币数）还没有设置
-            TokenUserInfo tokenUserInfo = userInfoService.login(email, password, clientIp);
+            TokenUserInfo tokenUserInfo = accountService.login(email, password, clientIp);
             ServletUtil.removeCookie(request, response, Constants.COOKIE_TOKEN_ADMIN_KEY);
             ServletUtil.setCookie(response, Constants.COOKIE_TOKEN_WEB_KEY, tokenUserInfo.getToken(), 7, TimeUnit.DAYS);
             return ResponseVO.success(tokenUserInfo);
@@ -122,7 +122,7 @@ public class AccountController
     @GetMapping(path = "/autoLogin")
     public ResponseVO <Object> autoLogin(@RequestHeader(name = "token") String token)
     {
-        return ResponseVO.success(userInfoService.autoLogin(token));
+        return ResponseVO.success(accountService.autoLogin(token));
     }
 
     @Operation(summary = "登出接口", description = "检验token，如果token有效，则从redis和cookie中删除token")
@@ -132,7 +132,7 @@ public class AccountController
                                        @RequestHeader(name = "token") String token)
     {
         ServletUtil.removeCookie(request, response, Constants.COOKIE_TOKEN_WEB_KEY);
-        return ResponseVO.success(userInfoService.logout(token));
+        return ResponseVO.success(accountService.logout(token));
     }
 
 }

@@ -80,9 +80,6 @@
             <if test="query.fileIdFuzzy!= null  and query.fileIdFuzzy!=''">
                 and v.file_id like concat('%', #{query.fileIdFuzzy}, '%')
             </if>
-            <if test="query.uploadIdFuzzy!= null  and query.uploadIdFuzzy!=''">
-                and v.upload_id like concat('%', #{query.uploadIdFuzzy}, '%')
-            </if>
             <if test="query.fileNameFuzzy!= null  and query.fileNameFuzzy!=''">
                 and v.file_name like concat('%', #{query.fileNameFuzzy}, '%')
             </if>

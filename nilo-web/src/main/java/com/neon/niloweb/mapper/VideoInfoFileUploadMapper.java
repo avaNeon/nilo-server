@@ -1,6 +1,5 @@
 package com.neon.niloweb.mapper;
 
-import com.neon.nilocommon.entity.query.BaseQuery;
 import org.apache.ibatis.annotations.Param;
 
 /**
@@ -30,19 +29,19 @@ public interface VideoInfoFileUploadMapper<T, P > extends BaseMapper <T, P>
     /**
      * 根据UploadIdAndUserId更新
      */
-    Integer updateByUploadIdAndUserId(@Param("bean") T t, @Param("uploadId") String uploadId, @Param("userId") Long userId);
+    Integer updateByUploadIdAndUserId(@Param("bean") T t, @Param("uploadId") Long uploadId, @Param("userId") Long userId);
 
 
     /**
      * 根据UploadIdAndUserId删除
      */
-    Integer deleteByUploadIdAndUserId(@Param("uploadId") String uploadId, @Param("userId") Long userId);
+    Integer deleteByUploadIdAndUserId(@Param("uploadId") Long uploadId, @Param("userId") Long userId);
 
 
     /**
      * 根据UploadIdAndUserId获取对象
      */
-    T selectByUploadIdAndUserId(@Param("uploadId") String uploadId, @Param("userId") Long userId);
+    T selectByUploadIdAndUserId(@Param("uploadId") Long uploadId, @Param("userId") Long userId);
 
 
 }

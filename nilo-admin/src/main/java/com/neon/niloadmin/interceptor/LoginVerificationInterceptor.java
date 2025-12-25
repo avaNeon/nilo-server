@@ -1,6 +1,7 @@
 package com.neon.niloadmin.interceptor;
 
 import com.neon.nilocommon.entity.constants.Constants;
+import com.neon.nilocommon.entity.constants.RedisKey;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.ServletUtil;
@@ -38,13 +39,13 @@ public class LoginVerificationInterceptor implements HandlerInterceptor
         if (request.getRequestURI().contains(DOC_URI)) return true;
 
         // 获取
-        String token = request.getHeader(Constants.COOKIE_TOKEN_ADMIN_KEY);
+        String token = request.getHeader(Constants.ADMIN_COOKIE_TOKEN_KEY);
         // 包含“/file”时，token不会从请求头传递
         if (request.getRequestURI().contains(FILE_URI)) token = ServletUtil.getFromCookie(request, FILE_URI);
 
         // 校验
         if (token == null || token.isBlank()) throw new BusinessException(ResponseCode.NOT_LOGIN);
-        if (redisTemplate.opsForValue().get(Constants.REDIS_TOKEN_ADMIN_PREFIX + token) == null)
+        if (redisTemplate.opsForValue().get(RedisKey.ADMIN_TOKEN_PREFIX + token) == null)
             throw new BusinessException(ResponseCode.NOT_LOGIN);
 
         return true;

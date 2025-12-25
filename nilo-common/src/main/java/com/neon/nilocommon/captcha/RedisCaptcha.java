@@ -1,6 +1,6 @@
 package com.neon.nilocommon.captcha;
 
-import com.neon.nilocommon.entity.constants.Constants;
+import com.neon.nilocommon.entity.constants.RedisKey;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 
@@ -22,7 +22,7 @@ public class RedisCaptcha
     public String saveCaptchaCode(String code)
     {
         String captchaKey = UUID.randomUUID().toString();
-        redisTemplate.opsForValue().set(Constants.REDIS_KEY_CAPTCHA + captchaKey, code, 3, TimeUnit.MINUTES);
+        redisTemplate.opsForValue().set(RedisKey.CAPTCHA_PREFIX + captchaKey, code, 3, TimeUnit.MINUTES);
         return captchaKey;
     }
 
@@ -35,7 +35,7 @@ public class RedisCaptcha
      */
     public boolean verifyCaptchaCode(String captchaKey, String code)
     {
-        String trueCode = Objects.requireNonNull(redisTemplate.opsForValue().get(Constants.REDIS_KEY_CAPTCHA + captchaKey)).toString();
+        String trueCode = Objects.requireNonNull(redisTemplate.opsForValue().get(RedisKey.CAPTCHA_PREFIX + captchaKey)).toString();
         return trueCode != null && trueCode.equals(code);
     }
 
@@ -46,6 +46,6 @@ public class RedisCaptcha
      */
     public Boolean deleteCaptcha(String captchaKey)
     {
-        return redisTemplate.delete(Constants.REDIS_KEY_CAPTCHA + captchaKey);
+        return redisTemplate.delete(RedisKey.CAPTCHA_PREFIX + captchaKey);
     }
 }

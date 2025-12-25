@@ -2,7 +2,7 @@ package com.neon.niloadmin.service;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.neon.niloadmin.config.AdminConfig;
-import com.neon.nilocommon.entity.constants.Constants;
+import com.neon.nilocommon.entity.constants.RedisKey;
 import com.neon.nilocommon.entity.dto.TokenAdmin;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.po.Admin;
@@ -50,13 +50,13 @@ public class AdminService
      */
     public TokenAdmin autoLogin(String token)
     {
-        TokenAdmin tokenAdmin = (TokenAdmin) redisTemplate.opsForValue().get(Constants.REDIS_TOKEN_ADMIN_PREFIX + token);
+        TokenAdmin tokenAdmin = (TokenAdmin) redisTemplate.opsForValue().get(RedisKey.ADMIN_TOKEN_PREFIX + token);
         if (tokenAdmin == null) return null;
             // 如果过期时间小于1天，则自动延长至7天
         else if (tokenAdmin.getExpireTime() - System.currentTimeMillis() < TimeUnit.DAYS.toMillis(1))
         {
             tokenAdmin.setExpireTime(System.currentTimeMillis() + TimeUnit.DAYS.toMillis(7));
-            redisTemplate.opsForValue().set(Constants.REDIS_TOKEN_ADMIN_PREFIX + token, tokenAdmin, 7, TimeUnit.DAYS); // 延长时间至7天
+            redisTemplate.opsForValue().set(RedisKey.ADMIN_TOKEN_PREFIX + token, tokenAdmin, 7, TimeUnit.DAYS); // 延长时间至7天
         }
         return tokenAdmin;
     }
@@ -66,7 +66,7 @@ public class AdminService
      */
     public Boolean logout(String token)
     {
-        return redisTemplate.delete(Constants.REDIS_TOKEN_ADMIN_PREFIX + token);
+        return redisTemplate.delete(RedisKey.ADMIN_TOKEN_PREFIX + token);
     }
 
     /**
@@ -76,6 +76,6 @@ public class AdminService
     {
         String token = UUID.randomUUID().toString();
         admin.setToken(token);
-        redisTemplate.opsForValue().set(Constants.REDIS_TOKEN_ADMIN_PREFIX + token, admin, time, timeUnit);
+        redisTemplate.opsForValue().set(RedisKey.ADMIN_TOKEN_PREFIX + token, admin, time, timeUnit);
     }
 }

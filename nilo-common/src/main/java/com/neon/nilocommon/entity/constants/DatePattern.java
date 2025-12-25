@@ -5,4 +5,6 @@ public class DatePattern
     public static final String YYYYMM = "yyyyMM";
 
     public static final String DATETIME = "yyyy-MM-dd HH:mm:ss";
+
+    public static final String DATE = "yyyyMMdd";
 }

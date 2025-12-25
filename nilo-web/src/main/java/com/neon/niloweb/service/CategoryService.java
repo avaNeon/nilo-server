@@ -15,8 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static com.neon.nilocommon.entity.constants.Constants.REDIS_KEY_CATEGORIES_INFO;
-import static com.neon.nilocommon.entity.constants.Constants.REDIS_CATEGORY_UPDATE_LOCK;
+import static com.neon.nilocommon.entity.constants.RedisKey.CATEGORIES_INFO;
+import static com.neon.nilocommon.entity.constants.RedisKey.CATEGORY_UPDATE_LOCK;
 
 
 /**
@@ -41,9 +41,9 @@ public class CategoryService
     {
         checkCache();
         List <CategoryInfo> list;
-        if (redisTemplate.hasKey(REDIS_KEY_CATEGORIES_INFO))
+        if (redisTemplate.hasKey(CATEGORIES_INFO))
         {
-            list = (ArrayList <CategoryInfo>) redisTemplate.opsForValue().get(REDIS_KEY_CATEGORIES_INFO);
+            list = (ArrayList <CategoryInfo>) redisTemplate.opsForValue().get(CATEGORIES_INFO);
             if (list == null) return new ArrayList <>();
         }
         else
@@ -87,19 +87,19 @@ public class CategoryService
      */
     private void checkCache()
     {
-        if (!redisTemplate.hasKey(REDIS_KEY_CATEGORIES_INFO))
+        if (!redisTemplate.hasKey(CATEGORIES_INFO))
         {
-            RLock lock = redisson.getLock(REDIS_CATEGORY_UPDATE_LOCK);
+            RLock lock = redisson.getLock(CATEGORY_UPDATE_LOCK);
             boolean locked = false;
             try
             {
                 locked = lock.tryLock(5, 20, TimeUnit.SECONDS);
-                if (locked && !redisTemplate.hasKey(REDIS_KEY_CATEGORIES_INFO)) // 抢到锁了，进行第二次检查
+                if (locked && !redisTemplate.hasKey(CATEGORIES_INFO)) // 抢到锁了，进行第二次检查
                 {
                     CategoryInfoQuery param = new CategoryInfoQuery();
                     param.setOrderBy("sort asc");
                     List <CategoryInfo> list = mapper.selectList(param);
-                    redisTemplate.opsForValue().set(REDIS_KEY_CATEGORIES_INFO, list);
+                    redisTemplate.opsForValue().set(CATEGORIES_INFO, list);
                 }
             }
             catch (InterruptedException e)

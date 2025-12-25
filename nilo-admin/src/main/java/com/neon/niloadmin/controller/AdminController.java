@@ -74,8 +74,8 @@ public class AdminController
         {
             if (!redisCaptcha.verifyCaptchaCode(captchaKey, code)) throw new BusinessException(ResponseCode.CAPTCHA_FAILED);
             TokenAdmin tokenAdmin = service.login(account, password);
-            ServletUtil.removeCookie(request, response, Constants.COOKIE_TOKEN_ADMIN_KEY);
-            ServletUtil.setCookie(response, Constants.COOKIE_TOKEN_ADMIN_KEY, tokenAdmin.getToken(), -1, TimeUnit.DAYS);
+            ServletUtil.removeCookie(request, response, Constants.ADMIN_COOKIE_TOKEN_KEY);
+            ServletUtil.setCookie(response, Constants.ADMIN_COOKIE_TOKEN_KEY, tokenAdmin.getToken(), -1, TimeUnit.DAYS);
             return ResponseVO.success(tokenAdmin);
         }
         finally
@@ -107,7 +107,7 @@ public class AdminController
                                        @Parameter(hidden = true) HttpServletResponse response,
                                        @RequestHeader(name = "token") String token)
     {
-        ServletUtil.removeCookie(request, response, Constants.COOKIE_TOKEN_ADMIN_KEY);
+        ServletUtil.removeCookie(request, response, Constants.ADMIN_COOKIE_TOKEN_KEY);
         return ResponseVO.success(service.logout(token));
     }
 

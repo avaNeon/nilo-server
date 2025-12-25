@@ -2,7 +2,7 @@ package com.neon.niloweb.service;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.lang.Snowflake;
-import com.neon.nilocommon.entity.constants.Constants;
+import com.neon.nilocommon.entity.constants.RedisKey;
 import com.neon.nilocommon.entity.dto.TokenUserInfo;
 import com.neon.nilocommon.entity.enums.PageSize;
 import com.neon.nilocommon.entity.enums.ResponseCode;
@@ -89,13 +89,13 @@ public class AccountService
      */
     public TokenUserInfo autoLogin(String token)
     {
-        TokenUserInfo tokenUserInfo = (TokenUserInfo) redisTemplate.opsForValue().get(Constants.REDIS_TOKEN_WEB_PREFIX + token);
+        TokenUserInfo tokenUserInfo = (TokenUserInfo) redisTemplate.opsForValue().get(RedisKey.WEB_TOKEN_PREFIX + token);
         if (tokenUserInfo == null) return null;
             // 如果过期时间小于1天，则自动延长至7天
         else if (tokenUserInfo.getExpireTime() - System.currentTimeMillis() < TimeUnit.DAYS.toMillis(1))
         {
             tokenUserInfo.setExpireTime(System.currentTimeMillis() + TimeUnit.DAYS.toMillis(7));
-            redisTemplate.opsForValue().set(Constants.REDIS_TOKEN_WEB_PREFIX + token, tokenUserInfo, 7, TimeUnit.DAYS); // 延长时间至7天
+            redisTemplate.opsForValue().set(RedisKey.WEB_TOKEN_PREFIX + token, tokenUserInfo, 7, TimeUnit.DAYS); // 延长时间至7天
         }
         return tokenUserInfo;
     }
@@ -105,7 +105,7 @@ public class AccountService
      */
     public Boolean logout(String token)
     {
-        return redisTemplate.delete(Constants.REDIS_TOKEN_WEB_PREFIX + token);
+        return redisTemplate.delete(RedisKey.WEB_TOKEN_PREFIX + token);
     }
 
     /**
@@ -116,7 +116,7 @@ public class AccountService
         String token = UUID.randomUUID().toString();
         tokenUserInfo.setExpireTime(System.currentTimeMillis() + timeUnit.toMillis(time));
         tokenUserInfo.setToken(token);
-        redisTemplate.opsForValue().set(Constants.REDIS_TOKEN_WEB_PREFIX + token, tokenUserInfo, time, timeUnit);
+        redisTemplate.opsForValue().set(RedisKey.WEB_TOKEN_PREFIX + token, tokenUserInfo, time, timeUnit);
     }
 
     /**

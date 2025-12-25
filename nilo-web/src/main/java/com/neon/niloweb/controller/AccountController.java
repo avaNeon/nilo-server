@@ -108,8 +108,8 @@ public class AccountController
             String clientIp = ServletUtil.getClientIp(request);
             // TODO 头像、粉丝数、关注数（或许还有硬币数）还没有设置
             TokenUserInfo tokenUserInfo = accountService.login(email, password, clientIp);
-            ServletUtil.removeCookie(request, response, Constants.COOKIE_TOKEN_ADMIN_KEY);
-            ServletUtil.setCookie(response, Constants.COOKIE_TOKEN_WEB_KEY, tokenUserInfo.getToken(), 7, TimeUnit.DAYS);
+            ServletUtil.removeCookie(request, response, Constants.ADMIN_COOKIE_TOKEN_KEY);
+            ServletUtil.setCookie(response, Constants.WEB_COOKIE_TOKEN_KEY, tokenUserInfo.getToken(), 7, TimeUnit.DAYS);
             return ResponseVO.success(tokenUserInfo);
         }
         finally
@@ -131,7 +131,7 @@ public class AccountController
                                        @Parameter(hidden = true) HttpServletResponse response,
                                        @RequestHeader(name = "token") String token)
     {
-        ServletUtil.removeCookie(request, response, Constants.COOKIE_TOKEN_WEB_KEY);
+        ServletUtil.removeCookie(request, response, Constants.WEB_COOKIE_TOKEN_KEY);
         return ResponseVO.success(accountService.logout(token));
     }
 

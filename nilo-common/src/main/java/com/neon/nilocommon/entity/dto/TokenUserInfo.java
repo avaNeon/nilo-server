@@ -11,7 +11,7 @@ import lombok.ToString;
 @JsonIgnoreProperties(ignoreUnknown = true) // 反序列化时出现没有的字段直接忽略，防止报错
 public class TokenUserInfo
 {
-    private String userId;
+    private Long userId;
 
     private String nickName;
 

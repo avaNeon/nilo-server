@@ -23,7 +23,6 @@ public class FileController
 {
     private final FileService fileService;
 
-
     /**
      * 上传图片，可以选择是否生成缩略图
      */
@@ -38,7 +37,7 @@ public class FileController
     @Operation(summary = "获取图片")
     @GetMapping("/image")
     public ResponseVO <Object> downloadImage(@Parameter(hidden = true) HttpServletResponse response,
-                                           @RequestParam(name = "sourceName") @NotNull String sourceName)
+                                             @RequestParam(name = "sourceName") @NotNull String sourceName)
     {
         fileService.downloadImage(response, sourceName);
         return ResponseVO.success(null);

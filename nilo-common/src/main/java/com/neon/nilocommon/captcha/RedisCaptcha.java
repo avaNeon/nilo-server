@@ -8,6 +8,9 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Redis验证码相关操作
+ */
 @RequiredArgsConstructor
 public class RedisCaptcha
 {

@@ -1,0 +1,2 @@
+com.neon.nilocommon.autoconfigure.redisCaptcha.RedisCaptchaAutoConfiguration
+com.neon.nilocommon.autoconfigure.serialization.GlobalSerializationAutoConfiguration

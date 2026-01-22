@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RedissonConfig
 {
-    @Bean(destroyMethod = "shutdown")
+    @Bean(destroyMethod = "shutdown") // 这个属性能让容器关闭时自动调用这个实例的shutdown()方法，断开和redis的连接
     public RedissonClient redissonClient()
     {
         Config config = new Config();

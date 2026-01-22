@@ -10,6 +10,9 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class WebConfig
 {
+    /**
+     * 项目文件夹根目录
+     */
     @Value("${project.folder}")
     private String rootFilePath;
 

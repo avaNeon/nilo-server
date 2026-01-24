@@ -89,6 +89,7 @@ public class AccountController
      * 登录<hr/>
      * 登录成功后会返回新生成的一个token，并且删除cookie原来的登录token<br/>
      * 不过redis中这个token没有删除，因为我们也不知道token具体值是多少，不过它会自动过期
+     *
      * @return 将查询到的用户数据返回给前端
      */
     @Operation(summary = "登录接口", description = "检验登录信息和验证码")

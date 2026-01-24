@@ -41,31 +41,39 @@ public class FileController
     }
 
     @Operation(summary = "预上传视频")
-    @PostMapping("/preupload")
+    @PostMapping("/preUpload")
     public ResponseVO <Long> preUploadVideo(@NotEmpty @RequestParam(name = "filename") String filename,
                                             @NotNull @RequestParam(name = "chunkSize") Integer chunkSize,
                                             @RequestHeader(name = "token") String token)
     {
-        TokenUserInfo tokenUserInfo = (TokenUserInfo) redisTemplate.opsForValue().get(RedisKey.WEB_TOKEN_PREFIX + token);
-        // 如果还没登录，就返回“未登录”的业务异常
-        if (tokenUserInfo == null) throw new BusinessException(ResponseCode.NOT_LOGIN);
+        TokenUserInfo tokenUserInfo = getLoginState(token);
         Long uploadId = fileService.preUploadVideo(filename, chunkSize, tokenUserInfo);
         return ResponseVO.success(uploadId);
     }
 
     @Operation(summary = "上传视频")
-    @PostMapping("/video")
+    @PostMapping("/upload")
     public ResponseVO <Object> uploadVideo(@RequestParam(name = "chunkFile") @NotNull MultipartFile chunkFile,
                                            @RequestParam(name = "chunkIndex") @NotNull Integer chunkIndex,
                                            @RequestParam(name = "uploadId") @NotEmpty String uploadId,
                                            @RequestHeader(name = "token") String token)
     {
-        TokenUserInfo tokenUserInfo = (TokenUserInfo) redisTemplate.opsForValue().get(RedisKey.WEB_TOKEN_PREFIX + token);
-        // 如果还没登录，就返回“未登录”的业务异常（虽然很奇怪）
-        if (tokenUserInfo == null) throw new BusinessException(ResponseCode.NOT_LOGIN);
-
+        TokenUserInfo tokenUserInfo = getLoginState(token);
         Long userId = tokenUserInfo.getUserId();
         fileService.uploadVideo(chunkFile, chunkIndex, userId, uploadId);
         return ResponseVO.success(null);
+    }
+
+    /**
+     * 检查登录状态【暂时的策略】
+     * @param token 用户登录信息token
+     * @return 在Redis保存的TokenUserInfo对象
+     */
+    private TokenUserInfo getLoginState(String token)
+    {
+        TokenUserInfo tokenUserInfo = (TokenUserInfo) redisTemplate.opsForValue().get(RedisKey.WEB_TOKEN_PREFIX + token);
+        // 如果还没登录，就返回“未登录”的业务异常
+        if (tokenUserInfo == null) throw new BusinessException(ResponseCode.NOT_LOGIN);
+        else return tokenUserInfo;
     }
 }

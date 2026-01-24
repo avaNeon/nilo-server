@@ -6,7 +6,7 @@ import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.constants.DatePattern;
 import com.neon.nilocommon.entity.constants.RedisKey;
 import com.neon.nilocommon.entity.dto.TokenUserInfo;
-import com.neon.nilocommon.entity.dto.UploadingVideoFile;
+import com.neon.nilocommon.entity.dto.UploadingVideoFileDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.StringUtil;
@@ -57,22 +57,23 @@ public class FileService
      * @param fileName      文件名
      * @param chunkSize     （视频文件）分块大小
      * @param tokenUserInfo 用户信息DTO（带token）
+     * @return uploadId
      */
     public Long preUploadVideo(String fileName, Integer chunkSize, TokenUserInfo tokenUserInfo)
     {
-        UploadingVideoFile video = new UploadingVideoFile();
+        UploadingVideoFileDTO video = new UploadingVideoFileDTO();
         Long uploadId = snowflake.nextId();
         video.setUploadId(uploadId);
         video.setFileName(fileName);
         video.setChunkSize(chunkSize);
-        video.setChunkIndex(0);
-        String day = LocalDate.now().format(DateTimeFormatter.ofPattern(DatePattern.DATE)); // 使用Java8+的时间类生成指定格式的时间字符串
-        String filePath = day + "/" + tokenUserInfo.getUserId() + "/" + uploadId;
+        video.setChunkIndex(0); // 设置初始的chunkIndex
+        String date = LocalDate.now().format(DateTimeFormatter.ofPattern(DatePattern.DATE)); // 使用Java8+的时间类生成指定格式的时间字符串
+        String filePath = date + "/" + tokenUserInfo.getUserId() + "/" + uploadId;
         /*
          * 最终的文件层次是这样的：
          * file
          *   -tmp
-         *     -<日期>
+         *     -<date日期>
          *       -<用户id-1>
          *         -<uploadId-1.1>
          *         -<uploadId-1.2>
@@ -103,29 +104,29 @@ public class FileService
      */
     public void uploadVideo(MultipartFile chunkFile, Integer chunkIndex, Long userId, String uploadId)
     {
-        UploadingVideoFile videoFile = (UploadingVideoFile) redisTemplate.opsForValue()
-                                                                         .get(RedisKey.UPLOADING_VIDEO_PREFIX + userId + ":" + uploadId);
+        UploadingVideoFileDTO videoFileDTO = (UploadingVideoFileDTO) redisTemplate.opsForValue()
+                                                                                  .get(RedisKey.UPLOADING_VIDEO_PREFIX + userId + ":" + uploadId);
 
-        if (videoFile == null) throw new BusinessException("文件不存在，请重新上传");
+        if (videoFileDTO == null) throw new BusinessException("文件不存在，请重新上传");
         // 查看视频文件是否超过限制
-        if (videoFile.getFileSize() > systemConfig.getVideoSize() * Constants.Mebibyte)
+        if (videoFileDTO.getFileSize() > systemConfig.getVideoMaxSize() * Constants.Mebibyte)
         {
             throw new BusinessException("文件大小超过限制");
         }
         // 判断块号是否正确
-        if ((chunkIndex - 1) > videoFile.getChunkIndex() || chunkIndex > videoFile.getChunkSize())
+        if (((chunkIndex - 1) > videoFileDTO.getChunkIndex() || chunkIndex > videoFileDTO.getChunkSize()))
         {
             throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
         }
 
-        File targetFile = new File(videoFile.getFilePath() + "/" + chunkIndex);
+        File targetFile = new File(videoFileDTO.getFilePath() + "/" + chunkIndex);
         try
         {
             chunkFile.transferTo(targetFile);
-            videoFile.setChunkIndex(chunkIndex);
-            videoFile.addFileSize(chunkFile.getSize());
+            videoFileDTO.setChunkIndex(chunkIndex); // 更新了chunkIndex信息
+            videoFileDTO.addFileSize(chunkFile.getSize());
             // 更新Redis种存储的视频信息
-            redisTemplate.opsForValue().set(RedisKey.UPLOADING_VIDEO_PREFIX + userId + uploadId, videoFile, Duration.ofDays(1L));
+            redisTemplate.opsForValue().set(RedisKey.UPLOADING_VIDEO_PREFIX + userId + uploadId, videoFileDTO, Duration.ofDays(1L));
         }
         catch (IOException e)
         {

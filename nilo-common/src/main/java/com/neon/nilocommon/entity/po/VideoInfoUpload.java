@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
  */
 @Setter
 @Getter
-public class VideoInfoUpload implements Serializable
+public class VideoInfoUpload
 {
     /**
      * 视频ID

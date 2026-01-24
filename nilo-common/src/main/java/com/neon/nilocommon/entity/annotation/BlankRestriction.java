@@ -6,6 +6,9 @@ import jakarta.validation.Payload;
 
 import java.lang.annotation.*;
 
+/**
+ * 空白限制注解，标注了这个限制的类在前端传入时，不能所有属性都为空，至少有一个属性有值
+ */
 @Documented
 @Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)

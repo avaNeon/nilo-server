@@ -4,9 +4,9 @@ public class RedisKey
 {
 
     /**
-     * 项目名称
+     * 所有Redis Key的前缀
      */
-    public static final String REDIS_KEY_PREFIX = "nilo:";
+    private static final String REDIS_KEY_PREFIX = "nilo:";
 
     /**
      * 分类更新的分布式锁

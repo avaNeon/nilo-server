@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * Snowflake algorithm 配置类<hr/>
- * workerId和datacenterId都是手动配置，因为规模不大，后续可以使用nacos方便地修改<hr/>
+ * workerId和datacenterId都是写在配置文件中，因为规模不大，后续可以使用nacos方便地修改<hr/>
  * 如果集群过大，可以使用redis自动生成这两个id
  */
 @Slf4j

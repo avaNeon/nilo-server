@@ -4,6 +4,9 @@ package com.neon.nilocommon.entity.query;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
 /**
  * 视频信息参数
  */
@@ -39,20 +42,26 @@ public class VideoInfoUploadQuery extends BaseQuery
     /**
      * 创建时间
      */
-    private String createTime;
+    private LocalDateTime createTime;
 
-    private String createTimeStart;
+    /**
+     * 起始时间（精度：日）
+     */
+    private LocalDate createTimeStart;
 
-    private String createTimeEnd;
+    /**
+     * 截止时间（不包含，精度：日）
+     */
+    private LocalDate createTimeEnd;
 
     /**
      * 最后更新时间
      */
-    private String lastUpdateTime;
+    private LocalDateTime lastUpdateTime;
 
-    private String lastUpdateTimeStart;
+    private LocalDate lastUpdateTimeStart;
 
-    private String lastUpdateTimeEnd;
+    private LocalDate lastUpdateTimeEnd;
 
     /**
      * 父级分类ID

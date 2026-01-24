@@ -7,6 +7,9 @@ import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
 /**
  * {@link com.neon.nilocommon.entity.po.UserInfo}的查询类，可以实现属性模糊搜索的功能
  */
@@ -71,22 +74,16 @@ public class UserInfoQuery extends BaseQuery
     /**
      * 加入时间
      */
-    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$", message = "时间格式必须为 yyyy-MM-dd HH:mm:ss")
-    private String registerTime;
-    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$", message = "时间格式必须为 yyyy-MM-dd HH:mm:ss")
-    private String registerTimeStart;
-    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$", message = "时间格式必须为 yyyy-MM-dd HH:mm:ss")
-    private String registerTimeEnd;
+    private LocalDateTime registerTime;
+    private LocalDate registerTimeStart;
+    private LocalDate registerTimeEnd;
 
     /**
      * 最后登录时间
      */
-    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$", message = "时间格式必须为 yyyy-MM-dd HH:mm:ss")
-    private String lastLoginTime;
-    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$", message = "时间格式必须为 yyyy-MM-dd HH:mm:ss")
-    private String lastLoginTimeStart;
-    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$", message = "时间格式必须为 yyyy-MM-dd HH:mm:ss")
-    private String lastLoginTimeEnd;
+    private LocalDateTime lastLoginTime;
+    private LocalDate lastLoginTimeStart;
+    private LocalDate lastLoginTimeEnd;
 
 
     private String lastLoginIp;

@@ -5,11 +5,14 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * 表示VideoInfoFileUpload的每一块
+ */
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class UploadingVideoFile
+public class UploadingVideoFileDTO
 {
     private Long uploadId;
     private String fileName;

@@ -60,10 +60,10 @@
             and v.user_id = #{query.userId}
         </if>
         <if test="query.createTime != null and query.createTime!=''">
-            <![CDATA[ and  v.create_time=str_to_date(#{query.createTime}, '%Y-%m-%d') ]]>
+            <![CDATA[ and  v.create_time= #{query.createTime} ]]>
         </if>
         <if test="query.lastUpdateTime != null and query.lastUpdateTime!=''">
-            <![CDATA[ and  v.last_update_time=str_to_date(#{query.lastUpdateTime}, '%Y-%m-%d') ]]>
+            <![CDATA[ and  v.last_update_time= #{query.lastUpdateTime} ]]>
         </if>
         <if test="query.pCategoryId != null">
             and v.p_category_id = #{query.pCategoryId}
@@ -105,16 +105,16 @@
                 and v.video_name like concat('%', #{query.videoNameFuzzy}, '%')
             </if>
             <if test="query.createTimeStart!= null and query.createTimeStart!=''">
-                <![CDATA[ and  v.create_time>=str_to_date(#{query.createTimeStart}, '%Y-%m-%d') ]]>
+                <![CDATA[ and  v.create_time>= #{query.createTimeStart} ]]>
             </if>
             <if test="query.createTimeEnd!= null and query.createTimeEnd!=''">
-                <![CDATA[ and  v.create_time< date_sub(str_to_date(#{query.createTimeEnd},'%Y-%m-%d'),interval -1 day) ]]>
+                <![CDATA[ and  v.create_time< #{query.createTimeEnd} ]]>
             </if>
             <if test="query.lastUpdateTimeStart!= null and query.lastUpdateTimeStart!=''">
-                <![CDATA[ and  v.last_update_time>=str_to_date(#{query.lastUpdateTimeStart}, '%Y-%m-%d') ]]>
+                <![CDATA[ and  v.last_update_time>= #{query.lastUpdateTimeStart} ]]>
             </if>
             <if test="query.lastUpdateTimeEnd!= null and query.lastUpdateTimeEnd!=''">
-                <![CDATA[ and  v.last_update_time< date_sub(str_to_date(#{query.lastUpdateTimeEnd},'%Y-%m-%d'),interval -1 day) ]]>
+                <![CDATA[ and  v.last_update_time< #{query.lastUpdateTimeEnd} ]]>
             </if>
             <if test="query.originInfoFuzzy!= null  and query.originInfoFuzzy!=''">
                 and v.origin_info like concat('%', #{query.originInfoFuzzy}, '%')
@@ -141,7 +141,7 @@
             order by ${query.orderBy}
         </if>
         <if test="query.pageCalculator!=null">
-            limit #{query.pageCalculator.start},#{query.pageCalculator.end}
+            limit #{query.pageCalculator.start},#{query.pageCalculator.size}
         </if>
     </select>
 

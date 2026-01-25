@@ -3,7 +3,6 @@ package com.neon.nilocommon.entity.query;
 
 import com.neon.nilocommon.entity.annotation.BlankRestriction;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
 import lombok.Setter;
 

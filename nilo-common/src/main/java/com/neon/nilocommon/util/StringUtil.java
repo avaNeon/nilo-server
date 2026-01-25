@@ -27,7 +27,7 @@ public class StringUtil
         // 如果指定了根目录，路径必须以该根目录开头
         if (rootPath != null && !rootPath.isEmpty())
         {
-            if (!pathStr.startsWith(rootPath)) return false;
+            return pathStr.startsWith(rootPath);
         }
 
         return true;
@@ -35,11 +35,12 @@ public class StringUtil
 
     /**
      * 尝试获取字符串的扩展名（带"."）
+     *
      * @return 带"."的扩展名，如果没有"."则报错
      */
     public static String getSuffix(String str)
     {
-        if(str==null||str.lastIndexOf(".")==-1) return null;
+        if (str == null || str.lastIndexOf(".") == -1) return null;
         return str.substring(str.lastIndexOf("."));
     }
 }

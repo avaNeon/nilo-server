@@ -2,14 +2,10 @@ package com.neon.niloweb.controller;
 
 
 import com.neon.nilocommon.entity.po.CategoryInfo;
-import com.neon.nilocommon.entity.query.CategoryInfoQuery;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.niloweb.service.CategoryService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 

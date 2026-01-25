@@ -12,13 +12,16 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class UploadingVideoFileDTO
+public class UploadedVideoFileDTO
 {
     private Long uploadId;
     private String fileName;
     private Integer chunkIndex;
     private Integer chunkSize;
     private Long fileSize = 0L;
+    /**
+     * 文件的相对路径，环境目录为根目录（即配置文件的project.folder）
+     */
     private String filePath;
 
     /**

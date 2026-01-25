@@ -14,9 +14,9 @@ public class RedisKey
     public static final String CATEGORY_UPDATE_LOCK = REDIS_KEY_PREFIX + "category:update:lock";
 
     /**
-     * redis中上传视频的键名
+     * redis中预上传视频标签的键名
      */
-    public static final String UPLOADING_VIDEO_PREFIX = REDIS_KEY_PREFIX + "uploading-video:";
+    public static final String PRE_UPLOADED_VIDEO_TAG_PREFIX = REDIS_KEY_PREFIX + "video:pre-uploaded-tag:";
 
     /**
      * redis中保存分类信息的键名

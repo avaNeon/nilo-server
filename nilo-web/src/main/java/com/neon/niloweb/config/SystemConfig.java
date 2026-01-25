@@ -5,6 +5,9 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * 系统配置
+ */
 @ConfigurationProperties(prefix = "system")
 @Setter
 @Getter
@@ -30,6 +33,5 @@ public class SystemConfig
      * 每个上传的视频奖励硬币数
      */
     private Integer rewardsPreUpload = 5;
-
 
 }

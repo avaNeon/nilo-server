@@ -54,7 +54,7 @@ public class FileService
             FFmpegUtil.creatImgThumbnail(filePath, adminConfig.isShowCommandLogs());
         }
 
-        return Constants.COVER_FOLDER_NAME + "/" + dateName + "/" + savedFileName;
+        return "/" + dateName + "/" + savedFileName;
     }
 
     public void downloadImage(HttpServletResponse response, String fileName)
@@ -62,8 +62,8 @@ public class FileService
         if (!StringUtil.isValidPath(fileName)) throw new BusinessException("非法的文件路径");
         String suffix = StringUtil.getSuffix(fileName);
         response.setContentType("image/" + suffix.replace(".", ""));
-        response.setHeader("Cache-Control", "max-age=2592000"); // 一年
-        readFile(response, fileName);
+        response.setHeader("Cache-Control", "max-age=2592000"); // 30天
+        readFile(response, Constants.COVER_FOLDER_NAME + fileName);
     }
 
     /**

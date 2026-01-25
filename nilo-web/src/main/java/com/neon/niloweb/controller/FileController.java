@@ -31,17 +31,33 @@ public class FileController
     private final FileService fileService;
     private final RedisTemplate <String, Object> redisTemplate;
 
+    /**
+     * 上传图片，可以选择是否生成缩略图
+     */
+    @Operation(summary = "上传图片")
+    @PutMapping("/image")
+    public ResponseVO <String> uploadImage(@RequestParam(name = "MultipartFile") @NotNull MultipartFile file,
+                                           @RequestParam(name = "createThumbnail") @NotNull Boolean createThumbnail)
+    {
+        return ResponseVO.success(fileService.uploadImage(file, createThumbnail));
+    }
+
+    /**
+     * 通过一个相对文件路径获取图片文件
+     * @param sourcePath 相对路径
+     * @return 图片文件
+     */
     @Operation(summary = "获取图片")
     @GetMapping("/image")
     public ResponseVO <Object> downloadImage(@Parameter(hidden = true) HttpServletResponse response,
-                                             @RequestParam(name = "sourceName") @NotNull String sourceName)
+                                             @RequestParam(name = "sourcePath") @NotNull String sourcePath)
     {
-        fileService.downloadImage(response, sourceName);
+        fileService.downloadImage(response, sourcePath);
         return ResponseVO.success(null);
     }
 
-    @Operation(summary = "预上传视频")
-    @PostMapping("/preUpload")
+    @Operation(summary = "预上传视频", description = "上传视频标签")
+    @PostMapping("/videoTag")
     public ResponseVO <Long> preUploadVideo(@NotEmpty @RequestParam(name = "filename") String filename,
                                             @NotNull @RequestParam(name = "chunkSize") Integer chunkSize,
                                             @RequestHeader(name = "token") String token)
@@ -51,8 +67,8 @@ public class FileController
         return ResponseVO.success(uploadId);
     }
 
-    @Operation(summary = "上传视频")
-    @PostMapping("/upload")
+    @Operation(summary = "上传视频文件")
+    @PostMapping("/video")
     public ResponseVO <Object> uploadVideo(@RequestParam(name = "chunkFile") @NotNull MultipartFile chunkFile,
                                            @RequestParam(name = "chunkIndex") @NotNull Integer chunkIndex,
                                            @RequestParam(name = "uploadId") @NotEmpty String uploadId,
@@ -64,8 +80,20 @@ public class FileController
         return ResponseVO.success(null);
     }
 
+    @Operation(summary = "删除上传的视频文件")
+    @DeleteMapping("/video")
+    public ResponseVO <Object> deleteVideo(@RequestParam(name = "uploadId") @NotEmpty String uploadId,
+                                           @RequestHeader(name = "token") String token)
+    {
+        TokenUserInfo loginState = getLoginState(token);
+        Long userId = loginState.getUserId();
+        fileService.deleteVideo(uploadId, userId);
+        return ResponseVO.success(null);
+    }
+
     /**
      * 检查登录状态【暂时的策略】
+     *
      * @param token 用户登录信息token
      * @return 在Redis保存的TokenUserInfo对象
      */

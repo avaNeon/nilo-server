@@ -14,7 +14,7 @@ public class VideoInfoFile
     /**
      * 唯一ID
      */
-    private String fileId;
+    private Long fileId;
 
     /**
      * 用户ID

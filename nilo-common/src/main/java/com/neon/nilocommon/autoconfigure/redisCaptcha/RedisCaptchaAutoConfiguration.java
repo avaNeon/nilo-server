@@ -3,12 +3,14 @@ package com.neon.nilocommon.autoconfigure.redisCaptcha;
 import com.neon.nilocommon.captcha.RedisCaptcha;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
 
+@ConditionalOnClass(name = "org.springframework.data.redis.core.RedisTemplate")
 @RequiredArgsConstructor
 @EnableConfigurationProperties(RedisCaptchaProperties.class)
 @ConditionalOnProperty(prefix = "common.redis.captcha", name = "enabled", havingValue = "true", matchIfMissing = true)

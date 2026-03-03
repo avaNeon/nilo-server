@@ -12,13 +12,10 @@ import lombok.Setter;
 public class VideoInfoFileUploadQuery extends BaseQuery
 {
 
-
     /**
      * 唯一ID
      */
-    private String fileId;
-
-    private String fileIdFuzzy;
+    private Long fileId;
 
     /**
      * 上传ID

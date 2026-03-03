@@ -14,7 +14,7 @@ public class VideoInfoFileUpload
     /**
      * 唯一ID
      */
-    private String fileId;
+    private Long fileId;
 
     /**
      * 上传ID
@@ -47,19 +47,19 @@ public class VideoInfoFileUpload
     private Long fileSize;
 
     /**
-     * 文件路径
+     * 文件路径（只保存相对路径）
      */
     private String filePath;
 
     /**
      * 0:无更新 1:有更新
      */
-    private Integer updateType;
+    private Short updateType;
 
     /**
      * 0:转码中 1:转码成功 2:转码失败
      */
-    private Integer transferResult;
+    private Short transferResult;
 
     /**
      * 持续时间（秒）

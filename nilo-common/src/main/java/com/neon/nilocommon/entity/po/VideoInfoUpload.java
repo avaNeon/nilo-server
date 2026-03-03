@@ -58,12 +58,12 @@ public class VideoInfoUpload
     /**
      * 0:转码中 1:转码失败 2:待审核 3:审核成功 4:审核失败
      */
-    private Integer status;
+    private Short status;
 
     /**
      * 0:自制作 1:转载
      */
-    private Integer postType;
+    private Short postType;
 
     /**
      * 原资源说明

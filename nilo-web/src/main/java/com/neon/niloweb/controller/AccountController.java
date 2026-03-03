@@ -4,6 +4,8 @@ import cn.hutool.captcha.CaptchaUtil;
 import cn.hutool.captcha.LineCaptcha;
 import com.neon.nilocommon.captcha.RedisCaptcha;
 import com.neon.nilocommon.entity.constants.Constants;
+import com.neon.nilocommon.entity.dto.LoginUserInfoDTO;
+import com.neon.nilocommon.entity.dto.RegisterUserInfoDTO;
 import com.neon.nilocommon.entity.dto.TokenUserInfo;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.vo.ResponseVO;
@@ -15,10 +17,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -63,24 +62,18 @@ public class AccountController
      * @param code 用户的填入的验证码
      */
     @Operation(summary = "注册接口", description = "检验用户信息和验证码")
-    @GetMapping(path = "/register")
-    public ResponseVO <Object> register(
-            @RequestParam(name = "email") @NotBlank(message = "email不能为空") @Email(message = "email不符合格式")
-            @Size(max = 150, message = "email长度过大") String email,
-            @RequestParam(name = "nickName") @NotBlank(message = "nickName不能为空") @Size(max = 20, message = "nickName长度过大")
-            String nickName,
-            @RequestParam(name = "password") @Pattern(regexp = Constants.PASSWORD_REGEXP, message = "密码格式不合法") String password,
-            @RequestParam(name = "captchaKey") @NotBlank String captchaKey,
-            @Parameter(description = "用户填写的验证码结果") @NotBlank @RequestParam(name = "code") String code)
+    @PostMapping(path = "/register")
+    public ResponseVO <Object> register(@RequestBody @Valid RegisterUserInfoDTO registerUserInfoDTO)
     {
         try
         {
-            if (!redisCaptcha.verifyCaptchaCode(captchaKey, code)) throw new BusinessException(ResponseCode.CAPTCHA_FAILED);
-            accountService.register(email, nickName, password);
+            if (!redisCaptcha.verifyCaptchaCode(registerUserInfoDTO.getCaptchaKey(), registerUserInfoDTO.getCode()))
+                throw new BusinessException(ResponseCode.CAPTCHA_FAILED);
+            accountService.register(registerUserInfoDTO.getEmail(), registerUserInfoDTO.getNickName(), registerUserInfoDTO.getPassword());
         }
         finally
         {
-            redisCaptcha.deleteCaptcha(captchaKey);
+            redisCaptcha.deleteCaptcha(registerUserInfoDTO.getCaptchaKey());
         }
         return ResponseVO.success(null);
     }
@@ -93,29 +86,25 @@ public class AccountController
      * @return 将查询到的用户数据返回给前端
      */
     @Operation(summary = "登录接口", description = "检验登录信息和验证码")
-    @GetMapping(path = "/login")
+    @PostMapping(path = "/login")
     public ResponseVO <TokenUserInfo> login(@Parameter(hidden = true) HttpServletRequest request,
                                             @Parameter(hidden = true) HttpServletResponse response,
-                                            @RequestParam(name = "email") @Email(message = "email不符合格式") String email,
-                                            @RequestParam(name = "password")
-                                            @Pattern(regexp = Constants.PASSWORD_REGEXP, message = "密码格式不合法") String password,
-                                            @RequestParam(name = "captchaKey") @NotBlank String captchaKey,
-                                            @Parameter(description = "用户填写的验证码结果") @NotBlank @RequestParam(name = "code")
-                                            String code)
+                                            @RequestBody @Valid LoginUserInfoDTO loginUserInfoDTO)
     {
         try
         {
-            if (!redisCaptcha.verifyCaptchaCode(captchaKey, code)) throw new BusinessException(ResponseCode.CAPTCHA_FAILED);
+            if (!redisCaptcha.verifyCaptchaCode(loginUserInfoDTO.getCaptchaKey(), loginUserInfoDTO.getCode()))
+                throw new BusinessException(ResponseCode.CAPTCHA_FAILED);
             String clientIp = ServletUtil.getClientIp(request);
             // TODO 头像、粉丝数、关注数（或许还有硬币数）还没有设置
-            TokenUserInfo tokenUserInfo = accountService.login(email, password, clientIp);
+            TokenUserInfo tokenUserInfo = accountService.login(loginUserInfoDTO.getEmail(), loginUserInfoDTO.getPassword(), clientIp);
             ServletUtil.removeCookie(request, response, Constants.ADMIN_COOKIE_TOKEN_KEY);
             ServletUtil.setCookie(response, Constants.WEB_COOKIE_TOKEN_KEY, tokenUserInfo.getToken(), 7, TimeUnit.DAYS);
             return ResponseVO.success(tokenUserInfo);
         }
         finally
         {
-            redisCaptcha.deleteCaptcha(captchaKey);
+            redisCaptcha.deleteCaptcha(loginUserInfoDTO.getCaptchaKey());
         }
     }
 

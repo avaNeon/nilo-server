@@ -20,5 +20,5 @@ public class WebConfig
     private String rootFilePath;
 
     @Value("${log.command}")
-    private boolean showCommandLogs;
+    private Boolean showCommandLogs;
 }

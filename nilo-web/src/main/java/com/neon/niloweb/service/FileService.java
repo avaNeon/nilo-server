@@ -72,7 +72,7 @@ public class FileService
         // 生成缩略图
         if (createThumbnail)
         {
-            FFmpegUtil.creatImgThumbnail(filePath, webConfig.isShowCommandLogs());
+            FFmpegUtil.creatImgThumbnail(filePath, webConfig.getShowCommandLogs());
         }
 
         return dateName + "/" + savedFileName;
@@ -96,7 +96,7 @@ public class FileService
 
     /**
      * 预上传视频<hr/>
-     * 文件路径：/root/file/tmp
+     * 文件路径：/&lt;root&gt;/file/tmp
      *
      * @param fileName      文件名
      * @param chunkSize     （视频文件）分块大小
@@ -139,7 +139,7 @@ public class FileService
     }
 
     /**
-     * 上传视频
+     * 上传视频（的一块）
      *
      * @param chunkFile  单个分块视频文件
      * @param chunkIndex 分块索引
@@ -169,7 +169,7 @@ public class FileService
             chunkFile.transferTo(targetFile);
             videoFileDTO.setChunkIndex(chunkIndex); // 更新了chunkIndex信息
             videoFileDTO.addFileSize(chunkFile.getSize());
-            // 更新Redis种存储的视频信息
+            // 更新Redis中存储的视频信息
             redisTemplate.opsForValue()
                          .set(RedisKey.PRE_UPLOADED_VIDEO_TAG_PREFIX + userId + ":" + uploadId, videoFileDTO, Duration.ofDays(1L));
         }

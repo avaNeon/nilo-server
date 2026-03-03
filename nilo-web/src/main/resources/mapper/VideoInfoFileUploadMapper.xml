@@ -505,6 +505,16 @@
         where upload_id=#{uploadId} and user_id=#{userId}
     </update>
 
+    <!--  根据fileId批量删除出现在fileId的对象  -->
+    <delete id="deleteBatchByFileId">
+        delete from video_info_file_upload
+        where user_id = #{userId} and
+        file_id in    <!-- 因为事先在java代码中检查过List，保证List不为空，所以这么写没关系 -->
+        <foreach collection="fileIdList" item="fileId" separator="," open="(" close=")">
+            fileId
+        </foreach>
+    </delete>
+
     <!-- 根据UploadIdAndUserId删除-->
     <delete id="deleteByUploadIdAndUserId">
         delete

@@ -1,10 +1,10 @@
 package com.neon.nilocommon.captcha;
 
 import com.neon.nilocommon.entity.constants.RedisKey;
+import com.neon.nilocommon.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 
-import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -38,7 +38,9 @@ public class RedisCaptcha
      */
     public boolean verifyCaptchaCode(String captchaKey, String code)
     {
-        String trueCode = Objects.requireNonNull(redisTemplate.opsForValue().get(RedisKey.CAPTCHA_PREFIX + captchaKey)).toString();
+        Object result = redisTemplate.opsForValue().get(RedisKey.CAPTCHA_PREFIX + captchaKey);
+        if (result == null) throw new BusinessException("验证码失效");
+        String trueCode = result.toString();
         return trueCode != null && trueCode.equals(code);
     }
 

@@ -16,6 +16,9 @@ public class UploadedVideoFileDTO
 {
     private Long uploadId;
     private String fileName;
+    /**
+     * 目前保存到第几块
+     */
     private Integer chunkIndex;
     private Integer chunkSize;
     private Long fileSize = 0L;

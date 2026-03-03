@@ -18,7 +18,10 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
- * 统一JSON序列化规则
+ * 统一JSON序列化规则<hr/>
+ * 其中包括：<br/>
+ *  1.当从URL和requestbody传入/发送日期的反序列化/序列化问题
+ *  2.JSON序列化时如果没有接受类型的全部属性就报错的问题
  */
 @RequiredArgsConstructor
 @EnableConfigurationProperties(GlobalSerializationProperties.class)
@@ -41,7 +44,7 @@ public class GlobalSerializationAutoConfiguration implements WebMvcConfigurer
      * @return 全局Jackson2ObjectMapperBuilderCustomizer
      */
     @Bean
-    @Order(1) //SpringBoot默认的配置是0，这里我们给个1把默认配置覆盖掉吧
+    @Order(1) //SpringBoot默认的配置是0，这里我们给个1把默认配置覆盖掉
     public Jackson2ObjectMapperBuilderCustomizer jsonCustomizer()
     {
         return builder ->

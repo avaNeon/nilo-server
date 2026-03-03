@@ -5,6 +5,7 @@ import cn.hutool.captcha.LineCaptcha;
 import com.neon.niloadmin.service.AdminService;
 import com.neon.nilocommon.captcha.RedisCaptcha;
 import com.neon.nilocommon.entity.constants.Constants;
+import com.neon.nilocommon.entity.dto.LoginAdminDTO;
 import com.neon.nilocommon.entity.dto.TokenAdmin;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.vo.ResponseVO;
@@ -15,8 +16,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -60,27 +60,22 @@ public class AdminController
      * redis中的token不删除，等它自动过期
      */
     @Operation(summary = "登录接口", description = "检验登录信息和验证码")
-    @GetMapping(path = "/login")
+    @PostMapping(path = "/login")
     public ResponseVO <TokenAdmin> login(@Parameter(hidden = true) HttpServletRequest request,
                                          @Parameter(hidden = true) HttpServletResponse response,
-                                         @RequestParam(name = "account") String account,
-                                         @RequestParam(name = "password")
-                                         @Pattern(regexp = Constants.PASSWORD_REGEXP, message = "密码格式不合法") String password,
-                                         @RequestParam(name = "captchaKey") @NotBlank String captchaKey,
-                                         @Parameter(description = "用户填写的验证码结果") @NotBlank @RequestParam(name = "code")
-                                         String code)
+                                         @RequestBody @Valid LoginAdminDTO loginAdminDTO)
     {
         try
         {
-            if (!redisCaptcha.verifyCaptchaCode(captchaKey, code)) throw new BusinessException(ResponseCode.CAPTCHA_FAILED);
-            TokenAdmin tokenAdmin = service.login(account, password);
+            if (!redisCaptcha.verifyCaptchaCode(loginAdminDTO.getCaptchaKey(), loginAdminDTO.getCode())) throw new BusinessException(ResponseCode.CAPTCHA_FAILED);
+            TokenAdmin tokenAdmin = service.login(loginAdminDTO.getAccount(), loginAdminDTO.getPassword());
             ServletUtil.removeCookie(request, response, Constants.ADMIN_COOKIE_TOKEN_KEY);
             ServletUtil.setCookie(response, Constants.ADMIN_COOKIE_TOKEN_KEY, tokenAdmin.getToken(), -1, TimeUnit.DAYS);
             return ResponseVO.success(tokenAdmin);
         }
         finally
         {
-            redisCaptcha.deleteCaptcha(captchaKey);
+            redisCaptcha.deleteCaptcha(loginAdminDTO.getCaptchaKey());
         }
     }
 

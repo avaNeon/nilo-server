@@ -33,6 +33,7 @@ public class FileController
 
     /**
      * 上传图片，可以选择是否生成缩略图
+     * @return 图片文件相对路径
      */
     @Operation(summary = "上传图片")
     @PutMapping("/image")
@@ -44,18 +45,24 @@ public class FileController
 
     /**
      * 通过一个相对文件路径获取图片文件
-     * @param sourcePath 相对路径
+     * @param sourcePath 相对路径（必须是 xxx/xx 格式）
      * @return 图片文件
      */
     @Operation(summary = "获取图片")
     @GetMapping("/image")
     public ResponseVO <Object> downloadImage(@Parameter(hidden = true) HttpServletResponse response,
-                                             @RequestParam(name = "sourcePath") @NotNull String sourcePath)
+                                             @RequestParam(name = "sourcePath") @Parameter(description = "必须是 xxx/ xx 格式") @NotNull String sourcePath)
     {
         fileService.downloadImage(response, sourcePath);
         return ResponseVO.success(null);
     }
 
+    /**
+     * 预上传视频<hr/>
+     * 上传视频名称，分块数，以及验证用户token<br/>
+     * 会在redis里保存一个临时的记录
+     * @return uploadId，用于指定唯一视频（一个视频可能被分为多个块）
+     */
     @Operation(summary = "预上传视频", description = "上传视频标签")
     @PostMapping("/videoTag")
     public ResponseVO <Long> preUploadVideo(@NotEmpty @RequestParam(name = "filename") String filename,
@@ -67,7 +74,12 @@ public class FileController
         return ResponseVO.success(uploadId);
     }
 
-    @Operation(summary = "上传视频文件")
+    /**
+     * 上传视频文件（的一块）<hr/>
+     * 上传具体视频文件，通过uploadId指明所属具体视频，通过chunkIndex指明是第几块，同时还要用token验证用户身份<br/>
+     * 会将视频文件临时保存在服务器中，同时更新redis中的记录
+     */
+    @Operation(summary = "上传单块视频文件")
     @PostMapping("/video")
     public ResponseVO <Object> uploadVideo(@RequestParam(name = "chunkFile") @NotNull MultipartFile chunkFile,
                                            @RequestParam(name = "chunkIndex") @NotNull Integer chunkIndex,
@@ -80,6 +92,12 @@ public class FileController
         return ResponseVO.success(null);
     }
 
+    /**
+     * 删除上传的视频文件
+     * @param uploadId uploadId
+     * @param token token
+     * @return 无内容
+     */
     @Operation(summary = "删除上传的视频文件")
     @DeleteMapping("/video")
     public ResponseVO <Object> deleteVideo(@RequestParam(name = "uploadId") @NotEmpty String uploadId,
@@ -95,12 +113,12 @@ public class FileController
      * 检查登录状态【暂时的策略】
      *
      * @param token 用户登录信息token
-     * @return 在Redis保存的TokenUserInfo对象
+     * @return 在Redis保存的TokenUserInfo对象（一定会返回一个非null的值，否则会抛出<b>未登录</b>的异常）
      */
     private TokenUserInfo getLoginState(String token)
     {
         TokenUserInfo tokenUserInfo = (TokenUserInfo) redisTemplate.opsForValue().get(RedisKey.WEB_TOKEN_PREFIX + token);
-        // 如果还没登录，就返回“未登录”的业务异常
+        // 如果还没登录，就抛出“未登录”的业务异常
         if (tokenUserInfo == null) throw new BusinessException(ResponseCode.NOT_LOGIN);
         else return tokenUserInfo;
     }

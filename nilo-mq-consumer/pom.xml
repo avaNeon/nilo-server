@@ -7,12 +7,10 @@
         <artifactId>nilo-parent</artifactId>
         <version>0.0.1-SNAPSHOT</version>
     </parent>
-
-    <artifactId>nilo-web</artifactId>
-    <version>${parent.version}</version>
-
-    <name>nilo-web</name>
-    <description>nilo-web</description>
+    <artifactId>nilo-mq-consumer</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>nilo-mq-consumer</name>
+    <description>nilo-mq-consumer</description>
 
     <url/>
     <licenses>
@@ -33,27 +31,28 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
             <groupId>com.neon</groupId>
             <artifactId>nilo-common</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>
+
         <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-crypto</artifactId>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>runtime</scope>
         </dependency>
+
         <dependency>
-            <groupId>org.redisson</groupId>
-            <artifactId>redisson-spring-boot-starter</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
         </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-amqp</artifactId>
         </dependency>
+
+
     </dependencies>
 
     <build>

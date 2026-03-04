@@ -26,6 +26,17 @@ public class Constants
      */
     public static final String TMP_FOLDER_NAME = "tmp";
 
+    /* 文件名相关 */
+    public static final String TMP_VIDEO_NAME = "tmp_video.mp4";
+
+    public static final String TMP_VIDEO_SUFFIX = "_tmp";
+
+    public static final String TS_NAME = "index.ts";
+
+    public static final String M3U8_NAME = "index.m3u8";
+
+    public static final String TS_FOLDER_NAME = "tsFolder";
+
     /* 文件相关 */
     /**
      * 路径最大长度

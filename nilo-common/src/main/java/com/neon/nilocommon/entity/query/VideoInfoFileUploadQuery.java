@@ -59,12 +59,12 @@ public class VideoInfoFileUploadQuery extends BaseQuery
     /**
      * 0:无更新 1:有更新
      */
-    private Integer updateType;
+    private Short updateType;
 
     /**
      * 0:转码中 1:转码成功 2:转码失败
      */
-    private Integer transferResult;
+    private Short transferResult;
 
     /**
      * 持续时间（秒）

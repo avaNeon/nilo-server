@@ -14,6 +14,7 @@
         <module>nilo-common</module>
         <module>nilo-admin</module>
         <module>nilo-web</module>
+        <module>nilo-mq-consumer</module>
     </modules>
 
     <url/>

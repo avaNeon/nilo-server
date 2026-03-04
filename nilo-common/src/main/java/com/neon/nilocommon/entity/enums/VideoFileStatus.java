@@ -7,7 +7,7 @@ import lombok.Getter;
 @Getter
 public enum VideoFileStatus
 {
-    TRANSCODING((short) 0, "转码中"), TRANSCODING_FAIL((short) 1, "转码成功"), PENDING_REVIEW((short) 2, "转码失败");
+    TRANSCODING((short) 0, "转码中"), TRANSCODING_SUCCESS((short) 1, "转码成功"), TRANSCODING_FAIL((short) 2, "转码失败");
 
     private final Short status;
 

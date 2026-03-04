@@ -1,7 +1,6 @@
 package com.neon.nilocommon.util;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
 import java.io.IOException;
@@ -13,18 +12,16 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Comparator;
 
-// todo 供参考的合并文件代码
+
+@Slf4j
 public class VideoMergeUtils
 {
-
-    private static final Logger log = LoggerFactory.getLogger(VideoMergeUtils.class);
-
     /**
      * 合并分片文件
      *
      * @param chunkFolderPath 分片所在的文件夹路径 (例如: /data/tmp/upload/uuid_folder)
      * @param targetFile      合并后文件的完整路径 (例如: /data/videos/final.mp4)
-     * @param delChunks       合并成功后是否删除分片文件夹
+     * @param delChunks       合并成功后是否删除分片
      */
     public static void mergeChunks(String chunkFolderPath, String targetFile, boolean delChunks) throws IOException
     {
@@ -39,9 +36,7 @@ public class VideoMergeUtils
 
         // 2. 获取所有分片文件
         // 过滤掉非数字命名的文件（比如 .DS_Store 或 Thumbs.db），防止报错
-        File[] chunks = chunkDir.toFile().listFiles(f ->
-                                                            f.isFile() && f.getName().matches("\\d+")
-                                                   );
+        File[] chunks = chunkDir.toFile().listFiles(f -> f.isFile() && f.getName().matches("\\d+"));
 
         if (chunks == null || chunks.length == 0)
         {
@@ -49,7 +44,6 @@ public class VideoMergeUtils
         }
 
         // 3. 关键步骤：按文件名数字大小排序 (1, 2, 3... 10)
-        // 这一步绝对不能省，否则顺序会乱
         Arrays.sort(chunks, Comparator.comparingInt(f -> Integer.parseInt(f.getName())));
 
         // 4. 确保目标文件的父目录存在
@@ -80,14 +74,14 @@ public class VideoMergeUtils
         // 6. (可选) 清理分片目录
         if (delChunks)
         {
-            // 这里可以调用你之前用过的 Apache Commons IO 的 FileUtils.deleteDirectory
-            // 或者使用简单的递归删除
+            // 使用简单的递归删除
             for (File chunk : chunks)
             {
-                boolean deleted = chunk.delete();
+                if (!chunk.delete())
+                {
+                    throw new RuntimeException("删除失败");
+                }
             }
-            // 删除空文件夹
-            Files.deleteIfExists(chunkDir);
             log.info("已清理分片目录: {}", chunkFolderPath);
         }
     }

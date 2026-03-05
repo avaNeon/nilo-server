@@ -72,7 +72,7 @@ public class FileService
         // 生成缩略图
         if (createThumbnail)
         {
-            FFmpegUtil.creatImgThumbnail(filePath, webConfig.getShowCommandLogs());
+            FFmpegUtil.creatImgThumbnail(filePath, false);
         }
 
         return dateName + "/" + savedFileName;

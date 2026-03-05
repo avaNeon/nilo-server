@@ -1,22 +1,23 @@
 package com.neon.niloweb.service;
 
 import cn.hutool.core.lang.Snowflake;
-import com.esotericsoftware.minlog.Log;
 import com.neon.nilocommon.entity.constants.MqInfo;
 import com.neon.nilocommon.entity.dto.TokenUserInfo;
+import com.neon.nilocommon.entity.dto.VideoInfoUploadJoinDTO;
 import com.neon.nilocommon.entity.enums.VideoFileStatus;
 import com.neon.nilocommon.entity.enums.VideoStatus;
 import com.neon.nilocommon.entity.po.VideoInfoFileUpload;
 import com.neon.nilocommon.entity.po.VideoInfoUpload;
+import com.neon.nilocommon.entity.query.PageCalculator;
 import com.neon.nilocommon.entity.query.VideoInfoFileUploadQuery;
 import com.neon.nilocommon.entity.query.VideoInfoUploadQuery;
+import com.neon.nilocommon.entity.vo.VideoStatusCountVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.config.SystemConfig;
 import com.neon.niloweb.mapper.VideoInfoFileUploadMapper;
 import com.neon.niloweb.mapper.VideoInfoUploadMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,10 +42,6 @@ public class CreativeCenterVideoUploadService
 
     private final Snowflake snowflake;
 
-    @Value("${project.folder}")
-    private String rootPath;
-
-
     /**
      * 视频上传<hr/>
      * 视频上传流程：<br/>
@@ -52,10 +49,12 @@ public class CreativeCenterVideoUploadService
      * <li> 2. 检验分P数是否在合适范围内 </li>
      * <li> 3. 分支，如果是是新视频，就将视频信息记录和视频文件记录保存在mysql中，并将视频文件全部交给MQ转码 </li>
      * <li> 4. 分支，如果是提交过的视频做修改，如果这个视频没有转码完成或审核完成，就不能继续修改。如果可以修改，那么会上传新出现的视频文件，删除未出现的视频文件。如果视频文件相同，那么就修改一下序号。 </li>
+     * <hr/>
+     * 填写了 VideoInfoFileUpload 的 file_id, user_id, video_id, file_index, update_type, transfer_result 这几个字段
      */
     @Transactional(rollbackFor = Exception.class)
     public void videoUpload(Long videoId,
-                            String coverPath,
+                            String coverPathStr,
                             String videoTitle,
                             Integer pCategoryId,
                             Integer categoryId,
@@ -69,7 +68,7 @@ public class CreativeCenterVideoUploadService
         // 将传入的参数赋值给视频信息对象
         VideoInfoUpload videoInfoUpload = new VideoInfoUpload();
         videoInfoUpload.setVideoId(videoId);
-        videoInfoUpload.setVideoCover(coverPath);
+        videoInfoUpload.setVideoCover(coverPathStr);
         videoInfoUpload.setVideoName(videoTitle);
         videoInfoUpload.setUserId(tokenUserInfo.getUserId());
         videoInfoUpload.setPCategoryId(pCategoryId);
@@ -211,6 +210,62 @@ public class CreativeCenterVideoUploadService
                 addVideoFile2TranscodingQueue(newFileList);
             }
         }
+    }
+
+    /**
+     * 查询视频
+     * @return 返回一个列表，审核成功的结果会有video_info的字段值
+     */
+    public List <VideoInfoUploadJoinDTO> loadVideo(TokenUserInfo tokenUserInfo,
+                                                   Short status,
+                                                   Integer pageNo,
+                                                   Integer pageSize,
+                                                   String nameFuzzy)
+    {
+        VideoInfoUploadQuery query = new VideoInfoUploadQuery();
+        query.setUserId(tokenUserInfo.getUserId());
+        query.setVideoNameFuzzy(nameFuzzy);
+        query.setOrderBy("v.create_time desc");
+        if (status != null)
+        {
+            // 若为-1，则查询未审核的视频，即状态为0、1、2的视频
+            if (status == (short) -1)
+            {
+                query.setExclusiveStatusList(List.of(VideoStatus.REVIEW_SUCCESS.getStatus(), VideoStatus.REVIEW_FAIL.getStatus()));
+            }
+            else // 否则，查询相应状态的视频
+            {
+                if (status == (short) 3 || status == (short) 4) query.setStatus(status);
+                // 如果不是这两种状态，就查询所有状态的视频
+            }
+        }
+
+        // 分页查询
+        Integer count = videoInfoUploadMapper.selectCount(query);
+        query.setPageCalculator(new PageCalculator(pageNo, count, pageSize));
+        return videoInfoUploadMapper.selectListWithVideoInfo(query);
+    }
+
+    /**
+     * 获取不同状态视频的数量
+     * @return 三种状态的视频数量
+     */
+    public VideoStatusCountVO getVideoStatusCount(TokenUserInfo tokenUserInfo)
+    {
+        Long userId = tokenUserInfo.getUserId();
+        VideoInfoUploadQuery query = new VideoInfoUploadQuery();
+        query.setUserId(userId);
+        // 查找审核通过视频
+        query.setStatus(VideoStatus.REVIEW_SUCCESS.getStatus());
+        Integer successCount = videoInfoUploadMapper.selectCount(query);
+        // 查找审核不通过视频
+        query.setStatus(VideoStatus.REVIEW_FAIL.getStatus());
+        Integer failedCount = videoInfoUploadMapper.selectCount(query);
+        // 查找待审核视频
+        query.setStatus(null);
+        query.setExclusiveStatusList(List.of(VideoStatus.REVIEW_SUCCESS.getStatus(), VideoStatus.REVIEW_FAIL.getStatus()));
+        Integer pendingCount = videoInfoUploadMapper.selectCount(query);
+        return new VideoStatusCountVO(pendingCount, successCount, failedCount);
     }
 
     /**

@@ -2,11 +2,17 @@ package com.neon.niloweb.controller;
 
 import com.neon.nilocommon.entity.constants.RedisKey;
 import com.neon.nilocommon.entity.dto.TokenUserInfo;
+import com.neon.nilocommon.entity.dto.VideoInfoUploadJoinDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.po.VideoInfoFileUpload;
+import com.neon.nilocommon.entity.po.VideoInfoUpload;
+import com.neon.nilocommon.entity.query.VideoInfoUploadQuery;
 import com.neon.nilocommon.entity.vo.ResponseVO;
+import com.neon.nilocommon.entity.vo.VideoStatusCountVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.niloweb.mapper.VideoInfoUploadMapper;
 import com.neon.niloweb.service.CreativeCenterVideoUploadService;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -28,6 +34,8 @@ public class CreativeCenterVideoUploadController
     private final RedisTemplate <String, Object> redisTemplate;
 
     private final CreativeCenterVideoUploadService creativeCenterVideoUploadService;
+
+    private final VideoInfoUploadMapper <VideoInfoUpload, VideoInfoUploadQuery> videoInfoUploadMapper;
 
 //    /**
 //     * 删除文件
@@ -71,6 +79,7 @@ public class CreativeCenterVideoUploadController
      * @param interaction    互动设置
      * @param uploadFileList 视频文件列表（这里面有uploadId，因为之前文件预上传时返回了对应的id）
      */
+    @Operation(summary = "上传/修改视频")
     @PostMapping(path = "/video")
     public ResponseVO <Object> videoUpload(@RequestHeader(name = "token") String token,
                                            @RequestParam(name = "videoId") @NotNull Long videoId,
@@ -98,6 +107,44 @@ public class CreativeCenterVideoUploadController
                                                      uploadFileList,
                                                      tokenUserInfo);
         return ResponseVO.success(null);
+    }
+
+    /**
+     * 查询用户上传视频
+     *
+     * @param status    视频状态
+     * @param pageNo    页号
+     * @param pageSize  页大小
+     * @param nameFuzzy 名称（模糊搜索）
+     * @return 查询结果（视频列表）
+     */
+    @Operation(summary = "获取视频列表")
+    @GetMapping(path = "/video")
+    public ResponseVO <List <VideoInfoUploadJoinDTO>> loadVideo(@RequestHeader(name = "token") String token,
+                                                                @RequestParam(name = "status") Short status,
+                                                                @RequestParam(name = "pageNo") Integer pageNo,
+                                                                @RequestParam(name = "pageSize") Integer pageSize,
+                                                                @RequestParam(name = "nameFuzzy") String nameFuzzy)
+    {
+        TokenUserInfo tokenUserInfo = getLoginState(token);
+        List <VideoInfoUploadJoinDTO> result = creativeCenterVideoUploadService.loadVideo(tokenUserInfo,
+                                                                                          status,
+                                                                                          pageNo,
+                                                                                          pageSize,
+                                                                                          nameFuzzy);
+        return ResponseVO.success(result);
+    }
+
+    /**
+     * 获取不同状态视频的数量
+     * @return 三种状态视频的数量
+     */
+    @GetMapping(path = "/video/count")
+    public ResponseVO <VideoStatusCountVO> getVideoStatusCount(@RequestHeader(name = "token") String token)
+    {
+        TokenUserInfo tokenUserInfo = getLoginState(token);
+        VideoStatusCountVO videoStatusCount = creativeCenterVideoUploadService.getVideoStatusCount(tokenUserInfo);
+        return ResponseVO.success(videoStatusCount);
     }
 
     /**

@@ -6,6 +6,7 @@ import lombok.Setter;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 视频信息参数
@@ -14,6 +15,11 @@ import java.time.LocalDateTime;
 @Getter
 public class VideoInfoUploadQuery extends BaseQuery
 {
+
+    /**
+     * 排除的状态
+     */
+    private List<Short> exclusiveStatusList;
 
     /**
      * 视频ID
@@ -81,7 +87,7 @@ public class VideoInfoUploadQuery extends BaseQuery
     /**
      * 0:自制作 1:转载
      */
-    private Integer postType;
+    private Short postType;
 
     /**
      * 原资源说明
@@ -115,6 +121,5 @@ public class VideoInfoUploadQuery extends BaseQuery
      * 持续时间（秒）
      */
     private Integer duration;
-
 
 }

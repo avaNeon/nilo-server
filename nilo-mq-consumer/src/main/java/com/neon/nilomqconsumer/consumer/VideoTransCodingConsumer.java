@@ -56,6 +56,8 @@ public class VideoTransCodingConsumer
      * <li>5. 将当前文件标记为转码成功，并查询所有该视频下文件转码信息</li>
      * <li>6. 若有视频文件转码失败，将视频文件状态标记位转码失败</li>
      * <li>7. 若所有视频文件转码成功，计算视频总时长并将视频标记为待审核状态</li>
+     * <hr/>
+     * 填写了 VideoInfoFileUpload 的file_name, file_size, file_path, duration, transfer_result这几个字段
      * @param fileUpload 视频文件
      * @param channel channel
      * @param tag tag
@@ -94,6 +96,7 @@ public class VideoTransCodingConsumer
             }
 
             // 设置视频文件相关信息
+            fileUpload.setFileName(fileDTO.getFileName());
             fileUpload.setDuration(duration);
             fileUpload.setFileSize(new File(completeVideoPath).length());
             fileUpload.setFilePath(Constants.VIDEO_FOLDER_NAME + "/" + fileDTO.getFilePath());

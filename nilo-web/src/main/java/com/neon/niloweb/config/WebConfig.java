@@ -18,7 +18,4 @@ public class WebConfig
      */
     @Value("${project.folder}")
     private String rootFilePath;
-
-    @Value("${log.command}")
-    private Boolean showCommandLogs;
 }

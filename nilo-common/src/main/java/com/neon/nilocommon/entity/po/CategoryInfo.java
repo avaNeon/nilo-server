@@ -1,12 +1,13 @@
 package com.neon.nilocommon.entity.po;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.io.Serializable;
 import java.util.List;
 
 /**
@@ -15,7 +16,7 @@ import java.util.List;
 @Schema(description = "分类信息")
 @Setter
 @Getter
-public class CategoryInfo implements Serializable
+public class CategoryInfo
 {
     /**
      * 自增分类ID<hr/>
@@ -44,6 +45,8 @@ public class CategoryInfo implements Serializable
      */
     @Schema(description = "父级分类ID")
     @NotNull
+    @JsonProperty("pCategoryId")
+    @JsonAlias({"PCategoryId", "pcategoryId"})
     private Integer pCategoryId;
 
     /**

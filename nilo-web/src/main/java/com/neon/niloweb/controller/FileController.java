@@ -33,6 +33,7 @@ public class FileController
 
     /**
      * 上传图片，可以选择是否生成缩略图
+     *
      * @return 图片文件相对路径
      */
     @Operation(summary = "上传图片")
@@ -45,22 +46,22 @@ public class FileController
 
     /**
      * 通过一个相对文件路径获取图片文件
+     *
      * @param sourcePath 相对路径（必须是 xxx/xx 格式）
-     * @return 图片文件
      */
     @Operation(summary = "获取图片")
     @GetMapping("/image")
-    public ResponseVO <Object> downloadImage(@Parameter(hidden = true) HttpServletResponse response,
-                                             @RequestParam(name = "sourcePath") @Parameter(description = "必须是 xxx/ xx 格式") @NotNull String sourcePath)
+    public void downloadImage(@Parameter(hidden = true) HttpServletResponse response,
+                              @RequestParam(name = "sourcePath") @Parameter(description = "必须是 xxx/ xx 格式") @NotNull String sourcePath)
     {
         fileService.downloadImage(response, sourcePath);
-        return ResponseVO.success(null);
     }
 
     /**
      * 预上传视频<hr/>
      * 上传视频名称，分块数，以及验证用户token<br/>
      * 会在redis里保存一个临时的记录
+     *
      * @return uploadId，用于指定唯一视频（一个视频可能被分为多个块）
      */
     @Operation(summary = "预上传视频", description = "上传视频标签")
@@ -94,8 +95,9 @@ public class FileController
 
     /**
      * 删除上传的视频文件
+     *
      * @param uploadId uploadId
-     * @param token token
+     * @param token    token
      * @return 无内容
      */
     @Operation(summary = "删除上传的视频文件")

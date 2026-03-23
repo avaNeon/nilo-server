@@ -90,6 +90,7 @@ public class CreativeCenterVideoUploadService
         if (videoId == null)
         {
             videoId = snowflake.nextId();
+            videoInfoUpload.setVideoId(videoId);
             videoInfoUpload.setCreateTime(curDate);
             videoInfoUpload.setLastUpdateTime(curDate);
             videoInfoUpload.setStatus(VideoStatus.TRANSCODING.getStatus());
@@ -214,6 +215,7 @@ public class CreativeCenterVideoUploadService
 
     /**
      * 查询视频
+     *
      * @return 返回一个列表，审核成功的结果会有video_info的字段值
      */
     public List <VideoInfoUploadJoinDTO> loadVideo(TokenUserInfo tokenUserInfo,
@@ -248,6 +250,7 @@ public class CreativeCenterVideoUploadService
 
     /**
      * 获取不同状态视频的数量
+     *
      * @return 三种状态的视频数量
      */
     public VideoStatusCountVO getVideoStatusCount(TokenUserInfo tokenUserInfo)

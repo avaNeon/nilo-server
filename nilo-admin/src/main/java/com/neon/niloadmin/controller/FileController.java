@@ -36,10 +36,9 @@ public class FileController
 
     @Operation(summary = "获取图片")
     @GetMapping("/image")
-    public ResponseVO <Object> downloadImage(@Parameter(hidden = true) HttpServletResponse response,
+    public void downloadImage(@Parameter(hidden = true) HttpServletResponse response,
                                              @RequestParam(name = "sourceName") @NotNull String sourceName)
     {
         fileService.downloadImage(response, sourceName);
-        return ResponseVO.success(null);
     }
 }

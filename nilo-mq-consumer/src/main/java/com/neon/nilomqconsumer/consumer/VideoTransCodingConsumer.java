@@ -14,15 +14,12 @@ import com.neon.nilocommon.util.FFmpegUtil;
 import com.neon.nilocommon.util.VideoMergeUtils;
 import com.neon.nilomqconsumer.mapper.VideoInfoFileUploadMapper;
 import com.neon.nilomqconsumer.mapper.VideoInfoUploadMapper;
-import com.rabbitmq.client.Channel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
@@ -58,12 +55,11 @@ public class VideoTransCodingConsumer
      * <li>7. 若所有视频文件转码成功，计算视频总时长并将视频标记为待审核状态</li>
      * <hr/>
      * 填写了 VideoInfoFileUpload 的file_name, file_size, file_path, duration, transfer_result这几个字段
+     *
      * @param fileUpload 视频文件
-     * @param channel channel
-     * @param tag tag
      */
     @RabbitListener(queues = MqInfo.STORAGE_TRANSCODING_QUEUE)
-    public void receiveMessage(VideoInfoFileUpload fileUpload, Channel channel, @Header(AmqpHeaders.DELIVERY_TAG) long tag)
+    public void receiveMessage(VideoInfoFileUpload fileUpload)
     {
         try
         {
@@ -80,9 +76,6 @@ public class VideoTransCodingConsumer
             if (Files.exists(destPath)) FileUtils.deleteDirectory(destPath.toFile()); // 如果目标目录存在，那就直接删除避免报错
             FileUtils.moveDirectory(srcPath.toFile(), destPath.toFile());
 
-            // 删除在redis的记录
-            redisTemplate.delete(RedisKey.PRE_UPLOADED_VIDEO_TAG_PREFIX + fileUpload.getUserId() + ":" + fileUpload.getUploadId());
-
             // 文件合并
             String completeVideoPath = to + "/" + Constants.TMP_VIDEO_NAME;
             VideoMergeUtils.mergeChunks(to, completeVideoPath, true);
@@ -91,7 +84,6 @@ public class VideoTransCodingConsumer
             Integer duration = FFmpegUtil.getVideoDuration(completeVideoPath, false);
             if (duration == null)
             {
-                log.error("无法获取视频时长");
                 throw new RuntimeException("无法获取视频时长");
             }
 
@@ -106,21 +98,13 @@ public class VideoTransCodingConsumer
 
             fileUpload.setTransferResult(VideoFileStatus.TRANSCODING_SUCCESS.getStatus());
 
-            channel.basicAck(tag, false);
+            // 删除在redis的记录
+            redisTemplate.delete(RedisKey.PRE_UPLOADED_VIDEO_TAG_PREFIX + fileUpload.getUserId() + ":" + fileUpload.getUploadId());
         }
         catch (Exception e)
         {
             fileUpload.setTransferResult(VideoFileStatus.TRANSCODING_FAIL.getStatus());
-            log.error("转码时发生异常，异常信息：{}", e.toString());
-            try
-            {
-                channel.basicNack(tag, false, true);
-            }
-            catch (IOException ex)
-            {
-                log.error("消息拒绝时发生失败！");
-                throw new RuntimeException(ex);
-            }
+            throw new RuntimeException("视频转码失败", e);
         }
         finally
         {

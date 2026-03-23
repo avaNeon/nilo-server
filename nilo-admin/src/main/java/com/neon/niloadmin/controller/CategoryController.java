@@ -51,8 +51,8 @@ public class CategoryController
     }
 
     /**
-     * 获取所有分类及其子分类（只能获取下面一层）
-     *
+     * 获取所有分类及其子分类（只能获取下面一层）<hr/>
+     * 返回一个树形结构的分类列表
      * @return 指定分类及其子分类
      */
     @Operation(summary = "分层获取所有分类")
@@ -68,7 +68,7 @@ public class CategoryController
      */
     @Operation(summary = "增加或修改分类", description = "如果要修改分类，必须指定id")
     @PutMapping(path = "/category")
-    public ResponseVO <Object> saveCategory(@RequestBody @Valid @NotNull CategoryInfo categoryInfo)
+    public ResponseVO <Object> saveCategory(@RequestBody @Valid CategoryInfo categoryInfo)
     {
         service.saveCategory(categoryInfo);
         return ResponseVO.success(null);

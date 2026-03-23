@@ -59,7 +59,7 @@ public class AccountController
      * 验证验证码答案<br/>
      * 根据传入的captchaKey找到对应的redis中的captchaKey，验证用户验证码是否正确
      *
-     * @param code 用户的填入的验证码
+     * @param registerUserInfoDTO 前端传入的注册信息，包括邮箱、昵称、密码、验证码答案和验证码key
      */
     @Operation(summary = "注册接口", description = "检验用户信息和验证码")
     @PostMapping(path = "/register")
@@ -110,7 +110,7 @@ public class AccountController
 
     @Operation(summary = "自动登录接口", description = "检验token，如果token有效，则返回用户信息")
     @GetMapping(path = "/autoLogin")
-    public ResponseVO <Object> autoLogin(@RequestHeader(name = "token") String token)
+    public ResponseVO <TokenUserInfo> autoLogin(@RequestHeader(name = "token") String token)
     {
         return ResponseVO.success(accountService.autoLogin(token));
     }

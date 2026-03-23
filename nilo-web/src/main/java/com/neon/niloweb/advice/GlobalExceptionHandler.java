@@ -36,7 +36,7 @@ public class GlobalExceptionHandler
     @ExceptionHandler(BusinessException.class)
     ResponseVO <Object> handleBusinessException(BusinessException e, HttpServletRequest request)
     {
-        log.error("请求错误，请求地址{},错误信息:", request.getRequestURL(), e);
+        log.info("请求错误，请求地址{},错误信息:{}", request.getRequestURL(), e.getMessage());
         ResponseVO <Object> response = new ResponseVO <>();
         response.setCode(e.getCode() == null ? ResponseCode.UNKNOWN_ERROR.getCode() : e.getCode());
         response.setInfo(e.getMessage());
@@ -50,7 +50,7 @@ public class GlobalExceptionHandler
     @ExceptionHandler(DuplicateKeyException.class)
     ResponseVO <Object> handleDuplicateKeyException(DuplicateKeyException e, HttpServletRequest request)
     {
-        log.error("请求错误，请求地址{},错误信息:", request.getRequestURL(), e);
+        log.warn("请求错误，请求地址{},错误信息:{}", request.getRequestURL(), e.getMessage());
         ResponseVO <Object> response = new ResponseVO <>();
         response.setCode(ResponseCode.DATA_EXISTED.getCode());
         response.setInfo(ResponseCode.DATA_EXISTED.getMsg());
@@ -64,7 +64,7 @@ public class GlobalExceptionHandler
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseVO <Object> handleDTOInvalidException(MethodArgumentNotValidException e, HttpServletRequest request)
     {
-        log.error("请求错误，请求地址{},错误信息:", request.getRequestURL(), e);
+        log.info("请求错误，请求地址{},错误信息:{}", request.getRequestURL(), e.getMessage());
         ResponseVO <Object> response = new ResponseVO <>();
         response.setCode(ResponseCode.INVALID_ARGUMENTS.getCode());
         response.setInfo(ResponseCode.INVALID_ARGUMENTS.getMsg());
@@ -85,7 +85,7 @@ public class GlobalExceptionHandler
     @ExceptionHandler(ConstraintViolationException.class)
     ResponseVO <Object> handleArgsInvalidException(ConstraintViolationException e, HttpServletRequest request)
     {
-        log.error("请求错误，请求地址{},错误信息:", request.getRequestURL(), e);
+        log.info("请求错误，请求地址{},错误信息:{}", request.getRequestURL(), e.getMessage());
         ResponseVO <Object> response = new ResponseVO <>();
         response.setCode(ResponseCode.INVALID_ARGUMENTS.getCode());
         response.setInfo(ResponseCode.INVALID_ARGUMENTS.getMsg());
@@ -102,7 +102,7 @@ public class GlobalExceptionHandler
     @ExceptionHandler({BindException.class, MethodArgumentTypeMismatchException.class})
     ResponseVO <Object> handleArgsException(Exception e, HttpServletRequest request)
     {
-        log.error("请求错误，请求地址{},错误信息:", request.getRequestURL(), e);
+        log.info("请求错误，请求地址{},错误信息:{}", request.getRequestURL(), e.getMessage());
         ResponseVO <Object> response = new ResponseVO <>();
         response.setCode(ResponseCode.WRONG_ARGUMENTS.getCode());
         response.setInfo(ResponseCode.WRONG_ARGUMENTS.getMsg());
@@ -116,7 +116,7 @@ public class GlobalExceptionHandler
     @ExceptionHandler(NoResourceFoundException.class)
     ResponseVO <Object> handleNoResourceFoundException(NoResourceFoundException e, HttpServletRequest request)
     {
-        log.error("请求错误，请求地址{},错误信息:", request.getRequestURL(), e);
+        log.info("请求错误，请求地址{},错误信息:{}", request.getRequestURL(), e.getMessage());
         ResponseVO <Object> response = new ResponseVO <>();
         response.setCode(ResponseCode.NOT_FOUND.getCode());
         response.setInfo(ResponseCode.NOT_FOUND.getMsg());
@@ -132,7 +132,6 @@ public class GlobalExceptionHandler
     @ExceptionHandler(NoHandlerFoundException.class)
     ResponseVO <Object> handleNoHandlerException(NoHandlerFoundException e, HttpServletRequest request)
     {
-        log.error("请求错误，请求地址{},错误信息:", request.getRequestURL(), e);
         ResponseVO <Object> response = new ResponseVO <>();
         response.setCode(ResponseCode.NOT_FOUND.getCode());
         response.setInfo(ResponseCode.NOT_FOUND.getMsg());
@@ -147,7 +146,7 @@ public class GlobalExceptionHandler
     @ExceptionHandler(Exception.class)
     ResponseVO <Object> handleException(Exception e, HttpServletRequest request)
     {
-        log.error("请求错误，请求地址{},错误信息:", request.getRequestURL(), e);
+        log.error("请求错误，请求地址{},错误信息:", request.getRequestURL(), e); // 糟糕，出现了意想不到的错误！
         ResponseVO <Object> response = new ResponseVO <>();
         response.setCode(ResponseCode.SERVER_ERROR.getCode());
         response.setInfo(ResponseCode.SERVER_ERROR.getMsg());

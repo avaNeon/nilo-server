@@ -9,10 +9,6 @@ import static com.neon.nilocommon.entity.constants.Constants.MAX_PATH_LENGTH;
 
 public class StringUtil
 {
-    public static boolean isValidPath(String pathStr)
-    {
-        return isValidPath(pathStr, null);
-    }
 
     /**
      * 校验文件路径是否合法且在指定根目录下

@@ -55,19 +55,39 @@ public class VideoMergeUtils
         log.info("开始合并 {} 个分片到 {}", chunks.length, targetFile);
 
         // 5. 使用 FileChannel 进行零拷贝合并
-        // try-with-resources 自动关闭资源
-        try (FileChannel destChannel = FileChannel.open(target, StandardOpenOption.CREATE, StandardOpenOption.WRITE))
+        // transferFrom 不是每次都保证完整传输，需要循环直到当前分片全部写入
+        try (FileChannel destChannel = FileChannel.open(target,
+                                                        StandardOpenOption.CREATE,
+                                                        StandardOpenOption.WRITE,
+                                                        StandardOpenOption.TRUNCATE_EXISTING))
         {
+            long writePosition = 0L;
             for (File chunk : chunks)
             {
                 try (FileChannel srcChannel = FileChannel.open(chunk.toPath(), StandardOpenOption.READ))
                 {
-                    // transferFrom 是零拷贝的核心，直接在内核态传输数据
-                    // pos: destChannel.size() 表示追加到文件末尾
-                    destChannel.transferFrom(srcChannel, destChannel.size(), srcChannel.size());
+                    long chunkSize = srcChannel.size();
+                    long transferredTotal = 0L;
+                    // 注意：transferFrom()不一定一次性全传输完数据，所以要分批次传输数据
+                    while (transferredTotal < chunkSize)
+                    {
+                        long transferred = destChannel.transferFrom(srcChannel,
+                                                                    writePosition + transferredTotal,
+                                                                    chunkSize - transferredTotal);
+                        if (transferred <= 0)
+                        {
+                            throw new IOException("分片合并中断，未完成传输: " + chunk.getAbsolutePath());
+                        }
+                        transferredTotal += transferred;
+                    }
+                    writePosition += chunkSize;
                 }
             }
         }
+
+        long sum = Arrays.stream(chunks).mapToLong(File::length).sum();
+        long merged = Files.size(target);
+        log.info("sumChunkBytes={}, mergedBytes={}", sum, merged);
 
         log.info("合并完成: {}", targetFile);
 

@@ -77,9 +77,6 @@
     <sql id="query_condition">
         <where>
             <include refid="base_condition_filed"/>
-            <if test="query.fileIdFuzzy!= null  and query.fileIdFuzzy!=''">
-                and v.file_id like concat('%', #{query.fileIdFuzzy}, '%')
-            </if>
             <if test="query.fileNameFuzzy!= null  and query.fileNameFuzzy!=''">
                 and v.file_name like concat('%', #{query.fileNameFuzzy}, '%')
             </if>

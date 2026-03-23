@@ -129,7 +129,6 @@ public class CategoryService
      * 保存分类信息
      *
      * @param categoryInfo 分类信息
-     * @return categoryId
      */
     public void saveCategory(CategoryInfo categoryInfo)
     {
@@ -137,7 +136,8 @@ public class CategoryService
         CategoryInfo existedInfo = mapper.selectByCategoryNumber(categoryInfo.getCategoryNumber());
         // 如果id为null，说明想要新增数据
         // 如果id不为null，说明要更新数据
-        if (existedInfo != null && (categoryInfo.getCategoryId() == null || existedInfo.getCategoryId() != categoryInfo.getCategoryId()))
+        if (existedInfo != null && (categoryInfo.getCategoryId() == null || !Objects.equals(existedInfo.getCategoryId(),
+                                                                                            categoryInfo.getCategoryId())))
             throw new BusinessException(1000, "分类编号已存在");
         Integer maxSort = mapper.selectMaxSort(categoryInfo.getPCategoryId());
         if (maxSort == null) maxSort = 1;

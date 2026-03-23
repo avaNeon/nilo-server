@@ -35,35 +35,6 @@ public class CreativeCenterVideoUploadController
 
     private final CreativeCenterVideoUploadService creativeCenterVideoUploadService;
 
-    private final VideoInfoUploadMapper <VideoInfoUpload, VideoInfoUploadQuery> videoInfoUploadMapper;
-
-//    /**
-//     * 删除文件
-//     */
-//    @PostMapping(path = "/test/delete")
-//    public ResponseVO <Object> testDelete(@RequestBody @NotNull List <String> pathList)
-//    {
-//        creativeCenterVideoUploadService.addVideoFile2DeleteQueue(pathList);
-//        return ResponseVO.success(null);
-//    }
-
-//    /**
-//     * 转码文件测试
-//     */
-//    @PostMapping(path = "/test/transcoding")
-//    public ResponseVO <Object> testTranscoding(@RequestParam(name = "a") @NotNull Long a, @RequestParam(name = "b") @NotNull Long b)
-//    {
-//        List <VideoInfoFileUpload> fileUploadList = new ArrayList <>();
-//        VideoInfoFileUpload file1 = new VideoInfoFileUpload();
-//        file1.setVideoId(a);
-//        VideoInfoFileUpload file2 = new VideoInfoFileUpload();
-//        file1.setVideoId(b);
-//        fileUploadList.add(file1);
-//        fileUploadList.add(file2);
-//        creativeCenterVideoUploadService.addVideoFile2TranscodingQueue(fileUploadList);
-//        return ResponseVO.success(null);
-//    }
-
     /**
      * 上传/修改视频
      *
@@ -82,7 +53,7 @@ public class CreativeCenterVideoUploadController
     @Operation(summary = "上传/修改视频")
     @PostMapping(path = "/video")
     public ResponseVO <Object> videoUpload(@RequestHeader(name = "token") String token,
-                                           @RequestParam(name = "videoId") @NotNull Long videoId,
+                                           @RequestParam(name = "videoId", required = false) Long videoId,
                                            @RequestParam(name = "coverPath") @NotEmpty String coverPath,
                                            @RequestParam(name = "videoTitle") @NotEmpty @Size(max = 100) String videoTitle,
                                            @RequestParam(name = "pCategoryId") @NotNull Integer pCategoryId,
@@ -137,6 +108,7 @@ public class CreativeCenterVideoUploadController
 
     /**
      * 获取不同状态视频的数量
+     *
      * @return 三种状态视频的数量
      */
     @GetMapping(path = "/video/count")

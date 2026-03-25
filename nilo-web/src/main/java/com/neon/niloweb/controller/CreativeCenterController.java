@@ -5,13 +5,10 @@ import com.neon.nilocommon.entity.dto.TokenUserInfo;
 import com.neon.nilocommon.entity.dto.VideoInfoUploadJoinDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.po.VideoInfoFileUpload;
-import com.neon.nilocommon.entity.po.VideoInfoUpload;
-import com.neon.nilocommon.entity.query.VideoInfoUploadQuery;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.entity.vo.VideoStatusCountVO;
 import com.neon.nilocommon.exception.BusinessException;
-import com.neon.niloweb.mapper.VideoInfoUploadMapper;
-import com.neon.niloweb.service.CreativeCenterVideoUploadService;
+import com.neon.niloweb.service.CreativeCenterService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotEmpty;
@@ -25,15 +22,15 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @Tag(name = "创作中心视频上传管理")
-@RequestMapping(path = "/creativeCenter/video/upload")
+@RequestMapping(path = "/creativeCenter")
 @Validated
 @RequiredArgsConstructor
 @RestController
-public class CreativeCenterVideoUploadController
+public class CreativeCenterController
 {
     private final RedisTemplate <String, Object> redisTemplate;
 
-    private final CreativeCenterVideoUploadService creativeCenterVideoUploadService;
+    private final CreativeCenterService creativeCenterService;
 
     /**
      * 上传/修改视频
@@ -66,17 +63,17 @@ public class CreativeCenterVideoUploadController
     {
         TokenUserInfo tokenUserInfo = getLoginState(token);
         if (uploadFileList.isEmpty()) return ResponseVO.error("没有视频文件"); // 为什么视频文件是空的！！！
-        creativeCenterVideoUploadService.videoUpload(videoId,
-                                                     coverPath,
-                                                     videoTitle,
-                                                     pCategoryId,
-                                                     categoryId,
-                                                     postType,
-                                                     tags,
-                                                     introduction,
-                                                     interaction,
-                                                     uploadFileList,
-                                                     tokenUserInfo);
+        creativeCenterService.videoUpload(videoId,
+                                          coverPath,
+                                          videoTitle,
+                                          pCategoryId,
+                                          categoryId,
+                                          postType,
+                                          tags,
+                                          introduction,
+                                          interaction,
+                                          uploadFileList,
+                                          tokenUserInfo);
         return ResponseVO.success(null);
     }
 
@@ -90,19 +87,15 @@ public class CreativeCenterVideoUploadController
      * @return 查询结果（视频列表）
      */
     @Operation(summary = "获取视频列表")
-    @GetMapping(path = "/video")
-    public ResponseVO <List <VideoInfoUploadJoinDTO>> loadVideo(@RequestHeader(name = "token") String token,
-                                                                @RequestParam(name = "status") Short status,
-                                                                @RequestParam(name = "pageNo") Integer pageNo,
-                                                                @RequestParam(name = "pageSize") Integer pageSize,
-                                                                @RequestParam(name = "nameFuzzy") String nameFuzzy)
+    @GetMapping(path = "/video/list")
+    public ResponseVO <List <VideoInfoUploadJoinDTO>> loadVideoList(@RequestHeader(name = "token") String token,
+                                                                    @RequestParam(name = "status") Short status,
+                                                                    @RequestParam(name = "pageNo") Integer pageNo,
+                                                                    @RequestParam(name = "pageSize") Integer pageSize,
+                                                                    @RequestParam(name = "nameFuzzy") String nameFuzzy)
     {
         TokenUserInfo tokenUserInfo = getLoginState(token);
-        List <VideoInfoUploadJoinDTO> result = creativeCenterVideoUploadService.loadVideo(tokenUserInfo,
-                                                                                          status,
-                                                                                          pageNo,
-                                                                                          pageSize,
-                                                                                          nameFuzzy);
+        List <VideoInfoUploadJoinDTO> result = creativeCenterService.loadVideoList(tokenUserInfo, status, pageNo, pageSize, nameFuzzy);
         return ResponseVO.success(result);
     }
 
@@ -115,7 +108,7 @@ public class CreativeCenterVideoUploadController
     public ResponseVO <VideoStatusCountVO> getVideoStatusCount(@RequestHeader(name = "token") String token)
     {
         TokenUserInfo tokenUserInfo = getLoginState(token);
-        VideoStatusCountVO videoStatusCount = creativeCenterVideoUploadService.getVideoStatusCount(tokenUserInfo);
+        VideoStatusCountVO videoStatusCount = creativeCenterService.getVideoStatusCount(tokenUserInfo);
         return ResponseVO.success(videoStatusCount);
     }
 

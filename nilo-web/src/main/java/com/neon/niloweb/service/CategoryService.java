@@ -4,18 +4,17 @@ package com.neon.niloweb.service;
 import com.neon.nilocommon.entity.po.CategoryInfo;
 import com.neon.nilocommon.entity.query.CategoryInfoQuery;
 import com.neon.niloweb.mapper.CategoryInfoMapper;
+import com.neon.niloweb.repository.redis.CategoryRedisRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static com.neon.nilocommon.entity.constants.RedisKey.CATEGORIES_INFO;
 import static com.neon.nilocommon.entity.constants.RedisKey.CATEGORY_UPDATE_LOCK;
 
 
@@ -30,9 +29,9 @@ public class CategoryService
 
     private final CategoryInfoMapper <CategoryInfo, CategoryInfoQuery> mapper;
 
-    private final RedisTemplate <String, Object> redisTemplate;
-
     private final RedissonClient redisson;
+
+    private final CategoryRedisRepository categoryRedisRepository;
 
     /**
      * 查询所有分类，分类下一级的子分类会被加入children属性中
@@ -40,11 +39,10 @@ public class CategoryService
     public List <CategoryInfo> findAllWithChildren()
     {
         checkCache();
-        List <CategoryInfo> list;
-        if (redisTemplate.hasKey(CATEGORIES_INFO))
+        List <CategoryInfo> list = categoryRedisRepository.getCategoryInfo();
+        if (list != null)
         {
-            list = (ArrayList <CategoryInfo>) redisTemplate.opsForValue().get(CATEGORIES_INFO);
-            if (list == null) return new ArrayList <>();
+            return list;
         }
         else
         {
@@ -87,19 +85,19 @@ public class CategoryService
      */
     private void checkCache()
     {
-        if (!redisTemplate.hasKey(CATEGORIES_INFO))
+        if (categoryRedisRepository.getCategoryInfo() == null)
         {
             RLock lock = redisson.getLock(CATEGORY_UPDATE_LOCK);
             boolean locked = false;
             try
             {
                 locked = lock.tryLock(5, 20, TimeUnit.SECONDS);
-                if (locked && !redisTemplate.hasKey(CATEGORIES_INFO)) // 抢到锁了，进行第二次检查
+                if (locked && categoryRedisRepository.getCategoryInfo() == null) // 抢到锁了，进行第二次检查
                 {
                     CategoryInfoQuery param = new CategoryInfoQuery();
                     param.setOrderBy("sort asc");
                     List <CategoryInfo> list = mapper.selectList(param);
-                    redisTemplate.opsForValue().set(CATEGORIES_INFO, list);
+                    categoryRedisRepository.setCategory(list);
                 }
             }
             catch (InterruptedException e)

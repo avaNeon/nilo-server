@@ -84,11 +84,11 @@ public class FileController
     @PostMapping("/video")
     public ResponseVO <Object> uploadVideo(@RequestParam(name = "chunkFile") @NotNull MultipartFile chunkFile,
                                            @RequestParam(name = "chunkIndex") @NotNull Integer chunkIndex,
-                                           @RequestParam(name = "uploadId") @NotEmpty String uploadId,
+                                           @RequestParam(name = "uploadId") @NotEmpty Long uploadId,
                                            @RequestHeader(name = "token") String token)
     {
         TokenUserInfo tokenUserInfo = getLoginState(token);
-        Long userId = tokenUserInfo.getUserId();
+        long userId = tokenUserInfo.getUserId();
         fileService.uploadVideo(chunkFile, chunkIndex, userId, uploadId);
         return ResponseVO.success(null);
     }
@@ -102,7 +102,7 @@ public class FileController
      */
     @Operation(summary = "删除上传的视频文件")
     @DeleteMapping("/video")
-    public ResponseVO <Object> deleteVideo(@RequestParam(name = "uploadId") @NotEmpty String uploadId,
+    public ResponseVO <Object> deleteVideo(@RequestParam(name = "uploadId") @NotEmpty Long uploadId,
                                            @RequestHeader(name = "token") String token)
     {
         TokenUserInfo loginState = getLoginState(token);

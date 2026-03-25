@@ -2,13 +2,12 @@ package com.neon.niloadmin.service;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.neon.niloadmin.config.AdminConfig;
-import com.neon.nilocommon.entity.constants.RedisKey;
+import com.neon.niloadmin.repository.redis.AdminRedisRepository;
 import com.neon.nilocommon.entity.dto.TokenAdmin;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.po.Admin;
 import com.neon.nilocommon.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
@@ -20,7 +19,7 @@ public class AdminService
 {
     private final AdminConfig config;
 
-    private final RedisTemplate <String, Object> redisTemplate;
+    private final AdminRedisRepository adminRedisRepository;
 
     /**
      * 登录<hr/>
@@ -33,8 +32,7 @@ public class AdminService
             if (account.equals(admin.getAccount()) && password.equals(admin.getPassword()))
             {
                 TokenAdmin tokenAdmin = BeanUtil.copyProperties(admin, TokenAdmin.class);
-                tokenAdmin.setExpireTime(System.currentTimeMillis() + TimeUnit.DAYS.toMillis(1));
-                generateAndSaveToken(tokenAdmin, 1, TimeUnit.DAYS);
+                generateAndSaveToken(tokenAdmin, 1);
                 return tokenAdmin;
             }
         }
@@ -50,13 +48,12 @@ public class AdminService
      */
     public TokenAdmin autoLogin(String token)
     {
-        TokenAdmin tokenAdmin = (TokenAdmin) redisTemplate.opsForValue().get(RedisKey.ADMIN_TOKEN_PREFIX + token);
+        TokenAdmin tokenAdmin = adminRedisRepository.getTokenAdminByToken(token);
         if (tokenAdmin == null) return null;
             // 如果过期时间小于1天，则自动延长至7天
         else if (tokenAdmin.getExpireTime() - System.currentTimeMillis() < TimeUnit.DAYS.toMillis(1))
         {
-            tokenAdmin.setExpireTime(System.currentTimeMillis() + TimeUnit.DAYS.toMillis(7));
-            redisTemplate.opsForValue().set(RedisKey.ADMIN_TOKEN_PREFIX + token, tokenAdmin, 7, TimeUnit.DAYS); // 延长时间至7天
+            adminRedisRepository.setTokenAdminByToken(token, tokenAdmin, 7); // 延长时间至7天
         }
         return tokenAdmin;
     }
@@ -66,16 +63,16 @@ public class AdminService
      */
     public Boolean logout(String token)
     {
-        return redisTemplate.delete(RedisKey.ADMIN_TOKEN_PREFIX + token);
+        return adminRedisRepository.deleteTokenAdminByToken(token);
     }
 
     /**
      * 生成Token并保存到Redis中
      */
-    private void generateAndSaveToken(TokenAdmin admin, int time, TimeUnit timeUnit)
+    private void generateAndSaveToken(TokenAdmin admin, int expireDays)
     {
         String token = UUID.randomUUID().toString();
         admin.setToken(token);
-        redisTemplate.opsForValue().set(RedisKey.ADMIN_TOKEN_PREFIX + token, admin, time, timeUnit);
+        adminRedisRepository.setTokenAdminByToken(token, admin, expireDays);
     }
 }

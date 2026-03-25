@@ -2,6 +2,7 @@ package com.neon.niloadmin.service;
 
 
 import com.neon.niloadmin.mapper.CategoryInfoMapper;
+import com.neon.niloadmin.repository.redis.CategoryRedisRepository;
 import com.neon.nilocommon.entity.enums.PageSize;
 import com.neon.nilocommon.entity.po.CategoryInfo;
 import com.neon.nilocommon.entity.query.CategoryInfoQuery;
@@ -13,14 +14,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.neon.nilocommon.entity.constants.RedisKey.CATEGORIES_INFO;
 import static com.neon.nilocommon.entity.constants.RedisKey.CATEGORY_UPDATE_LOCK;
 
 
@@ -35,7 +34,7 @@ public class CategoryService
 
     private final CategoryInfoMapper <CategoryInfo, CategoryInfoQuery> mapper;
 
-    private final RedisTemplate <String, Object> redisTemplate;
+    private final CategoryRedisRepository categoryRedisRepository;
 
     private final RedissonClient redisson;
 
@@ -45,9 +44,10 @@ public class CategoryService
     public PaginationResponseVO <CategoryInfo> findListByPage(CategoryInfoQuery param)
     {
         checkCache();
-        if (redisTemplate.hasKey(CATEGORIES_INFO)) // Redis
+        List <CategoryInfo> redisCategoryList = categoryRedisRepository.getCategoryInfo();
+        if (redisCategoryList != null) // Redis
         {
-            List <CategoryInfo> categoryList = (ArrayList <CategoryInfo>) redisTemplate.opsForValue().get(CATEGORIES_INFO);
+            List <CategoryInfo> categoryList = redisCategoryList;
             // 1. 先过滤和排序
             categoryList = RedisQueryUtil.filterAndSort(categoryList, param, CategoryInfo.class);
 
@@ -87,9 +87,9 @@ public class CategoryService
     {
         checkCache();
         List <CategoryInfo> list;
-        if (redisTemplate.hasKey(CATEGORIES_INFO))
+        if (categoryRedisRepository.hasCategoryInfo())
         {
-            list = (ArrayList <CategoryInfo>) redisTemplate.opsForValue().get(CATEGORIES_INFO);
+            list = categoryRedisRepository.getCategoryInfo();
             if (list == null) return new ArrayList <>();
             Set <Integer> set = new HashSet <>(idOrParentIds);
             list.removeIf(categoryInfo ->
@@ -113,9 +113,9 @@ public class CategoryService
     {
         checkCache();
         List <CategoryInfo> list;
-        if (redisTemplate.hasKey(CATEGORIES_INFO))
+        if (categoryRedisRepository.hasCategoryInfo())
         {
-            list = (ArrayList <CategoryInfo>) redisTemplate.opsForValue().get(CATEGORIES_INFO);
+            list = categoryRedisRepository.getCategoryInfo();
             if (list == null) return new ArrayList <>();
         }
         else
@@ -144,7 +144,7 @@ public class CategoryService
         categoryInfo.setSort(maxSort + 1);
         if (existedInfo == null) mapper.insert(categoryInfo);
         else mapper.updateByCategoryId(categoryInfo, existedInfo.getCategoryId());
-        redisTemplate.delete(CATEGORIES_INFO);
+        categoryRedisRepository.deleteCategoryInfo();
     }
 
     /**
@@ -154,7 +154,7 @@ public class CategoryService
     {
         mapper.deleteByCategoryId(categoryId);
         mapper.deleteByPCategoryId(categoryId);
-        redisTemplate.delete(CATEGORIES_INFO);
+        categoryRedisRepository.deleteCategoryInfo();
     }
 
     /**
@@ -172,7 +172,7 @@ public class CategoryService
                                                                 return categoryInfo;
                                                             }).toList();
         mapper.updateSort(list);
-        redisTemplate.delete(CATEGORIES_INFO);
+        categoryRedisRepository.deleteCategoryInfo();
     }
 
     /**
@@ -225,19 +225,19 @@ public class CategoryService
      */
     private void checkCache()
     {
-        if (!redisTemplate.hasKey(CATEGORIES_INFO))
+        if (!categoryRedisRepository.hasCategoryInfo())
         {
             RLock lock = redisson.getLock(CATEGORY_UPDATE_LOCK);
             boolean locked = false;
             try
             {
                 locked = lock.tryLock(5, 20, TimeUnit.SECONDS);
-                if (locked && !redisTemplate.hasKey(CATEGORIES_INFO)) // 抢到锁了，进行第二次检查
+                if (locked && !categoryRedisRepository.hasCategoryInfo()) // 抢到锁了，进行第二次检查
                 {
                     CategoryInfoQuery param = new CategoryInfoQuery();
                     param.setOrderBy("sort asc");
                     List <CategoryInfo> list = mapper.selectList(param);
-                    redisTemplate.opsForValue().set(CATEGORIES_INFO, list);
+                    categoryRedisRepository.setCategoryInfo(list);
                 }
             }
             catch (InterruptedException e)

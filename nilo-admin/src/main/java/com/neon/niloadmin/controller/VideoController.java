@@ -1,0 +1,55 @@
+package com.neon.niloadmin.controller;
+
+import com.neon.niloadmin.service.VideoService;
+import com.neon.nilocommon.entity.dto.VideoInfoUploadAdminJoinDTO;
+import com.neon.nilocommon.entity.query.VideoInfoUploadQuery;
+import com.neon.nilocommon.entity.vo.ResponseVO;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.Parameters;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.NotNull;
+import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+
+@Tag(name = "视频管理")
+@RequiredArgsConstructor
+@Validated
+@RequestMapping(path = "/video")
+@RestController
+public class VideoController
+{
+    private final VideoService videoService;
+
+    /**
+     * 查询用户上传视频
+     *
+     * @return 查询结果（视频列表）
+     */
+    @Operation(summary = "获取视频列表")
+    @GetMapping(path = "/list")
+    public ResponseVO <List <VideoInfoUploadAdminJoinDTO>> loadVideoList(@ParameterObject VideoInfoUploadQuery infoUploadQuery)
+    {
+        List <VideoInfoUploadAdminJoinDTO> result = videoService.loadVideoList(infoUploadQuery);
+        return ResponseVO.success(result);
+    }
+
+    @Operation(summary = "审核视频")
+    @Parameters({@Parameter(name = "videoId", description = "视频ID"),
+                 @Parameter(name = "reviewResult", description = "审核结果，true表示审核通过，false表示审核不通过"),
+                 @Parameter(name = "refuseReason", description = "拒绝理由，当审核不通过时需要提供")})
+    @PutMapping(path = "/review")
+    public ResponseVO <Object> reviewVideo(@RequestParam(name = "videoId") @NotNull Long videoId,
+                                           @RequestParam(name = "reviewResult") @NotNull Boolean reviewResult,
+                                           @RequestParam(name = "refuseReason", required = false) String refuseReason)
+    {
+        videoService.reviewVideo(videoId, reviewResult, refuseReason);
+        return ResponseVO.success(null);
+    }
+
+}

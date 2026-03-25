@@ -9,6 +9,8 @@
         <result column="user_id" property="userId"/>
         <!--昵称-->
         <result column="nick_name" property="nickName"/>
+        <!--头像-->
+        <result column="avatar" property="avatar"/>
         <!--邮箱-->
         <result column="email" property="email"/>
         <!--密码-->
@@ -42,7 +44,7 @@
 
     <!-- 通用查询结果列-->
     <sql id="base_column_list">
-        u.user_id,u.nick_name,u.email,u.password,u.gender,
+        u.user_id,u.nick_name,u.avatar,u.email,u.password,u.gender,
 		 u.birthday,u.school,u.personal_introduction,u.register_time,u.last_login_time,
 		 u.last_login_ip,u.status,u.notice_info,u.total_coin,u.current_coin,
 		 u.theme
@@ -173,6 +175,9 @@
             <if test="bean.nickName != null">
                 nick_name,
             </if>
+            <if test="bean.avatar != null">
+                avatar,
+            </if>
             <if test="bean.email != null">
                 email,
             </if>
@@ -222,6 +227,9 @@
             </if>
             <if test="bean.nickName!=null">
                 #{bean.nickName},
+            </if>
+            <if test="bean.avatar!=null">
+                #{bean.avatar},
             </if>
             <if test="bean.email!=null">
                 #{bean.email},
@@ -278,6 +286,9 @@
             <if test="bean.nickName != null">
                 nick_name,
             </if>
+            <if test="bean.avatar != null">
+                avatar,
+            </if>
             <if test="bean.email != null">
                 email,
             </if>
@@ -327,6 +338,9 @@
             </if>
             <if test="bean.nickName!=null">
                 #{bean.nickName},
+            </if>
+            <if test="bean.avatar!=null">
+                #{bean.avatar},
             </if>
             <if test="bean.email!=null">
                 #{bean.email},
@@ -379,6 +393,9 @@
             <if test="bean.nickName!=null">
                 nick_name = VALUES(nick_name),
             </if>
+            <if test="bean.avatar!=null">
+                avatar = VALUES(avatar),
+            </if>
             <if test="bean.email!=null">
                 email = VALUES(email),
             </if>
@@ -429,6 +446,7 @@
         INSERT INTO user_info(
         user_id,
         nick_name,
+        avatar,
         email,
         password,
         gender,
@@ -448,6 +466,7 @@
             (
             #{item.userId},
             #{item.nickName},
+            #{item.avatar},
             #{item.email},
             #{item.password},
             #{item.gender},
@@ -471,6 +490,7 @@
         INSERT INTO user_info(
         user_id,
         nick_name,
+        avatar,
         email,
         password,
         gender,
@@ -490,6 +510,7 @@
             (
             #{item.userId},
             #{item.nickName},
+            #{item.avatar},
             #{item.email},
             #{item.password},
             #{item.gender},
@@ -509,6 +530,7 @@
         on DUPLICATE key update
         user_id = VALUES(user_id),
         nick_name = VALUES(nick_name),
+        avatar = VALUES(avatar),
         email = VALUES(email),
         password = VALUES(password),
         gender = VALUES(gender),
@@ -534,6 +556,9 @@
             </if>
             <if test="bean.nickName != null">
                 nick_name = #{bean.nickName},
+            </if>
+            <if test="bean.avatar != null">
+                avatar = #{bean.avatar},
             </if>
             <if test="bean.email != null">
                 email = #{bean.email},
@@ -593,6 +618,9 @@
         <set>
             <if test="bean.nickName != null">
                 nick_name = #{bean.nickName},
+            </if>
+            <if test="bean.avatar != null">
+                avatar = #{bean.avatar},
             </if>
             <if test="bean.email != null">
                 email = #{bean.email},
@@ -664,6 +692,9 @@
             <if test="bean.nickName != null">
                 nick_name = #{bean.nickName},
             </if>
+            <if test="bean.avatar != null">
+                avatar = #{bean.avatar},
+            </if>
             <if test="bean.password != null">
                 password = #{bean.password},
             </if>
@@ -730,6 +761,9 @@
             </if>
             <if test="bean.email != null">
                 email = #{bean.email},
+            </if>
+            <if test="bean.avatar != null">
+                avatar = #{bean.avatar},
             </if>
             <if test="bean.password != null">
                 password = #{bean.password},

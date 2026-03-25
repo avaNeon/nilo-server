@@ -1,11 +1,10 @@
 package com.neon.niloweb.service;
 
 import cn.hutool.core.lang.Snowflake;
-import com.neon.nilocommon.entity.constants.MqInfo;
 import com.neon.nilocommon.entity.dto.TokenUserInfo;
 import com.neon.nilocommon.entity.dto.VideoInfoUploadJoinDTO;
-import com.neon.nilocommon.entity.enums.VideoFileStatus;
-import com.neon.nilocommon.entity.enums.VideoStatus;
+import com.neon.nilocommon.entity.enums.videoInfoFileUpload.VideoFileStatus;
+import com.neon.nilocommon.entity.enums.videoInfoUpload.VideoStatus;
 import com.neon.nilocommon.entity.po.VideoInfoFileUpload;
 import com.neon.nilocommon.entity.po.VideoInfoUpload;
 import com.neon.nilocommon.entity.query.PageCalculator;
@@ -16,8 +15,8 @@ import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.config.SystemConfig;
 import com.neon.niloweb.mapper.VideoInfoFileUploadMapper;
 import com.neon.niloweb.mapper.VideoInfoUploadMapper;
+import com.neon.niloweb.repository.rabbitmq.MqRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,15 +24,14 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Service
-public class CreativeCenterVideoUploadService
+public class CreativeCenterService
 {
-    private final RabbitTemplate rabbitTemplate;
-
     private final SystemConfig systemConfig;
 
     private final VideoInfoUploadMapper <VideoInfoUpload, VideoInfoUploadQuery> videoInfoUploadMapper;
@@ -41,6 +39,8 @@ public class CreativeCenterVideoUploadService
     private final VideoInfoFileUploadMapper <VideoInfoFileUpload, VideoInfoFileUploadQuery> videoInfoFileUploadMapper;
 
     private final Snowflake snowflake;
+
+    private final MqRepository mqRepository;
 
     /**
      * 视频上传<hr/>
@@ -65,12 +65,13 @@ public class CreativeCenterVideoUploadService
                             List <VideoInfoFileUpload> uploadFileList,
                             TokenUserInfo tokenUserInfo)
     {
+        Long userId = tokenUserInfo.getUserId();
         // 将传入的参数赋值给视频信息对象
         VideoInfoUpload videoInfoUpload = new VideoInfoUpload();
         videoInfoUpload.setVideoId(videoId);
         videoInfoUpload.setVideoCover(coverPathStr);
         videoInfoUpload.setVideoName(videoTitle);
-        videoInfoUpload.setUserId(tokenUserInfo.getUserId());
+        videoInfoUpload.setUserId(userId);
         videoInfoUpload.setPCategoryId(pCategoryId);
         videoInfoUpload.setCategoryId(categoryId);
         videoInfoUpload.setPostType(postType);
@@ -108,7 +109,7 @@ public class CreativeCenterVideoUploadService
                 uploadFile.setTransferResult(VideoFileStatus.TRANSCODING.getStatus());
             }
             videoInfoFileUploadMapper.insertBatch(uploadFileList);
-            addVideoFile2TranscodingQueue(uploadFileList);
+            mqRepository.addVideoFile2TranscodingQueue(uploadFileList);
         }
         else // 修改情况
         {
@@ -119,6 +120,11 @@ public class CreativeCenterVideoUploadService
             if (videoInfoUploadDb == null)
             {
                 throw new BusinessException("未存储此数据");
+            }
+            // 不允许修改别人的视频信息
+            if (!Objects.equals(videoInfoUploadDb.getUserId(), userId))
+            {
+                throw new BusinessException("没有权限修改");
             }
             Short status = videoInfoUploadDb.getStatus();
             /*
@@ -133,7 +139,7 @@ public class CreativeCenterVideoUploadService
             /* 处理部分 */
             VideoInfoFileUploadQuery videoFileUploadQuery = new VideoInfoFileUploadQuery();
             videoFileUploadQuery.setVideoId(videoId);
-            videoFileUploadQuery.setUserId(tokenUserInfo.getUserId()); // 限制住只能改本用户id的视频，因为是通过token获得用户id，可以避免用户改别人视频
+            videoFileUploadQuery.setUserId(userId); // 限制住只能改本用户id的视频，因为是通过token获得用户id，可以避免用户改别人视频
             List <VideoInfoFileUpload> dbUploadFileList = videoInfoFileUploadMapper.selectList(videoFileUploadQuery);
             Map <Long, VideoInfoFileUpload> uploadFileMap = uploadFileList.stream()
                                                                           .collect(Collectors.toMap(VideoInfoFileUpload::getUploadId,
@@ -177,12 +183,12 @@ public class CreativeCenterVideoUploadService
             // 删除用户想删除的视频文件
             if (!removedFileList.isEmpty())
             {
-                List <Long> fileIdList = removedFileList.stream().map(VideoInfoFileUpload::getUploadId).toList();
+                List <Long> fileIdList = removedFileList.stream().map(VideoInfoFileUpload::getFileId).toList();
                 // 数据库层面删除
-                videoInfoFileUploadMapper.deleteBatchByFileId(fileIdList, tokenUserInfo.getUserId());
+                videoInfoFileUploadMapper.deleteBatchByFileId(fileIdList, userId);
                 List <String> filePathList = removedFileList.stream().map(VideoInfoFileUpload::getFilePath).toList();
                 // 删除磁盘上的文件
-                addVideoFile2DeleteQueue(filePathList);
+                mqRepository.addVideoFile2DeleteQueue(filePathList);
             }
 
             // 更新视频文件记录
@@ -205,10 +211,10 @@ public class CreativeCenterVideoUploadService
             {
                 for (VideoInfoFileUpload newFile : newFileList)
                 {
-                    newFile.setUserId(tokenUserInfo.getUserId());
+                    newFile.setUserId(userId);
                     newFile.setVideoId(videoId);
                 }
-                addVideoFile2TranscodingQueue(newFileList);
+                mqRepository.addVideoFile2TranscodingQueue(newFileList);
             }
         }
     }
@@ -218,11 +224,11 @@ public class CreativeCenterVideoUploadService
      *
      * @return 返回一个列表，审核成功的结果会有video_info的字段值
      */
-    public List <VideoInfoUploadJoinDTO> loadVideo(TokenUserInfo tokenUserInfo,
-                                                   Short status,
-                                                   Integer pageNo,
-                                                   Integer pageSize,
-                                                   String nameFuzzy)
+    public List <VideoInfoUploadJoinDTO> loadVideoList(TokenUserInfo tokenUserInfo,
+                                                       Short status,
+                                                       Integer pageNo,
+                                                       Integer pageSize,
+                                                       String nameFuzzy)
     {
         VideoInfoUploadQuery query = new VideoInfoUploadQuery();
         query.setUserId(tokenUserInfo.getUserId());
@@ -233,7 +239,7 @@ public class CreativeCenterVideoUploadService
             // 若为-1，则查询未审核的视频，即状态为0、1、2的视频
             if (status == (short) -1)
             {
-                query.setExclusiveStatusList(List.of(VideoStatus.REVIEW_SUCCESS.getStatus(), VideoStatus.REVIEW_FAIL.getStatus()));
+                query.setExclusiveStatusList(List.of(VideoStatus.REVIEW_SUCCESS.getStatus(), VideoStatus.REVIEW_FAILED.getStatus()));
             }
             else // 否则，查询相应状态的视频
             {
@@ -262,11 +268,11 @@ public class CreativeCenterVideoUploadService
         query.setStatus(VideoStatus.REVIEW_SUCCESS.getStatus());
         Integer successCount = videoInfoUploadMapper.selectCount(query);
         // 查找审核不通过视频
-        query.setStatus(VideoStatus.REVIEW_FAIL.getStatus());
+        query.setStatus(VideoStatus.REVIEW_FAILED.getStatus());
         Integer failedCount = videoInfoUploadMapper.selectCount(query);
         // 查找待审核视频
         query.setStatus(null);
-        query.setExclusiveStatusList(List.of(VideoStatus.REVIEW_SUCCESS.getStatus(), VideoStatus.REVIEW_FAIL.getStatus()));
+        query.setExclusiveStatusList(List.of(VideoStatus.REVIEW_SUCCESS.getStatus(), VideoStatus.REVIEW_FAILED.getStatus()));
         Integer pendingCount = videoInfoUploadMapper.selectCount(query);
         return new VideoStatusCountVO(pendingCount, successCount, failedCount);
     }
@@ -288,32 +294,5 @@ public class CreativeCenterVideoUploadService
                                                                                                                                                                                                         .equals(dbInfo.getInteraction());
     }
 
-    /**
-     * 将视频文件的删除任务添加至MQ <hr/>
-     * 将List拆分为单个路径，一个路径对应一个message传给MQ<br/>
-     * 因为这个操作的性能瓶颈在磁盘删除操作，所以即使拆分为单个路径这个性能损失也不算严重（就目前而言）
-     *
-     * @param filePathList 一个列表，元素为要删除的文件路径
-     */
-    private void addVideoFile2DeleteQueue(List <String> filePathList)
-    {
-        for (String path : filePathList)
-        {
-            rabbitTemplate.convertAndSend(MqInfo.STORAGE_EXCHANGE, MqInfo.STORAGE_DELETE_ROUTING_KEY, path);
-        }
-    }
 
-    /**
-     * 将视频文件的转码任务添加至MQ <hr/>
-     * 将List拆分为单个路径，一个路径对应一个message传给MQ<br/>
-     *
-     * @param fileUploadList 一个列表，元素为要转码的视频文件的bean
-     */
-    private void addVideoFile2TranscodingQueue(List <VideoInfoFileUpload> fileUploadList)
-    {
-        for (VideoInfoFileUpload fileUpload : fileUploadList)
-        {
-            rabbitTemplate.convertAndSend(MqInfo.STORAGE_EXCHANGE, MqInfo.STORAGE_TRANSCODING_ROUTING_KEY, fileUpload);
-        }
-    }
 }

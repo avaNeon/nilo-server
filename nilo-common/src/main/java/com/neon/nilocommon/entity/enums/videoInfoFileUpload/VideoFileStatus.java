@@ -1,4 +1,4 @@
-package com.neon.nilocommon.entity.enums;
+package com.neon.nilocommon.entity.enums.videoInfoFileUpload;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

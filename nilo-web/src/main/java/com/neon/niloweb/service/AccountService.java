@@ -2,7 +2,6 @@ package com.neon.niloweb.service;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.lang.Snowflake;
-import com.neon.nilocommon.entity.constants.RedisKey;
 import com.neon.nilocommon.entity.dto.TokenUserInfo;
 import com.neon.nilocommon.entity.enums.PageSize;
 import com.neon.nilocommon.entity.enums.ResponseCode;
@@ -14,8 +13,8 @@ import com.neon.nilocommon.entity.query.UserInfoQuery;
 import com.neon.nilocommon.entity.vo.PaginationResponseVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.mapper.UserInfoMapper;
+import com.neon.niloweb.repository.redis.AccountRedisRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -34,9 +33,9 @@ public class AccountService
 {
     private final UserInfoMapper <UserInfo, UserInfoQuery> userInfoMapper;
 
-    private final RedisTemplate <String, Object> redisTemplate;
-
     private final Snowflake snowflake;
+
+    private final AccountRedisRepository accountRedisRepository;
 
     private BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
@@ -80,7 +79,7 @@ public class AccountService
         // 设置token
         // 新建一个7天时长的token
         TokenUserInfo tokenUserInfo = BeanUtil.copyProperties(userInfo, TokenUserInfo.class);
-        generateAndSaveToken(tokenUserInfo, 7, TimeUnit.DAYS);
+        generateAndSaveToken(tokenUserInfo, 7);
         return tokenUserInfo;
     }
 
@@ -89,13 +88,12 @@ public class AccountService
      */
     public TokenUserInfo autoLogin(String token)
     {
-        TokenUserInfo tokenUserInfo = (TokenUserInfo) redisTemplate.opsForValue().get(RedisKey.WEB_TOKEN_PREFIX + token);
+        TokenUserInfo tokenUserInfo = accountRedisRepository.getUserInfoByToken(token);
         if (tokenUserInfo == null) return null;
             // 如果过期时间小于1天，则自动延长至7天
         else if (tokenUserInfo.getExpireTime() - System.currentTimeMillis() < TimeUnit.DAYS.toMillis(1))
         {
-            tokenUserInfo.setExpireTime(System.currentTimeMillis() + TimeUnit.DAYS.toMillis(7));
-            redisTemplate.opsForValue().set(RedisKey.WEB_TOKEN_PREFIX + token, tokenUserInfo, 7, TimeUnit.DAYS); // 延长时间至7天
+            accountRedisRepository.setUserInfoByToken(token, tokenUserInfo, 7);// 延长时间至7天
         }
         return tokenUserInfo;
     }
@@ -105,18 +103,17 @@ public class AccountService
      */
     public Boolean logout(String token)
     {
-        return redisTemplate.delete(RedisKey.WEB_TOKEN_PREFIX + token);
+        return accountRedisRepository.deleteTokenUserInfo(token);
     }
 
     /**
      * 生成Token并保存到Redis中
      */
-    private void generateAndSaveToken(TokenUserInfo tokenUserInfo, int time, TimeUnit timeUnit)
+    private void generateAndSaveToken(TokenUserInfo tokenUserInfo, int expireDays)
     {
         String token = UUID.randomUUID().toString();
-        tokenUserInfo.setExpireTime(System.currentTimeMillis() + timeUnit.toMillis(time));
         tokenUserInfo.setToken(token);
-        redisTemplate.opsForValue().set(RedisKey.WEB_TOKEN_PREFIX + token, tokenUserInfo, time, timeUnit);
+        accountRedisRepository.setUserInfoByToken(token, tokenUserInfo, expireDays);
     }
 
     /**

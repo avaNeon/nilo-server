@@ -1,6 +1,7 @@
 package com.neon.nilocommon.entity.query;
 
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -11,6 +12,7 @@ import java.util.List;
 /**
  * 视频信息参数
  */
+@Schema(description = "查询视频信息参数")
 @Setter
 @Getter
 public class VideoInfoUploadQuery extends BaseQuery

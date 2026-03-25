@@ -77,9 +77,6 @@
     <sql id="query_condition">
         <where>
             <include refid="base_condition_filed"/>
-            <if test="query.fileIdFuzzy!= null  and query.fileIdFuzzy!=''">
-                and v.file_id like concat('%', #{query.fileIdFuzzy}, '%')
-            </if>
             <if test="query.fileNameFuzzy!= null  and query.fileNameFuzzy!=''">
                 and v.file_name like concat('%', #{query.fileNameFuzzy}, '%')
             </if>
@@ -511,7 +508,7 @@
         where user_id = #{userId} and
         file_id in    <!-- 因为事先在java代码中检查过List，保证List不为空，所以这么写没关系 -->
         <foreach collection="fileIdList" item="fileId" separator="," open="(" close=")">
-            fileId
+            #{fileId}
         </foreach>
     </delete>
 

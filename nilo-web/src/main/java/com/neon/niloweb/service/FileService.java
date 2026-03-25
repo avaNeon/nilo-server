@@ -4,7 +4,6 @@ package com.neon.niloweb.service;
 import cn.hutool.core.lang.Snowflake;
 import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.constants.DatePattern;
-import com.neon.nilocommon.entity.constants.RedisKey;
 import com.neon.nilocommon.entity.dto.TokenUserInfo;
 import com.neon.nilocommon.entity.dto.UploadedVideoFileDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
@@ -14,12 +13,12 @@ import com.neon.nilocommon.util.FileUtil;
 import com.neon.nilocommon.util.StringUtil;
 import com.neon.niloweb.config.SystemConfig;
 import com.neon.niloweb.config.WebConfig;
+import com.neon.niloweb.repository.redis.UploadRedisRepository;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -27,7 +26,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Paths;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
@@ -37,9 +35,12 @@ import java.time.format.DateTimeFormatter;
 public class FileService
 {
     private final WebConfig webConfig;
+
     private final SystemConfig systemConfig;
-    private final RedisTemplate <String, Object> redisTemplate;
+
     private final Snowflake snowflake;
+
+    private final UploadRedisRepository uploadRedisRepository;
 
     /**
      * 上传视频封面（分类的封面和视频封面都是放在file/cover下的，但是视频的cover按天保存，分类的cover按月保存）<hr/>
@@ -114,30 +115,7 @@ public class FileService
         video.setFileName(fileName);
         video.setChunkSize(chunkSize);
         video.setChunkIndex(0); // 设置初始的chunkIndex
-        String date = LocalDate.now().format(DateTimeFormatter.ofPattern(DatePattern.DATE)); // 使用Java8+的时间类生成指定格式的时间字符串
-        String filePath = date + "/" + tokenUserInfo.getUserId() + "/" + uploadId;
-        /*
-         * 最终的文件层次是这样的：
-         * file
-         *   -tmp
-         *     -<date日期>
-         *       -<用户id-1>
-         *         -<uploadId-1.1>
-         *         -<uploadId-1.2>
-         *       -<用户id-2>
-         *         -<uploadId-2.1>
-         *         -<uploadId-2.2>
-         */
-        String absolutePath = webConfig.getRootFilePath() + "/" + Constants.FILE_FOLDER_NAME + "/" + Constants.TMP_FOLDER_NAME + "/" + filePath;
-        File videoFile = new File(absolutePath);
-        if (!videoFile.exists())
-        {
-            videoFile.mkdirs();
-        }
-        video.setFilePath(filePath);
-        // 使用指定 KEY名+用户id 作为Redis键名，有效时长1天
-        redisTemplate.opsForValue()
-                     .set(RedisKey.PRE_UPLOADED_VIDEO_TAG_PREFIX + tokenUserInfo.getUserId() + ":" + uploadId, video, Duration.ofDays(1L));
+        uploadRedisRepository.addPreUploadKey(video, tokenUserInfo.getUserId());
         return uploadId;
     }
 
@@ -149,19 +127,17 @@ public class FileService
      * @param userId     用户id
      * @param uploadId   上传id
      */
-    public void uploadVideo(MultipartFile chunkFile, Integer chunkIndex, Long userId, String uploadId)
+    public void uploadVideo(MultipartFile chunkFile, int chunkIndex, long userId, long uploadId)
     {
-        UploadedVideoFileDTO videoFileDTO = (UploadedVideoFileDTO) redisTemplate.opsForValue()
-                                                                                .get(RedisKey.PRE_UPLOADED_VIDEO_TAG_PREFIX + userId + ":" + uploadId);
-
+        UploadedVideoFileDTO videoFileDTO = uploadRedisRepository.getPreUploadKey(userId, uploadId);
         if (videoFileDTO == null) throw new BusinessException("文件不存在，请重新上传");
         // 查看视频文件是否超过限制
-        if (videoFileDTO.getFileSize() > systemConfig.getVideoMaxSize() * Constants.Mebibyte)
+        if (videoFileDTO.getFileSize() + chunkFile.getSize() > systemConfig.getVideoMaxSize() * Constants.Mebibyte)
         {
             throw new BusinessException("文件大小超过限制");
         }
-        // 判断块号是否正确
-        if (((chunkIndex - 1) > videoFileDTO.getChunkIndex() || chunkIndex > videoFileDTO.getChunkSize()))
+        // 块号必须是：≥1，上一个块号+1，并且不能超过总块数
+        if (chunkIndex < 1 || chunkIndex != videoFileDTO.getChunkIndex() + 1 || chunkIndex > videoFileDTO.getChunkSize())
         {
             throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
         }
@@ -173,8 +149,7 @@ public class FileService
             videoFileDTO.setChunkIndex(chunkIndex); // 更新了chunkIndex信息
             videoFileDTO.addFileSize(chunkFile.getSize());
             // 更新Redis中存储的视频信息
-            redisTemplate.opsForValue()
-                         .set(RedisKey.PRE_UPLOADED_VIDEO_TAG_PREFIX + userId + ":" + uploadId, videoFileDTO, Duration.ofDays(1L));
+            uploadRedisRepository.updatePreUploadKey(videoFileDTO, userId);
         }
         catch (IOException e)
         {
@@ -188,15 +163,14 @@ public class FileService
      * @param uploadId 上传id
      * @param userId   用户id
      */
-    public void deleteVideo(String uploadId, Long userId)
+    public void deleteVideo(long uploadId, long userId)
     {
-        UploadedVideoFileDTO fileDTO = (UploadedVideoFileDTO) redisTemplate.opsForValue()
-                                                                           .get(RedisKey.PRE_UPLOADED_VIDEO_TAG_PREFIX + userId + ":" + uploadId);
+        UploadedVideoFileDTO fileDTO = uploadRedisRepository.getPreUploadKey(userId, uploadId);
         if (fileDTO == null)
         {
             throw new BusinessException("所要删除的文件不存在");
         }
-        redisTemplate.delete(RedisKey.PRE_UPLOADED_VIDEO_TAG_PREFIX + userId + ":" + uploadId);
+        uploadRedisRepository.deletePreUploadKey(userId, uploadId);
         FileUtil.deleteFolder(new File(webConfig.getRootFilePath() + "/" + Constants.FILE_FOLDER_NAME + "/" + Constants.TMP_FOLDER_NAME + "/" + fileDTO.getFilePath()));
     }
 
@@ -208,7 +182,6 @@ public class FileService
     private void readFile(HttpServletResponse response, String filePath)
     {
         File file = new File(webConfig.getRootFilePath() + "/" + Constants.FILE_FOLDER_NAME + "/" + filePath);
-        log.info(file.getAbsolutePath());
         if (!file.exists()) return;
         try (ServletOutputStream outputStream = response.getOutputStream() ; FileInputStream inputStream = new FileInputStream(file))
         {
@@ -228,6 +201,7 @@ public class FileService
 
     /**
      * 将图像格式转换为对应的格式
+     *
      * @param suffix 图像格式后缀名
      * @return 转换后的格式名
      */

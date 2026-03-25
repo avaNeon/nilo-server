@@ -16,29 +16,28 @@ import java.nio.file.Paths;
 @Component
 public class FileDeleteConsumer
 {
-    // 只允许删除临时文件
-    private final String deletePathPrefix;
+    private final String rootFilePathStr;
 
-    public FileDeleteConsumer(@Value("${project.folder}") String rootPath)
+    public FileDeleteConsumer(@Value("${project.folder}") String rootPathStr)
     {
-        deletePathPrefix = rootPath + "/" + Constants.FILE_FOLDER_NAME + "/" + Constants.TMP_FOLDER_NAME;
+        rootFilePathStr = rootPathStr + "/" + Constants.FILE_FOLDER_NAME;
     }
 
 
     @RabbitListener(queues = MqInfo.STORAGE_DELETE_QUEUE)
-    public void receiveMessage(String filePath)
+    public void receiveMessage(String filePathStr)
     {
         try
         {
             // 检验路径合法性
-            if (!StringUtil.isValidPath(filePath, deletePathPrefix))
+            if (!StringUtil.isValidPath(filePathStr, rootFilePathStr))
             {
-                log.warn("此路径\"{}\"不合法", filePath);
+                log.warn("此路径\"{}\"不合法", filePathStr);
                 return;
             }
 
-            Path path = Paths.get(filePath);
-            Path rootPath = Paths.get(deletePathPrefix);
+            Path path = Paths.get(filePathStr);
+            Path rootPath = Paths.get(rootFilePathStr);
 
             if (path.equals(rootPath))
             {
@@ -49,8 +48,8 @@ public class FileDeleteConsumer
             // 递归删除非空的文件夹
             boolean isDeleted = FileSystemUtils.deleteRecursively(path);
             //todo 之后考虑把这部分日志删除了
-            if (isDeleted) log.info("\"{}\"删除成功", filePath);
-            else log.info("\"{}\"未删除，因为其不存在", filePath);
+            if (isDeleted) log.info("\"{}\"删除成功", filePathStr);
+            else log.info("\"{}\"未删除，因为其不存在", filePathStr);
 
         }
         catch (Exception e)

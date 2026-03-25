@@ -2,10 +2,9 @@ package com.neon.nilomqconsumer.consumer;
 
 import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.constants.MqInfo;
-import com.neon.nilocommon.entity.constants.RedisKey;
 import com.neon.nilocommon.entity.dto.UploadedVideoFileDTO;
-import com.neon.nilocommon.entity.enums.VideoFileStatus;
-import com.neon.nilocommon.entity.enums.VideoStatus;
+import com.neon.nilocommon.entity.enums.videoInfoFileUpload.VideoFileStatus;
+import com.neon.nilocommon.entity.enums.videoInfoUpload.VideoStatus;
 import com.neon.nilocommon.entity.po.VideoInfoFileUpload;
 import com.neon.nilocommon.entity.po.VideoInfoUpload;
 import com.neon.nilocommon.entity.query.VideoInfoFileUploadQuery;
@@ -14,6 +13,7 @@ import com.neon.nilocommon.util.FFmpegUtil;
 import com.neon.nilocommon.util.VideoMergeUtils;
 import com.neon.nilomqconsumer.mapper.VideoInfoFileUploadMapper;
 import com.neon.nilomqconsumer.mapper.VideoInfoUploadMapper;
+import com.neon.nilomqconsumer.repository.redis.TransCodingRedisRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
@@ -38,10 +38,10 @@ public class VideoTransCodingConsumer
 
     private final VideoInfoUploadMapper <VideoInfoUpload, VideoInfoUploadQuery> videoInfoUploadMapper;
 
-    private final RedisTemplate <String, Object> redisTemplate;
+    private final TransCodingRedisRepository transCodingRedisRepository;
 
     @Value("${project.folder}")
-    private String rootPath;
+    private String rootPathStr;
 
     /**
      * 消费转码视频文件的任务<hr/>
@@ -63,13 +63,12 @@ public class VideoTransCodingConsumer
     {
         try
         {
-            UploadedVideoFileDTO fileDTO = (UploadedVideoFileDTO) redisTemplate.opsForValue()
-                                                                               .get(RedisKey.PRE_UPLOADED_VIDEO_TAG_PREFIX + fileUpload.getUserId() + ":" + fileUpload.getUploadId());
+            UploadedVideoFileDTO fileDTO = transCodingRedisRepository.getPreUploadKey(fileUpload.getUserId(), fileUpload.getUploadId());
             if (fileDTO == null) throw new RuntimeException("未找到转码文件的记录");
 
-            String from = Paths.get(rootPath, Constants.FILE_FOLDER_NAME, Constants.TMP_FOLDER_NAME, fileDTO.getFilePath()).toString();
+            String from = Paths.get(rootPathStr, Constants.FILE_FOLDER_NAME, Constants.TMP_FOLDER_NAME, fileDTO.getFilePath()).toString();
             Path srcPath = Path.of(from);
-            String to = Paths.get(rootPath, Constants.FILE_FOLDER_NAME, Constants.VIDEO_FOLDER_NAME, fileDTO.getFilePath()).toString();
+            String to = Paths.get(rootPathStr, Constants.FILE_FOLDER_NAME, Constants.VIDEO_FOLDER_NAME, fileDTO.getFilePath()).toString();
             Path destPath = Path.of(to);
 
             // 移动视频文件
@@ -99,7 +98,7 @@ public class VideoTransCodingConsumer
             fileUpload.setTransferResult(VideoFileStatus.TRANSCODING_SUCCESS.getStatus());
 
             // 删除在redis的记录
-            redisTemplate.delete(RedisKey.PRE_UPLOADED_VIDEO_TAG_PREFIX + fileUpload.getUserId() + ":" + fileUpload.getUploadId());
+            transCodingRedisRepository.deletePreUploadKey(fileUpload.getUserId(), fileUpload.getUploadId());
         }
         catch (Exception e)
         {

@@ -1,4 +1,4 @@
-package com.neon.nilocommon.entity.po;
+package com.neon.nilocommon.entity.dto;
 
 import cn.hutool.core.date.DateUtil;
 import com.neon.nilocommon.entity.constants.DatePattern;
@@ -7,13 +7,9 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
-
-/**
- * 视频信息
- */
 @Setter
 @Getter
-public class VideoInfo
+public class VideoInfoUploadAdminJoinDTO
 {
     /**
      * 视频ID
@@ -54,6 +50,11 @@ public class VideoInfo
      * 分类ID
      */
     private Integer categoryId;
+
+    /**
+     * 0:转码中 1:转码失败 2:待审核 3:审核成功 4:审核失败
+     */
+    private Short status;
 
     /**
      * 0:自制作 1:转载
@@ -121,10 +122,14 @@ public class VideoInfo
     private Short recommendType;
 
     /**
-     * 最后播放时间
+     * 用户昵称
      */
-    private LocalDateTime lastPlayTime;
+    private String nickName;
 
+    /**
+     * 头像路径
+     */
+    private String avatar;
 
     @Override
     public String toString()
@@ -132,8 +137,6 @@ public class VideoInfo
         return "视频ID:" + (videoId == null ? "空" : videoId) + "，视频封面:" + (videoCover == null ? "空" : videoCover) + "，视频名称:" + (videoName == null ? "空" : videoName) + "，用户ID:" + (userId == null ? "空" : userId) + "，创建时间:" + (createTime == null ? "空" : DateUtil.format(
                 createTime,
                 DatePattern.DATETIME)) + "，最后更新时间:" + (lastUpdateTime == null ? "空" : DateUtil.format(lastUpdateTime,
-                                                                                                             DatePattern.DATETIME)) + "，父级分类ID:" + (pCategoryId == null ? "空" : pCategoryId) + "，分类ID:" + (categoryId == null ? "空" : categoryId) + "，0:自制作 1:转载:" + (postType == null ? "空" : postType) + "，原资源说明:" + (originInfo == null ? "空" : originInfo) + "，标签:" + (tags == null ? "空" : tags) + "，简介:" + (introduction == null ? "空" : introduction) + "，互动设置:" + (interaction == null ? "空" : interaction) + "，持续时间（秒）:" + (duration == null ? "空" : duration) + "，播放数量:" + (playCount == null ? "空" : playCount) + "，点赞数量:" + (likeCount == null ? "空" : likeCount) + "，弹幕数量:" + (danmakuCount == null ? "空" : danmakuCount) + "，评论数量:" + (commentCount == null ? "空" : commentCount) + "，投币数量:" + (coinCount == null ? "空" : coinCount) + "，收藏数量:" + (collectCount == null ? "空" : collectCount) + "，是否推荐0:未推荐 1:已推荐:" + (recommendType == null ? "空" : recommendType) + "，最后播放时间:" + (lastPlayTime == null ? "空" : DateUtil.format(
-                lastPlayTime,
-                DatePattern.DATETIME));
+                                                                                                             DatePattern.DATETIME)) + "，父级分类ID:" + (pCategoryId == null ? "空" : pCategoryId) + "，分类ID:" + (categoryId == null ? "空" : categoryId) + "，0:转码中 1:转码失败 2:待审核 3:审核成功 4:审核失败:" + (status == null ? "空" : status) + "，0:自制作 1:转载:" + (postType == null ? "空" : postType) + "，原资源说明:" + (originInfo == null ? "空" : originInfo) + "，标签:" + (tags == null ? "空" : tags) + "，简介:" + (introduction == null ? "空" : introduction) + "，互动设置:" + (interaction == null ? "空" : interaction) + "，持续时间（秒）:" + (duration == null ? "空" : duration);
     }
 }

@@ -38,6 +38,7 @@
         <lombok.version>1.18.34</lombok.version>
         <fastjson2.version>2.0.58</fastjson2.version>
         <commons-io.version>2.16.1</commons-io.version>
+        <commons-lang3.version>3.17.0</commons-lang3.version>
         <hutool-captcha.version>5.8.40</hutool-captcha.version>
         <knife4j.version>4.4.0</knife4j.version>
         <redisson.version>3.52.0</redisson.version>
@@ -78,11 +79,19 @@
                 <artifactId>commons-io</artifactId>
                 <version>${commons-io.version}</version>
             </dependency>
+
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>${commons-lang3.version}</version>
+            </dependency>
+
             <dependency>
                 <groupId>cn.hutool</groupId>
                 <artifactId>hutool-captcha</artifactId>
                 <version>${hutool-captcha.version}</version>
             </dependency>
+
             <dependency>
                 <groupId>com.github.xiaoymin</groupId>
                 <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>

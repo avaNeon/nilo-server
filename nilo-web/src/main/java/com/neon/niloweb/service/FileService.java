@@ -7,29 +7,32 @@ import com.neon.nilocommon.entity.constants.DatePattern;
 import com.neon.nilocommon.entity.dto.TokenUserInfo;
 import com.neon.nilocommon.entity.dto.UploadedVideoFileDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
+import com.neon.nilocommon.entity.po.VideoInfoFile;
+import com.neon.nilocommon.entity.query.VideoInfoFileQuery;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.FFmpegUtil;
 import com.neon.nilocommon.util.FileUtil;
 import com.neon.nilocommon.util.StringUtil;
 import com.neon.niloweb.config.SystemConfig;
 import com.neon.niloweb.config.WebConfig;
+import com.neon.niloweb.mapper.VideoInfoFileMapper;
 import com.neon.niloweb.repository.redis.UploadRedisRepository;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
-@Slf4j
 @RequiredArgsConstructor
 @Service
 public class FileService
@@ -41,6 +44,8 @@ public class FileService
     private final Snowflake snowflake;
 
     private final UploadRedisRepository uploadRedisRepository;
+
+    private final VideoInfoFileMapper <VideoInfoFile, VideoInfoFileQuery> videoInfoFileMapper;
 
     /**
      * 上传视频封面（分类的封面和视频封面都是放在file/cover下的，但是视频的cover按天保存，分类的cover按月保存）<hr/>
@@ -175,22 +180,87 @@ public class FileService
     }
 
     /**
+     * 获取index.m3u8
+     *
+     * @param videoId  视频ID
+     * @param index    分P索引
+     * @param response HttpServletResponse
+     */
+    public void downloadVideoResourceM3u8(Long videoId, Integer index, HttpServletResponse response)
+    {
+        VideoInfoFileQuery infoFileQuery = new VideoInfoFileQuery();
+        infoFileQuery.setVideoId(videoId);
+        infoFileQuery.setFileIndex(index);
+        List <VideoInfoFile> videoInfoFiles = videoInfoFileMapper.selectList(infoFileQuery);
+        // 这里获取的应该是一个文件
+        if (videoInfoFiles == null || videoInfoFiles.size() != 1)
+        {
+            throw new BusinessException(ResponseCode.NOT_FOUND);
+        }
+        VideoInfoFile infoFile = videoInfoFiles.get(0);
+        String filePath = infoFile.getFilePath();
+        // todo 更新视频的播放信息（例如：播放量）
+        readFile(response, filePath + "/" + Constants.M3U8_NAME);
+    }
+
+    /**
+     * 获取ts文件
+     *
+     * @param videoId   视频ID
+     * @param index     分P索引
+     * @param tsPathStr ts文件路径
+     * @param response  HttpServletResponse
+     */
+    public void downloadVideoResourceTs(Long videoId, Integer index, String tsPathStr, HttpServletResponse response)
+    {
+        VideoInfoFileQuery infoFileQuery = new VideoInfoFileQuery();
+        infoFileQuery.setVideoId(videoId);
+        infoFileQuery.setFileIndex(index);
+        List <VideoInfoFile> videoInfoFiles = videoInfoFileMapper.selectList(infoFileQuery);
+        // 这里获取的应该是一个文件
+        if (videoInfoFiles == null || videoInfoFiles.size() != 1)
+        {
+            throw new BusinessException(ResponseCode.NOT_FOUND);
+        }
+        VideoInfoFile infoFile = videoInfoFiles.get(0);
+        String filePath = infoFile.getFilePath();
+        // todo 更新视频的播放信息（例如：播放量）
+        readFile(response, filePath + "/" + Constants.TS_FOLDER_NAME + "/" + tsPathStr);
+    }
+
+    /**
      * 从系统中读取文件，写出到response中
      *
+     * @param response HttpServletResponse
      * @param filePath 相对于 根路径/file 下的文件路径
      */
     private void readFile(HttpServletResponse response, String filePath)
     {
-        File file = new File(webConfig.getRootFilePath() + "/" + Constants.FILE_FOLDER_NAME + "/" + filePath);
-        if (!file.exists()) return;
-        try (ServletOutputStream outputStream = response.getOutputStream() ; FileInputStream inputStream = new FileInputStream(file))
+        Path rootPath = Paths.get(webConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME).normalize();
+        Path targetPath = rootPath.resolve(filePath).normalize();
+
+        if (!StringUtil.isValidPath(targetPath.toString(), rootPath.toString()))
         {
-            byte[] bytes = new byte[1024];
-            int len = 0;
-            while ((len = inputStream.read(bytes)) != -1)
-            {
-                outputStream.write(bytes, 0, len);
-            }
+            throw new BusinessException("非法的文件路径");
+        }
+
+        if (!Files.exists(targetPath) || !Files.isRegularFile(targetPath))
+        {
+            throw new BusinessException(ResponseCode.NOT_FOUND);
+        }
+
+        // 如果外部没有提前设置 contentType ，这里按后缀补齐
+        if (response.getContentType() == null)
+        {
+            response.setContentType(resolveContentTypeBySuffix(filePath));
+        }
+
+        String fileName = targetPath.getFileName() == null ? "file" : targetPath.getFileName().toString();
+        response.setHeader("Content-Disposition", "inline; filename=\"" + fileName + "\"");
+
+        try (ServletOutputStream outputStream = response.getOutputStream())
+        {
+            Files.copy(targetPath, outputStream);
             outputStream.flush();
         }
         catch (IOException e)
@@ -216,6 +286,31 @@ public class FileService
             case ".webp" -> "image/webp";
             case ".avif" -> "image/avif";
             case ".svg" -> "image/svg+xml";
+            default -> "application/octet-stream";
+        };
+    }
+
+    /**
+     * 根据文件路径后缀推断响应 Content-Type
+     */
+    private String resolveContentTypeBySuffix(String filePath)
+    {
+        String suffix = StringUtil.getSuffix(filePath);
+        if (suffix == null)
+        {
+            return "application/octet-stream";
+        }
+
+        return switch (suffix.toLowerCase())
+        {
+            case ".m3u8" -> "application/vnd.apple.mpegurl;charset=UTF-8";
+            case ".ts" -> "video/mp2t";
+            case ".mp4" -> "video/mp4";
+            case ".webm" -> "video/webm";
+            case ".mp3" -> "audio/mpeg";
+            case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif", ".svg" -> resolveImageContentType(suffix);
+            case ".json" -> "application/json;charset=UTF-8";
+            case ".txt" -> "text/plain;charset=UTF-8";
             default -> "application/octet-stream";
         };
     }

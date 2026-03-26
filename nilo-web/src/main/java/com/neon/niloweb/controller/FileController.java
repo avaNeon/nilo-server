@@ -14,7 +14,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -22,7 +21,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Tag(name = "文件管理")
 @RequiredArgsConstructor
-@Slf4j
 @Validated
 @RequestMapping(path = "/file")
 @RestController
@@ -109,6 +107,40 @@ public class FileController
         Long userId = loginState.getUserId();
         fileService.deleteVideo(uploadId, userId);
         return ResponseVO.success(null);
+    }
+
+    /**
+     * 下载视频资源（index.m3u8）
+     *
+     * @param videoId  视频ID
+     * @param index    分片索引
+     * @param response HttpServletResponse
+     */
+    @Operation(summary = "下载视频资源（index.m3u8）")
+    @GetMapping(path = "/video/resource/{videoId}")
+    public void downloadVideoResource(@PathVariable(name = "videoId") @NotNull Long videoId,
+                                      @RequestParam(name = "index") @NotNull Integer index,
+                                      @Parameter(hidden = true) HttpServletResponse response)
+    {
+        fileService.downloadVideoResourceM3u8(videoId, index, response);
+    }
+
+    /**
+     * 下载视频资源（ts文件）
+     *
+     * @param videoId   视频ID
+     * @param index     分片索引
+     * @param tsPathStr ts文件路径
+     * @param response  HttpServletResponse
+     */
+    @Operation(summary = "下载视频资源（ts文件）")
+    @GetMapping(path = "/video/ts/{videoId}")
+    public void downloadVideoResourceTs(@PathVariable(name = "videoId") @NotNull Long videoId,
+                                        @RequestParam(name = "index") @NotNull Integer index,
+                                        @RequestParam(name = "tsPathStr") @NotNull String tsPathStr,
+                                        @Parameter(hidden = true) HttpServletResponse response)
+    {
+        fileService.downloadVideoResourceTs(videoId, index, tsPathStr, response);
     }
 
     /**

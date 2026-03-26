@@ -4,10 +4,11 @@ package com.neon.niloweb.advice;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.nilocommon.util.ExceptionLog;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
-import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.validation.BindException;
@@ -26,17 +27,19 @@ import static com.neon.nilocommon.entity.vo.ResponseVO.STATUS_ERROR;
 /**
  * 全局异常处理器
  */
-@Slf4j
+@RequiredArgsConstructor
 @RestControllerAdvice
 public class GlobalExceptionHandler
 {
+    private final ExceptionLog log;
+
     /**
      * 业务异常处理
      */
     @ExceptionHandler(BusinessException.class)
     ResponseVO <Object> handleBusinessException(BusinessException e, HttpServletRequest request)
     {
-        log.info("请求错误，请求地址{},错误信息:{}", request.getRequestURL(), e.getMessage());
+        log.info(e);
         ResponseVO <Object> response = new ResponseVO <>();
         response.setCode(e.getCode() == null ? ResponseCode.UNKNOWN_ERROR.getCode() : e.getCode());
         response.setInfo(e.getMessage());
@@ -50,7 +53,7 @@ public class GlobalExceptionHandler
     @ExceptionHandler(DuplicateKeyException.class)
     ResponseVO <Object> handleDuplicateKeyException(DuplicateKeyException e, HttpServletRequest request)
     {
-        log.warn("请求错误，请求地址{},错误信息:{}", request.getRequestURL(), e.getMessage());
+        log.warn(e);
         ResponseVO <Object> response = new ResponseVO <>();
         response.setCode(ResponseCode.DATA_EXISTED.getCode());
         response.setInfo(ResponseCode.DATA_EXISTED.getMsg());
@@ -64,7 +67,7 @@ public class GlobalExceptionHandler
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseVO <Object> handleDTOInvalidException(MethodArgumentNotValidException e, HttpServletRequest request)
     {
-        log.info("请求错误，请求地址{},错误信息:{}", request.getRequestURL(), e.getMessage());
+        log.info(e);
         ResponseVO <Object> response = new ResponseVO <>();
         response.setCode(ResponseCode.INVALID_ARGUMENTS.getCode());
         response.setInfo(ResponseCode.INVALID_ARGUMENTS.getMsg());
@@ -85,7 +88,7 @@ public class GlobalExceptionHandler
     @ExceptionHandler(ConstraintViolationException.class)
     ResponseVO <Object> handleArgsInvalidException(ConstraintViolationException e, HttpServletRequest request)
     {
-        log.info("请求错误，请求地址{},错误信息:{}", request.getRequestURL(), e.getMessage());
+        log.info(e);
         ResponseVO <Object> response = new ResponseVO <>();
         response.setCode(ResponseCode.INVALID_ARGUMENTS.getCode());
         response.setInfo(ResponseCode.INVALID_ARGUMENTS.getMsg());
@@ -102,7 +105,7 @@ public class GlobalExceptionHandler
     @ExceptionHandler({BindException.class, MethodArgumentTypeMismatchException.class})
     ResponseVO <Object> handleArgsException(Exception e, HttpServletRequest request)
     {
-        log.info("请求错误，请求地址{},错误信息:{}", request.getRequestURL(), e.getMessage());
+        log.info(e);
         ResponseVO <Object> response = new ResponseVO <>();
         response.setCode(ResponseCode.WRONG_ARGUMENTS.getCode());
         response.setInfo(ResponseCode.WRONG_ARGUMENTS.getMsg());
@@ -116,7 +119,7 @@ public class GlobalExceptionHandler
     @ExceptionHandler(NoResourceFoundException.class)
     ResponseVO <Object> handleNoResourceFoundException(NoResourceFoundException e, HttpServletRequest request)
     {
-        log.info("请求错误，请求地址{},错误信息:{}", request.getRequestURL(), e.getMessage());
+        log.info(e);
         ResponseVO <Object> response = new ResponseVO <>();
         response.setCode(ResponseCode.NOT_FOUND.getCode());
         response.setInfo(ResponseCode.NOT_FOUND.getMsg());
@@ -146,7 +149,7 @@ public class GlobalExceptionHandler
     @ExceptionHandler(Exception.class)
     ResponseVO <Object> handleException(Exception e, HttpServletRequest request)
     {
-        log.error("请求错误，请求地址{},错误信息:", request.getRequestURL(), e); // 糟糕，出现了意想不到的错误！
+        log.error(e); // 糟糕，出现了意想不到的错误！
         ResponseVO <Object> response = new ResponseVO <>();
         response.setCode(ResponseCode.SERVER_ERROR.getCode());
         response.setInfo(ResponseCode.SERVER_ERROR.getMsg());

@@ -2,6 +2,7 @@ package com.neon.nilocommon.autoconfigure.serialization;
 
 import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateDeserializer;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -52,6 +53,9 @@ public class GlobalSerializationAutoConfiguration implements WebMvcConfigurer
             //针对于LocalDateTime类的序列化反序列化规则
             builder.serializerByType(LocalDateTime.class, new LocalDateTimeSerializer(DateTimeFormatter.ofPattern(properties.pattern)));
             builder.deserializerByType(LocalDateTime.class, new LocalDateDeserializer(DateTimeFormatter.ofPattern(properties.pattern)));
+            //将Long统一序列化为字符串，避免前端JS Number精度丢失（如雪花ID）
+            builder.serializerByType(Long.class, ToStringSerializer.instance);
+            builder.serializerByType(Long.TYPE, ToStringSerializer.instance);
             //设置JSON转化时没看到全部属性就失败是否开启的规则
             builder.failOnUnknownProperties(properties.jsonFailOnUnknownProperties);
         };

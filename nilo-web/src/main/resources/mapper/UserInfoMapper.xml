@@ -822,4 +822,14 @@
         from user_info u where nick_name=#{nickName}
     </select>
 
+    <!--  根据userId列表批量获取用户信息  -->
+    <select id="selectBatchByUserId" resultMap="base_result_map">
+        select <include refid="base_column_list"/>
+        from user_info u
+        where u.user_id in
+        <foreach collection="userIdList" item="userId" open="(" separator="," close=")">
+            #{userId}
+        </foreach>
+    </select>
+
 </mapper>

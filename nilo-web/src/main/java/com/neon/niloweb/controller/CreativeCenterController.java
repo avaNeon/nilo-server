@@ -35,17 +35,17 @@ public class CreativeCenterController
     /**
      * 上传/修改视频
      *
-     * @param token          验证用户身份
-     * @param videoId        视频的唯一ID，用于区分视频
-     * @param coverPath      封面在服务器的相对地址
-     * @param videoTitle     视频标题
-     * @param pCategoryId    所属父分类ID
-     * @param categoryId     所属分类ID
-     * @param postType       自制/转载
-     * @param tags           标签
-     * @param introduction   视频简介
-     * @param interaction    互动设置
-     * @param uploadFileList 视频文件列表（这里面有uploadId，因为之前文件预上传时返回了对应的id）
+     * @param token        验证用户身份
+     * @param videoId      视频的唯一ID，用于区分视频
+     * @param coverPath    封面在服务器的相对地址
+     * @param videoTitle   视频标题
+     * @param pCategoryId  所属父分类ID
+     * @param categoryId   所属分类ID
+     * @param postType     自制/转载
+     * @param tags         标签
+     * @param introduction 视频简介
+     * @param interaction  互动设置
+     * @param uploadIdList uploadId列表，一个uploadId对应一个视频文件
      */
     @Operation(summary = "上传/修改视频")
     @PostMapping(path = "/video")
@@ -59,10 +59,16 @@ public class CreativeCenterController
                                            @RequestParam(name = "tags") @Size(max = 300) String tags,
                                            @RequestParam(name = "introduction") @Size(max = 2000) String introduction,
                                            @RequestParam(name = "interaction") @Size(max = 5) String interaction,
-                                           @RequestBody @NotNull List <VideoInfoFileUpload> uploadFileList)
+                                           @RequestBody @NotNull List <Long> uploadIdList)
     {
         TokenUserInfo tokenUserInfo = getLoginState(token);
-        if (uploadFileList.isEmpty()) return ResponseVO.error("没有视频文件"); // 为什么视频文件是空的！！！
+        if (uploadIdList.isEmpty()) return ResponseVO.error("没有视频文件"); // 为什么视频文件是空的！！！
+        List <VideoInfoFileUpload> uploadFileList = uploadIdList.stream().map(uploadId ->
+                                                                              {
+                                                                                  VideoInfoFileUpload fileUpload = new VideoInfoFileUpload();
+                                                                                  fileUpload.setFileId(uploadId);
+                                                                                  return fileUpload;
+                                                                              }).toList();
         creativeCenterService.videoUpload(videoId,
                                           coverPath,
                                           videoTitle,

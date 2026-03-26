@@ -51,6 +51,100 @@
         <result column="last_play_time" property="lastPlayTime"/>
     </resultMap>
 
+    <!--briefVideoInfoVO实体映射-->
+    <resultMap id="brief_vo_result_map" type="com.neon.nilocommon.entity.vo.BriefVideoInfoVO">
+        <!--视频ID-->
+        <result column="video_id" property="videoId"/>
+        <!--视频封面-->
+        <result column="video_cover" property="videoCover"/>
+        <!--视频名称-->
+        <result column="video_name" property="videoName"/>
+        <!--最后更新时间-->
+        <result column="last_update_time" property="lastUpdateTime"/>
+        <!--持续时间（秒）-->
+        <result column="duration" property="duration"/>
+        <!--播放数量-->
+        <result column="play_count" property="playCount"/>
+        <!--弹幕数量-->
+        <result column="danmaku_count" property="danmakuCount"/>
+
+        <!-- 嵌套对象映射 -->
+        <association property="briefUserInfo" javaType="com.neon.nilocommon.entity.vo.BriefUserInfoVO">
+            <id column="user_id" property="userId"/>
+            <!--昵称-->
+            <result column="nick_name" property="nickName"/>
+            <!--头像-->
+            <result column="avatar" property="avatar"/>
+        </association>
+
+    </resultMap>
+
+    <!--videoInfoVO实体映射-->
+    <resultMap id="vo_result_map" type="com.neon.nilocommon.entity.vo.VideoInfoVO">
+        <!--视频ID-->
+        <result column="video_id" property="videoId"/>
+        <!--视频封面-->
+        <result column="video_cover" property="videoCover"/>
+        <!--视频名称-->
+        <result column="video_name" property="videoName"/>
+        <!--创建时间-->
+        <result column="create_time" property="createTime"/>
+        <!--最后更新时间-->
+        <result column="last_update_time" property="lastUpdateTime"/>
+        <!--父级分类ID-->
+        <result column="p_category_id" property="pCategoryId"/>
+        <!--分类ID-->
+        <result column="category_id" property="categoryId"/>
+        <!--0:自制作 1:转载-->
+        <result column="post_type" property="postType"/>
+        <!--原资源说明-->
+        <result column="origin_info" property="originInfo"/>
+        <!--标签-->
+        <result column="tags" property="tags"/>
+        <!--简介-->
+        <result column="introduction" property="introduction"/>
+        <!--互动设置-->
+        <result column="interaction" property="interaction"/>
+        <!--持续时间（秒）-->
+        <result column="duration" property="duration"/>
+        <!--播放数量-->
+        <result column="play_count" property="playCount"/>
+        <!--点赞数量-->
+        <result column="like_count" property="likeCount"/>
+        <!--弹幕数量-->
+        <result column="danmaku_count" property="danmakuCount"/>
+        <!--评论数量-->
+        <result column="comment_count" property="commentCount"/>
+        <!--投币数量-->
+        <result column="coin_count" property="coinCount"/>
+        <!--收藏数量-->
+        <result column="collect_count" property="collectCount"/>
+
+        <!-- 嵌套对象映射 -->
+        <association property="userInfo" javaType="com.neon.nilocommon.entity.vo.UserInfoVO">
+            <id column="user_id" property="userId"/>
+            <!--昵称-->
+            <result column="nick_name" property="nickName"/>
+            <!--头像-->
+            <result column="avatar" property="avatar"/>
+            <!--0:女 1:男 2:未知-->
+            <result column="gender" property="gender"/>
+            <!--出生日期-->
+            <result column="birthday" property="birthday"/>
+            <!--学校-->
+            <result column="school" property="school"/>
+            <!--个人简介-->
+            <result column="personal_introduction" property="personalIntroduction"/>
+            <!--0:禁用 1:正常-->
+            <result column="status" property="status"/>
+            <!--空间公告-->
+            <result column="notice_info" property="noticeInfo"/>
+            <!--主题-->
+            <result column="theme" property="theme"/>
+        </association>
+
+    </resultMap>
+
 
     <!-- 通用查询结果列-->
     <sql id="base_column_list">
@@ -59,6 +153,22 @@
 		 v.tags,v.introduction,v.interaction,v.duration,v.play_count,
 		 v.like_count,v.danmaku_count,v.comment_count,v.coin_count,v.collect_count,
 		 v.recommend_type,v.last_play_time
+    </sql>
+
+    <!-- briefVideoInfoVO查询结果列-->
+    <sql id="brief_vo_column_list">
+        v.video_id,v.video_cover,v.video_name,v.user_id,
+		 v.last_update_time,v.duration,v.play_count,v.danmaku_count,
+         u.user_id,u.nick_name,u.avatar
+    </sql>
+
+    <!-- videoInfoVO查询结果列-->
+    <sql id="vo_column_list">
+        v.video_id,v.video_cover,v.video_name,v.user_id,v.create_time,
+		 v.last_update_time,v.p_category_id,v.category_id,v.post_type,v.origin_info,
+		 v.tags,v.introduction,v.interaction,v.duration,v.play_count,
+		 v.like_count,v.danmaku_count,v.comment_count,v.coin_count,v.collect_count,
+         u.user_id,u.nick_name,u.avatar,u.gender,u.birthday,u.school,u.personal_introduction,u.status,u.notice_info,u.current_coin,u.theme
     </sql>
 
     <sql id="base_condition_filed">
@@ -838,6 +948,27 @@
         select
         <include refid="base_column_list"/>
         from video_info v where video_id=#{videoId}
+    </select>
+
+    <!--根据参数查询BriefVideoInfoVO-->
+    <select id="selectBriefVoListByParam" resultMap="brief_vo_result_map">
+        SELECT
+        <include refid="brief_vo_column_list"/>
+        FROM video_info v left join user_info u on v.user_id=u.user_id
+        <include refid="query_condition"/>
+        <if test="query.orderBy!=null">
+            order by ${query.orderBy}
+        </if>
+        <if test="query.pageCalculator!=null">
+            limit #{query.pageCalculator.start},#{query.pageCalculator.size}
+        </if>
+    </select>
+    <!--  通过videoId查询VideoInfoVO  -->
+    <select id="selectVoByVideoId" resultType="com.neon.nilocommon.entity.vo.VideoInfoVO">
+        SELECT
+        <include refid="vo_column_list"/>
+        FROM video_info v left join user_info u on v.user_id=u.user_id
+        where v.video_id=#{videoId}
     </select>
 
 </mapper>

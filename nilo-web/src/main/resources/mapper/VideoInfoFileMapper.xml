@@ -23,11 +23,25 @@
         <result column="duration" property="duration"/>
     </resultMap>
 
+    <!--vo实体映射-->
+    <resultMap id="vo_result_map" type="com.neon.nilocommon.entity.vo.VideoInfoFileVO">
+        <!--视频文件名-->
+        <result column="file_name" property="fileName"/>
+        <!--文件索引-->
+        <result column="file_index" property="fileIndex"/>
+        <!--持续时间（秒）-->
+        <result column="duration" property="duration"/>
+    </resultMap>
 
     <!-- 通用查询结果列-->
     <sql id="base_column_list">
         v.file_id,v.user_id,v.video_id,v.file_name,v.file_index,
 		 v.file_size,v.file_path,v.duration
+    </sql>
+
+    <!-- VO查询结果列-->
+    <sql id="vo_column_list">
+        v.file_name,v.file_index,v.duration
     </sql>
 
     <sql id="base_condition_filed">
@@ -371,6 +385,14 @@
         select
         <include refid="base_column_list"/>
         from video_info_file v where file_id=#{fileId}
+    </select>
+
+    <!--  根据videoId获取文件vo对象-->
+    <select id="selectVoByVideoID" resultMap="vo_result_map">
+        SELECT
+        <include refid="vo_column_list"/>
+        FROM video_info_file v
+        where v.video_id=#{videoId}
     </select>
 
 </mapper>

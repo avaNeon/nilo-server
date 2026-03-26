@@ -3,6 +3,8 @@ package com.neon.niloweb.mapper;
 import com.neon.nilocommon.entity.query.BaseQuery;
 import org.apache.ibatis.annotations.Param;
 
+import java.util.List;
+
 /**
  * 用户信息 数据库操作接口
  */
@@ -24,6 +26,13 @@ public interface UserInfoMapper<T, P extends BaseQuery> extends BaseMapper <T, P
      * 根据UserId获取对象
      */
     T selectByUserId(@Param("userId") Long userId);
+
+    /**
+     * 通过userId批量查找用户信息
+     * @param userIdList userId列表
+     * @return 用户信息列表
+     */
+    List<T> selectBatchByUserId(@Param("userIdList") List <Long> userIdList);
 
     /**
      * 根据Email更新

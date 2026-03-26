@@ -1,6 +1,11 @@
 package com.neon.niloweb.mapper;
 
+import com.neon.nilocommon.entity.query.VideoInfoQuery;
+import com.neon.nilocommon.entity.vo.BriefVideoInfoVO;
+import com.neon.nilocommon.entity.vo.VideoInfoVO;
 import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
 
 /**
  * 视频信息 数据库操作接口
@@ -25,5 +30,19 @@ public interface VideoInfoMapper<T, P> extends BaseMapper <T, P>
      */
     T selectByVideoId(@Param("videoId") Long videoId);
 
+    /**
+     * 通过参数查询BriefVideoInfoVO列表
+     *
+     * @param videoInfoQuery 参数
+     * @return BriefVideoInfoVO列表
+     */
+    List <BriefVideoInfoVO> selectBriefVoListByParam(@Param("query") VideoInfoQuery videoInfoQuery);
+
+    /**
+     * 通过videoId查询VideoInfoVO
+     * @param videoId 视频ID
+     * @return VideoInfoVO
+     */
+    VideoInfoVO selectVoByVideoId(@Param("videoId") Long videoId);
 
 }

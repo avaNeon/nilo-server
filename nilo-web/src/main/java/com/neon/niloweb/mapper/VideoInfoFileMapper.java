@@ -1,6 +1,9 @@
 package com.neon.niloweb.mapper;
 
+import com.neon.nilocommon.entity.vo.VideoInfoFileVO;
 import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
 
 /**
  * 视频文件信息 数据库操作接口
@@ -25,5 +28,10 @@ public interface VideoInfoFileMapper<T, P> extends BaseMapper <T, P>
      */
     T selectByFileId(@Param("fileId") Long fileId);
 
-
+    /**
+     * 根据videoId获取视频文件VO对象
+     * @param videoId 视频ID
+     * @return 视频文件VO对象
+     */
+    List <VideoInfoFileVO> selectVoByVideoID(@Param("videoId") Long videoId);
 }

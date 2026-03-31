@@ -22,6 +22,6 @@ public class WebConfig
     /**
      * 查询视频分页大小
      */
-    @Value("${project.pageSize}")
-    private final int pageSize = 20;
+    @Value("${project.pageSize:20}")
+    private int pageSize;
 }

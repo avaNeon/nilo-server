@@ -3,6 +3,7 @@ package com.neon.niloweb.controller;
 import com.neon.nilocommon.entity.constants.RedisKey;
 import com.neon.nilocommon.entity.dto.TokenUserInfo;
 import com.neon.nilocommon.entity.dto.VideoInfoUploadJoinDTO;
+import com.neon.nilocommon.entity.dto.VideoUploadDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.po.VideoInfoFileUpload;
 import com.neon.nilocommon.entity.vo.ResponseVO;
@@ -11,9 +12,8 @@ import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.service.CreativeCenterService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.validation.annotation.Validated;
@@ -35,49 +35,35 @@ public class CreativeCenterController
     /**
      * 上传/修改视频
      *
-     * @param token        验证用户身份
-     * @param videoId      视频的唯一ID，用于区分视频
-     * @param coverPath    封面在服务器的相对地址
-     * @param videoTitle   视频标题
-     * @param pCategoryId  所属父分类ID
-     * @param categoryId   所属分类ID
-     * @param postType     自制/转载
-     * @param tags         标签
-     * @param introduction 视频简介
-     * @param interaction  互动设置
-     * @param uploadIdList uploadId列表，一个uploadId对应一个视频文件
+     * @param token          验证用户身份
+     * @param videoUploadDTO 视频上传信息DTO
      */
     @Operation(summary = "上传/修改视频")
     @PostMapping(path = "/video")
     public ResponseVO <Object> videoUpload(@RequestHeader(name = "token") String token,
-                                           @RequestParam(name = "videoId", required = false) Long videoId,
-                                           @RequestParam(name = "coverPath") @NotEmpty String coverPath,
-                                           @RequestParam(name = "videoTitle") @NotEmpty @Size(max = 100) String videoTitle,
-                                           @RequestParam(name = "pCategoryId") @NotNull Integer pCategoryId,
-                                           @RequestParam(name = "categoryId") Integer categoryId,
-                                           @RequestParam(name = "postType") @NotNull Short postType,
-                                           @RequestParam(name = "tags") @Size(max = 300) String tags,
-                                           @RequestParam(name = "introduction") @Size(max = 2000) String introduction,
-                                           @RequestParam(name = "interaction") @Size(max = 5) String interaction,
-                                           @RequestBody @NotNull List <Long> uploadIdList)
+                                           @RequestBody @Valid @NotNull VideoUploadDTO videoUploadDTO)
     {
         TokenUserInfo tokenUserInfo = getLoginState(token);
-        if (uploadIdList.isEmpty()) return ResponseVO.error("没有视频文件"); // 为什么视频文件是空的！！！
+        List <Long> uploadIdList = videoUploadDTO.getUploadIdList();
+        if (uploadIdList == null || uploadIdList.isEmpty())
+        {
+            throw new BusinessException(ResponseCode.SERVER_ERROR); // 文件为什么是空的！
+        }
         List <VideoInfoFileUpload> uploadFileList = uploadIdList.stream().map(uploadId ->
                                                                               {
                                                                                   VideoInfoFileUpload fileUpload = new VideoInfoFileUpload();
-                                                                                  fileUpload.setFileId(uploadId);
+                                                                                  fileUpload.setUploadId(uploadId);
                                                                                   return fileUpload;
                                                                               }).toList();
-        creativeCenterService.videoUpload(videoId,
-                                          coverPath,
-                                          videoTitle,
-                                          pCategoryId,
-                                          categoryId,
-                                          postType,
-                                          tags,
-                                          introduction,
-                                          interaction,
+        creativeCenterService.videoUpload(videoUploadDTO.getVideoId(),
+                                          videoUploadDTO.getCoverPath(),
+                                          videoUploadDTO.getVideoTitle(),
+                                          videoUploadDTO.getPCategoryId(),
+                                          videoUploadDTO.getCategoryId(),
+                                          videoUploadDTO.getPostType(),
+                                          videoUploadDTO.getTags(),
+                                          videoUploadDTO.getIntroduction(),
+                                          videoUploadDTO.getInteraction(),
                                           uploadFileList,
                                           tokenUserInfo);
         return ResponseVO.success(null);

@@ -75,7 +75,7 @@ public class CategoryService
             int pageSize = param.getPageSize() == null ? PageSize.SIZE15.getSize() : param.getPageSize();
             PageCalculator page = new PageCalculator(param.getPageNo(), count, pageSize);
             param.setPageCalculator(page);
-            List <CategoryInfo> list = this.findListByParam(param);
+            List <CategoryInfo> list = findListByParam(param);
             return new PaginationResponseVO <>(count, page.getPageSize(), page.getPageNo(), page.getPageTotal(), list);
         }
     }

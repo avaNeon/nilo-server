@@ -21,6 +21,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.file.Paths;
 import java.util.List;
 
 @RequiredArgsConstructor
@@ -123,8 +124,10 @@ public class VideoService
 
         // 删除原video_info_file文件
         List <String> pathList = deletedFile.stream()
-                                         .map(file -> adminConfig.getRootFilePath() + Constants.FILE_FOLDER_NAME + file.getFilePath())
-                                         .toList();
+                                            .map(file -> Paths.get(adminConfig.getRootFilePath(),
+                                                                   Constants.FILE_FOLDER_NAME,
+                                                                   file.getFilePath()).toString())
+                                            .toList();
         mqRepository.addPathList2DeleteQueue(pathList);
 
         //todo 保存信息到ES中

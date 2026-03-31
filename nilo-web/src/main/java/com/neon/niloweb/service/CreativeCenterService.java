@@ -21,10 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -141,29 +139,41 @@ public class CreativeCenterService
             videoFileUploadQuery.setVideoId(videoId);
             videoFileUploadQuery.setUserId(userId); // 限制住只能改本用户id的视频，因为是通过token获得用户id，可以避免用户改别人视频
             List <VideoInfoFileUpload> dbUploadFileList = videoInfoFileUploadMapper.selectList(videoFileUploadQuery);
-            Map <Long, VideoInfoFileUpload> uploadFileMap = uploadFileList.stream()
-                                                                          .collect(Collectors.toMap(VideoInfoFileUpload::getUploadId,
-                                                                                                    Function.identity(),
-                                                                                                    (data1, data2) -> data2));
-            boolean isChangedName = false;
-            // 新增的视频文件
-            ArrayList <VideoInfoFileUpload> newFileList;
-            // 被删除的视频文件
-            ArrayList <VideoInfoFileUpload> removedFileList = new ArrayList <>();
-            for (VideoInfoFileUpload dbFile : dbUploadFileList)
+
+            // 以 uploadId 为 key 建立 DB 文件的查找 Map
+            Map <Long, VideoInfoFileUpload> dbFileByUploadId = dbUploadFileList.stream()
+                                                                               .collect(Collectors.toMap(VideoInfoFileUpload::getUploadId,
+                                                                                                         Function.identity(),
+                                                                                                         (d1, d2) -> d2));
+            // 请求中携带的 uploadId 集合
+            Set <Long> requestUploadIds = uploadFileList.stream().map(VideoInfoFileUpload::getUploadId).collect(Collectors.toSet());
+
+            // 被删除的视频文件：在 DB 中有、但本次请求中没有
+            ArrayList <VideoInfoFileUpload> removedFileList = dbUploadFileList.stream()
+                                                                              .filter(db -> !requestUploadIds.contains(db.getUploadId()))
+                                                                              .collect(Collectors.toCollection(ArrayList::new));
+
+            // 对本次请求中已存在于 DB 的文件，回填 DB 数据（fileId、filePath 等），
+            // 这样后续 fileId == null 的判断才能正确区分新/旧文件
+            for (VideoInfoFileUpload uploadFile : uploadFileList)
             {
-                VideoInfoFileUpload duplicateFile = uploadFileMap.get(dbFile.getUploadId());
-                if (duplicateFile == null)
+                VideoInfoFileUpload dbMatch = dbFileByUploadId.get(uploadFile.getUploadId());
+                if (dbMatch != null)
                 {
-                    removedFileList.add(dbFile);
-                }
-                else if (!dbFile.getFileName().equals(duplicateFile.getFileName()))
-                {
-                    isChangedName = true;
+                    uploadFile.setFileId(dbMatch.getFileId());
+                    uploadFile.setFilePath(dbMatch.getFilePath());
+                    uploadFile.setFileName(dbMatch.getFileName());
+                    uploadFile.setFileSize(dbMatch.getFileSize());
+                    uploadFile.setTransferResult(dbMatch.getTransferResult());
+                    uploadFile.setDuration(dbMatch.getDuration());
+                    uploadFile.setUpdateType(dbMatch.getUpdateType());
                 }
             }
-            // 只保留了fileId为null的数据，应该是只有保存的videoFileUpload才有fileId
-            newFileList = new ArrayList <>(uploadFileList.stream().filter(file -> file.getFileId() == null).toList());
+
+            // 新增的视频文件：在请求中有、但 DB 中没有（回填后 fileId 仍为 null）
+            ArrayList <VideoInfoFileUpload> newFileList = new ArrayList <>(uploadFileList.stream()
+                                                                                         .filter(file -> file.getFileId() == null)
+                                                                                         .toList());
 
             videoInfoUpload.setLastUpdateTime(curDate);
 
@@ -173,7 +183,7 @@ public class CreativeCenterService
             {
                 videoInfoUpload.setStatus(VideoStatus.TRANSCODING.getStatus());
             }
-            else if (isChangedName || isUpdated)
+            else if (isUpdated)
             {
                 videoInfoUpload.setStatus(VideoStatus.PENDING_REVIEW.getStatus());
             }
@@ -186,9 +196,15 @@ public class CreativeCenterService
                 List <Long> fileIdList = removedFileList.stream().map(VideoInfoFileUpload::getFileId).toList();
                 // 数据库层面删除
                 videoInfoFileUploadMapper.deleteBatchByFileId(fileIdList, userId);
-                List <String> filePathList = removedFileList.stream().map(VideoInfoFileUpload::getFilePath).toList();
-                // 删除磁盘上的文件
-                mqRepository.addVideoFile2DeleteQueue(filePathList);
+                // 只删除有路径的文件（转码失败的文件 filePath 为 null，磁盘上无对应文件）
+                List <String> filePathList = removedFileList.stream()
+                                                            .map(VideoInfoFileUpload::getFilePath)
+                                                            .filter(Objects::nonNull)
+                                                            .toList();
+                if (!filePathList.isEmpty())
+                {
+                    mqRepository.addVideoFile2DeleteQueue(filePathList);
+                }
             }
 
             // 更新视频文件记录
@@ -287,11 +303,16 @@ public class CreativeCenterService
     private boolean isSameVideoInfoUpload(VideoInfoUpload newInfo)
     {
         VideoInfoUpload dbInfo = videoInfoUploadMapper.selectByVideoId(newInfo.getVideoId());
-        return newInfo.getVideoName().equals(dbInfo.getVideoName()) && newInfo.getVideoCover()
-                                                                              .equals(dbInfo.getVideoCover()) && newInfo.getTags()
-                                                                                                                        .equals(dbInfo.getTags()) && newInfo.getIntroduction()
-                                                                                                                                                            .equals(dbInfo.getIntroduction()) && newInfo.getInteraction()
-                                                                                                                                                                                                        .equals(dbInfo.getInteraction());
+        if (dbInfo == null)
+        {
+            return false;
+        }
+        return Objects.equals(newInfo.getVideoName(), dbInfo.getVideoName()) && Objects.equals(newInfo.getVideoCover(),
+                                                                                               dbInfo.getVideoCover()) && Objects.equals(
+                newInfo.getTags(),
+                dbInfo.getTags()) && Objects.equals(newInfo.getIntroduction(),
+                                                    dbInfo.getIntroduction()) && Objects.equals(newInfo.getInteraction(),
+                                                                                                dbInfo.getInteraction());
     }
 
 

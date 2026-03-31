@@ -81,7 +81,7 @@ public class CategoryService
     }
 
     /**
-     * 检查缓存中是否有分类缓存
+     * 检查分类缓存是否存在，如果不存在则刷新缓存
      */
     private void checkCache()
     {

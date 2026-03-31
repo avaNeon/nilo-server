@@ -1,9 +1,6 @@
 package com.neon.niloweb.controller;
 
-import com.neon.nilocommon.entity.vo.BriefVideoInfoVO;
-import com.neon.nilocommon.entity.vo.ResponseVO;
-import com.neon.nilocommon.entity.vo.VideoInfoFileVO;
-import com.neon.nilocommon.entity.vo.VideoInfoVO;
+import com.neon.nilocommon.entity.vo.*;
 import com.neon.niloweb.service.VideoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -38,15 +35,15 @@ public class VideoController
     /**
      * 查询视频列表
      *
-     * @return 视频列表
+     * @return 分页视频列表
      */
     @Operation(summary = "查询视频接口", description = "查询视频列表，按照创建时间倒序排序")
     @GetMapping(path = "/video")
-    public ResponseVO <List <BriefVideoInfoVO>> loadVideo(@RequestParam(name = "parentCategoryId") Integer parentCategoryId,
-                                                          @RequestParam(name = "categoryId", required = false) Integer categoryId,
-                                                          @RequestParam(name = "pageNo", required = false) Integer pageNo)
+    public ResponseVO <PaginationResponseVO <BriefVideoInfoVO>> loadVideo(
+            @RequestParam(name = "categoryNumber", required = false) String categoryNumber,
+            @RequestParam(name = "pageNo", required = false) Integer pageNo)
     {
-        return ResponseVO.success(videoService.loadVideo(parentCategoryId, categoryId, pageNo));
+        return ResponseVO.success(videoService.loadVideo(categoryNumber, pageNo));
     }
 
     /**

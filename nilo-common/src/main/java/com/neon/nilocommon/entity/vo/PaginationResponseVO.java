@@ -16,6 +16,9 @@ public class PaginationResponseVO<T>
 {
     private Integer totalCount;
     private Integer pageSize;
+    /**
+     * 分页号从1开始
+     */
     private Integer pageNo;
     private Integer pageTotal;
     private List <T> list = new ArrayList <T>();

@@ -10,6 +10,7 @@ import com.neon.nilocommon.entity.enums.userInfo.UserStatus;
 import com.neon.nilocommon.entity.po.UserInfo;
 import com.neon.nilocommon.entity.query.PageCalculator;
 import com.neon.nilocommon.entity.query.UserInfoQuery;
+import com.neon.nilocommon.entity.vo.BriefUserInfoVO;
 import com.neon.nilocommon.entity.vo.PaginationResponseVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.mapper.UserInfoMapper;
@@ -79,6 +80,7 @@ public class AccountService
         // 设置token
         // 新建一个7天时长的token
         TokenUserInfo tokenUserInfo = BeanUtil.copyProperties(userInfo, TokenUserInfo.class);
+        tokenUserInfo.setUserInfo(BeanUtil.copyProperties(userInfo, BriefUserInfoVO.class));
         generateAndSaveToken(tokenUserInfo, 7);
         return tokenUserInfo;
     }

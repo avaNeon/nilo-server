@@ -63,7 +63,7 @@ public class CreativeCenterService
                             List <VideoInfoFileUpload> uploadFileList,
                             TokenUserInfo tokenUserInfo)
     {
-        Long userId = tokenUserInfo.getUserId();
+        Long userId = tokenUserInfo.getUserInfo().getUserId();
         // 将传入的参数赋值给视频信息对象
         VideoInfoUpload videoInfoUpload = new VideoInfoUpload();
         videoInfoUpload.setVideoId(videoId);
@@ -247,7 +247,7 @@ public class CreativeCenterService
                                                        String nameFuzzy)
     {
         VideoInfoUploadQuery query = new VideoInfoUploadQuery();
-        query.setUserId(tokenUserInfo.getUserId());
+        query.setUserId(tokenUserInfo.getUserInfo().getUserId());
         query.setVideoNameFuzzy(nameFuzzy);
         query.setOrderBy("v.create_time desc");
         if (status != null)
@@ -277,7 +277,7 @@ public class CreativeCenterService
      */
     public VideoStatusCountVO getVideoStatusCount(TokenUserInfo tokenUserInfo)
     {
-        Long userId = tokenUserInfo.getUserId();
+        Long userId = tokenUserInfo.getUserInfo().getUserId();
         VideoInfoUploadQuery query = new VideoInfoUploadQuery();
         query.setUserId(userId);
         // 查找审核通过视频

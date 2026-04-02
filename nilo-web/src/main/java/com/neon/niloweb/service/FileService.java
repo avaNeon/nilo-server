@@ -120,7 +120,7 @@ public class FileService
         video.setFileName(fileName);
         video.setChunkSize(chunkSize);
         video.setChunkIndex(0); // 设置初始的chunkIndex
-        uploadRedisRepository.addPreUploadKey(video, tokenUserInfo.getUserId());
+        uploadRedisRepository.addPreUploadKey(video, tokenUserInfo.getUserInfo().getUserId());
         return uploadId;
     }
 

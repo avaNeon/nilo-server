@@ -86,7 +86,7 @@ public class FileController
                                            @RequestHeader(name = "token") String token)
     {
         TokenUserInfo tokenUserInfo = getLoginState(token);
-        long userId = tokenUserInfo.getUserId();
+        long userId = tokenUserInfo.getUserInfo().getUserId();
         fileService.uploadVideo(chunkFile, chunkIndex, userId, uploadId);
         return ResponseVO.success(null);
     }
@@ -104,7 +104,7 @@ public class FileController
                                            @RequestHeader(name = "token") String token)
     {
         TokenUserInfo loginState = getLoginState(token);
-        Long userId = loginState.getUserId();
+        Long userId = loginState.getUserInfo().getUserId();
         fileService.deleteVideo(uploadId, userId);
         return ResponseVO.success(null);
     }

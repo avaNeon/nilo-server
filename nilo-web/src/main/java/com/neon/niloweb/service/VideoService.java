@@ -3,12 +3,10 @@ package com.neon.niloweb.service;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.videoInfo.RecommendType;
 import com.neon.nilocommon.entity.po.CategoryInfo;
+import com.neon.nilocommon.entity.po.UserInfo;
 import com.neon.nilocommon.entity.po.VideoInfo;
 import com.neon.nilocommon.entity.po.VideoInfoFile;
-import com.neon.nilocommon.entity.query.CategoryInfoQuery;
-import com.neon.nilocommon.entity.query.PageCalculator;
-import com.neon.nilocommon.entity.query.VideoInfoFileQuery;
-import com.neon.nilocommon.entity.query.VideoInfoQuery;
+import com.neon.nilocommon.entity.query.*;
 import com.neon.nilocommon.entity.vo.BriefVideoInfoVO;
 import com.neon.nilocommon.entity.vo.PaginationResponseVO;
 import com.neon.nilocommon.entity.vo.VideoInfoFileVO;
@@ -16,6 +14,7 @@ import com.neon.nilocommon.entity.vo.VideoInfoVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.config.WebConfig;
 import com.neon.niloweb.mapper.CategoryInfoMapper;
+import com.neon.niloweb.mapper.UserInfoMapper;
 import com.neon.niloweb.mapper.VideoInfoFileMapper;
 import com.neon.niloweb.mapper.VideoInfoMapper;
 import com.neon.niloweb.repository.redis.CategoryRedisRepository;
@@ -40,6 +39,8 @@ public class VideoService
     private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
 
     private final VideoInfoFileMapper <VideoInfoFile, VideoInfoFileQuery> videoInfoFileMapper;
+
+    private final UserInfoMapper<UserInfo, UserInfoQuery>  userInfoMapper;
 
     private final CategoryRedisRepository categoryRedisRepository;
 
@@ -73,13 +74,15 @@ public class VideoService
      *
      * @return 分页视频列表
      */
-    public PaginationResponseVO <BriefVideoInfoVO> loadVideo(String categoryNumber, Integer pageNo)
+    public PaginationResponseVO <BriefVideoInfoVO> loadVideo(String categoryNumber, Integer pageNo, Boolean isRecommend)
     {
-        log.info("分页大小：{}", webConfig.getPageSize());
 
         VideoInfoQuery infoQuery = new VideoInfoQuery();
         infoQuery.setOrderBy("create_time desc");
-        infoQuery.setRecommendType(RecommendType.UNRECOMMENDED.getType());
+        if (isRecommend != null)
+        {
+            infoQuery.setRecommendType(isRecommend ? RecommendType.RECOMMENDED.getType() : RecommendType.UNRECOMMENDED.getType());
+        }
 
         if (categoryNumber != null)
         {
@@ -90,8 +93,21 @@ public class VideoService
             }
             else
             {
-                infoQuery.setPCategoryId(categoryInfo.getPCategoryId());
-                infoQuery.setCategoryId(categoryInfo.getCategoryId());
+                // 如果查询一个一级分类
+                if (categoryInfo.getPCategoryId() == 0)
+                {
+                    // 则将子分类页查询
+                    infoQuery.setPCategoryId(categoryInfo.getCategoryId());
+                    infoQuery.setCategoryId(categoryInfo.getCategoryId());
+                    infoQuery.setFuzzyCategory(true);
+                }
+                // 如果查询二级分类，精确查询
+                else
+                {
+                    infoQuery.setPCategoryId(categoryInfo.getPCategoryId());
+                    infoQuery.setCategoryId(categoryInfo.getCategoryId());
+                }
+
             }
         }
 

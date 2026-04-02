@@ -41,9 +41,10 @@ public class VideoController
     @GetMapping(path = "/video")
     public ResponseVO <PaginationResponseVO <BriefVideoInfoVO>> loadVideo(
             @RequestParam(name = "categoryNumber", required = false) String categoryNumber,
-            @RequestParam(name = "pageNo", required = false) Integer pageNo)
+            @RequestParam(name = "pageNo", required = false) Integer pageNo,
+            @RequestParam(name = "isRecommend", required = false) Boolean isRecommend)
     {
-        return ResponseVO.success(videoService.loadVideo(categoryNumber, pageNo));
+        return ResponseVO.success(videoService.loadVideo(categoryNumber, pageNo, isRecommend));
     }
 
     /**

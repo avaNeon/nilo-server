@@ -149,5 +149,10 @@ public class VideoInfoQuery extends BaseQuery
 
     private LocalDateTime lastPlayTimeEnd;
 
+    /**
+     * 模糊分类查询<hr/>
+     * 开启此项可以添加一个where条件：父分类或子分类满足
+     */
+    private boolean fuzzyCategory;
 
 }

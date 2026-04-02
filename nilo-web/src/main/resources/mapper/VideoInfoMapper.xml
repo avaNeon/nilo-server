@@ -190,10 +190,16 @@
         <if test="query.lastUpdateTime != null and query.lastUpdateTime!=''">
             <![CDATA[ and  v.last_update_time= #{query.lastUpdateTime} ]]>
         </if>
-        <if test="query.pCategoryId != null">
+
+        <if test="query.fuzzyCategory!=null and query.fuzzyCategory and query.pCategoryId != null and query.categoryId != null">
+            and (v.p_category_id = #{query.pCategoryId}
+            or v.category_id = #{query.categoryId})
+        </if>
+
+        <if test="(query.fuzzyCategory==null or !query.fuzzyCategory) and query.pCategoryId != null">
             and v.p_category_id = #{query.pCategoryId}
         </if>
-        <if test="query.categoryId != null">
+        <if test="(query.fuzzyCategory==null or !query.fuzzyCategory) and query.categoryId != null">
             and v.category_id = #{query.categoryId}
         </if>
         <if test="query.postType != null">
@@ -280,6 +286,7 @@
             <if test="query.lastPlayTimeEnd!= null and query.lastPlayTimeEnd!=''">
                 <![CDATA[ and  v.last_play_time< #{query.lastPlayTimeEnd} ]]>
             </if>
+
         </where>
     </sql>
 
@@ -964,7 +971,7 @@
         </if>
     </select>
     <!--  通过videoId查询VideoInfoVO  -->
-    <select id="selectVoByVideoId" resultType="com.neon.nilocommon.entity.vo.VideoInfoVO">
+    <select id="selectVoByVideoId" resultMap="vo_result_map">
         SELECT
         <include refid="vo_column_list"/>
         FROM video_info v left join user_info u on v.user_id=u.user_id

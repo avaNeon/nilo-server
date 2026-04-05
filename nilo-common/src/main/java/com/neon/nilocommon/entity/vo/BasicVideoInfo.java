@@ -1,5 +1,6 @@
 package com.neon.nilocommon.entity.vo;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -47,4 +48,15 @@ public abstract class BasicVideoInfo
      * 最后更新时间
      */
     protected LocalDateTime lastUpdateTime;
+
+    /**
+     * 父级分类编码
+     */
+    @JsonProperty("pCategoryNumber")
+    protected String pCategoryNumber;
+
+    /**
+     * 分类编码
+     */
+    protected String categoryNumber;
 }

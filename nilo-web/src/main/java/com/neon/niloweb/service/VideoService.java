@@ -63,7 +63,9 @@ public class VideoService
         VideoInfoQuery infoQuery = new VideoInfoQuery();
         infoQuery.setOrderBy("create_time desc");
         infoQuery.setRecommendType(RecommendType.RECOMMENDED.getType());
-        return videoInfoMapper.selectBriefVoListByParam(infoQuery);
+        List <BriefVideoInfoVO> list = videoInfoMapper.selectBriefVoListByParam(infoQuery);
+        fillCategoryNumbers(list);
+        return list;
     }
 
     /**
@@ -115,6 +117,7 @@ public class VideoService
         PageCalculator pageCalculator = new PageCalculator(pageNo, count, webConfig.getPageSize());
         infoQuery.setPageCalculator(pageCalculator);
         List <BriefVideoInfoVO> briefVideoInfoVOList = videoInfoMapper.selectBriefVoListByParam(infoQuery);
+        fillCategoryNumbers(briefVideoInfoVOList);
         return new PaginationResponseVO <>(count,
                                            pageCalculator.getPageSize(),
                                            pageNo,
@@ -134,6 +137,23 @@ public class VideoService
         if (videoInfoVO == null)
         {
             throw new BusinessException(ResponseCode.NOT_FOUND);
+        }
+        // 将分类ID转换为分类编码（利用缓存，避免暴露内部ID）
+        if (videoInfoVO.getCategoryId() != null)
+        {
+            CategoryInfo category = selectCategoryInfoById(videoInfoVO.getCategoryId());
+            if (category != null)
+            {
+                videoInfoVO.setCategoryNumber(category.getCategoryNumber());
+            }
+        }
+        if (videoInfoVO.getPCategoryId() != null)
+        {
+            CategoryInfo pCategory = selectCategoryInfoById(videoInfoVO.getPCategoryId());
+            if (pCategory != null)
+            {
+                videoInfoVO.setPCategoryNumber(pCategory.getCategoryNumber());
+            }
         }
         //todo 获取用户行为：点赞、投币、收藏
         return videoInfoVO;
@@ -169,6 +189,45 @@ public class VideoService
                                .filter(categoryInfo -> categoryInfo.getCategoryNumber().equals(categoryNumber))
                                .findFirst()
                                .orElse(null);
+    }
+
+    /**
+     * Select CategoryInfo by categoryId
+     *
+     * @param categoryId 分类ID
+     * @return CategoryInfo
+     */
+    private CategoryInfo selectCategoryInfoById(Integer categoryId)
+    {
+        checkCache();
+        List <CategoryInfo> categoryInfoList = categoryRedisRepository.getCategoryInfo();
+        return categoryInfoList.stream()
+                               .filter(categoryInfo -> categoryId.equals(categoryInfo.getCategoryId()))
+                               .findFirst()
+                               .orElse(null);
+    }
+
+    /**
+     * 批量将 BriefVideoInfoVO 列表中的分类ID转换为分类编码
+     *
+     * @param list BriefVideoInfoVO 列表
+     */
+    private void fillCategoryNumbers(List <BriefVideoInfoVO> list)
+    {
+        if (list == null || list.isEmpty()) return;
+        for (BriefVideoInfoVO vo : list)
+        {
+            if (vo.getCategoryId() != null)
+            {
+                CategoryInfo category = selectCategoryInfoById(vo.getCategoryId());
+                if (category != null) vo.setCategoryNumber(category.getCategoryNumber());
+            }
+            if (vo.getPCategoryId() != null)
+            {
+                CategoryInfo pCategory = selectCategoryInfoById(vo.getPCategoryId());
+                if (pCategory != null) vo.setPCategoryNumber(pCategory.getCategoryNumber());
+            }
+        }
     }
 
     /**

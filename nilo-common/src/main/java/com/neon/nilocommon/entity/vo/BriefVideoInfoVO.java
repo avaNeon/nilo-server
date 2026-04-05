@@ -1,5 +1,6 @@
 package com.neon.nilocommon.entity.vo;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -8,4 +9,16 @@ import lombok.Setter;
 public class BriefVideoInfoVO extends BasicVideoInfo
 {
     private BriefUserInfoVO briefUserInfo;
+
+    /**
+     * 父级分类ID（内部字段，不对外暴露，用于 Service 层转换）
+     */
+    @JsonIgnore
+    private Integer pCategoryId;
+
+    /**
+     * 分类ID（内部字段，不对外暴露，用于 Service 层转换）
+     */
+    @JsonIgnore
+    private Integer categoryId;
 }

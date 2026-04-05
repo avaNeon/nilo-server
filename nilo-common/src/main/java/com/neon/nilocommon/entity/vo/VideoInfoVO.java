@@ -1,5 +1,6 @@
 package com.neon.nilocommon.entity.vo;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -25,14 +26,17 @@ public class VideoInfoVO extends BasicVideoInfo
     private LocalDateTime createTime;
 
     /**
-     * 父级分类ID
+     * 父级分类ID（内部字段，不对外暴露，用于 Service 层转换）
      */
+    @JsonIgnore
     private Integer pCategoryId;
 
     /**
-     * 分类ID
+     * 分类ID（内部字段，不对外暴露，用于 Service 层转换）
      */
+    @JsonIgnore
     private Integer categoryId;
+
 
     /**
      * 0:自制作 1:转载

@@ -67,6 +67,10 @@
         <result column="play_count" property="playCount"/>
         <!--弹幕数量-->
         <result column="danmaku_count" property="danmakuCount"/>
+        <!--父级分类ID（内部字段，Service层转换为编码）-->
+        <result column="p_category_id" property="pCategoryId"/>
+        <!--分类ID（内部字段，Service层转换为编码）-->
+        <result column="category_id" property="categoryId"/>
 
         <!-- 嵌套对象映射 -->
         <association property="briefUserInfo" javaType="com.neon.nilocommon.entity.vo.BriefUserInfoVO">
@@ -91,9 +95,9 @@
         <result column="create_time" property="createTime"/>
         <!--最后更新时间-->
         <result column="last_update_time" property="lastUpdateTime"/>
-        <!--父级分类ID-->
+        <!--父级分类ID（内部字段，Service层转换为编码）-->
         <result column="p_category_id" property="pCategoryId"/>
-        <!--分类ID-->
+        <!--分类ID（内部字段，Service层转换为编码）-->
         <result column="category_id" property="categoryId"/>
         <!--0:自制作 1:转载-->
         <result column="post_type" property="postType"/>
@@ -159,6 +163,7 @@
     <sql id="brief_vo_column_list">
         v.video_id,v.video_cover,v.video_name,v.user_id,
 		 v.last_update_time,v.duration,v.play_count,v.danmaku_count,
+		 v.p_category_id,v.category_id,
          u.user_id,u.nick_name,u.avatar
     </sql>
 
@@ -974,8 +979,9 @@
     <select id="selectVoByVideoId" resultMap="vo_result_map">
         SELECT
         <include refid="vo_column_list"/>
-        FROM video_info v left join user_info u on v.user_id=u.user_id
-        where v.video_id=#{videoId}
+        FROM video_info v
+        LEFT JOIN user_info u ON v.user_id = u.user_id
+        WHERE v.video_id = #{videoId}
     </select>
 
 </mapper>

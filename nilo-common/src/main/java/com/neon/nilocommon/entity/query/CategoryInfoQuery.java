@@ -50,6 +50,13 @@ public class CategoryInfoQuery extends BaseQuery
     private String backgroundFuzzy;
 
     /**
+     * 主题色
+     */
+    private String color;
+
+    private String colorFuzzy;
+
+    /**
      * 排序号
      */
     private Integer sort;

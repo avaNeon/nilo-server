@@ -62,6 +62,12 @@ public class CategoryInfo
     private String background;
 
     /**
+     * 主题色
+     */
+    @Schema(description = "主题色")
+    private String color;
+
+    /**
      * 排序号
      */
     @Schema(description = "排序序号")
@@ -73,6 +79,6 @@ public class CategoryInfo
     @Override
     public String toString()
     {
-        return "自增分类ID:" + (categoryId == null ? "空" : categoryId) + "，分类编码:" + (categoryNumber == null ? "空" : categoryNumber) + "，分类名称:" + (categoryName == null ? "空" : categoryName) + "，父级分类ID:" + (pCategoryId == null ? "空" : pCategoryId) + "，图标:" + (icon == null ? "空" : icon) + "，背景图:" + (background == null ? "空" : background) + "，排序号:" + (sort == null ? "空" : sort);
+        return "自增分类ID:" + (categoryId == null ? "空" : categoryId) + "，分类编码:" + (categoryNumber == null ? "空" : categoryNumber) + "，分类名称:" + (categoryName == null ? "空" : categoryName) + "，父级分类ID:" + (pCategoryId == null ? "空" : pCategoryId) + "，图标:" + (icon == null ? "空" : icon) + "，背景图:" + (background == null ? "空" : background) + "，主题色:" + (color == null ? "空" : color) + "，排序号:" + (sort == null ? "空" : sort);
     }
 }

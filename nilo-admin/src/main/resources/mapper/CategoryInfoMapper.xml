@@ -17,6 +17,8 @@
         <result column="icon" property="icon"/>
         <!--背景图-->
         <result column="background" property="background"/>
+        <!--主题色-->
+        <result column="color" property="color"/>
         <!--排序号-->
         <result column="sort" property="sort"/>
     </resultMap>
@@ -25,7 +27,7 @@
     <!-- 通用查询结果列-->
     <sql id="base_column_list">
         c.category_id,c.category_number,c.category_name,c.p_category_id,c.icon,
-		 c.background,c.sort
+		 c.background,c.color,c.sort
     </sql>
 
     <sql id="base_condition_filed">
@@ -46,6 +48,9 @@
         </if>
         <if test="query.background != null and query.background!=''">
             and c.background = #{query.background}
+        </if>
+        <if test="query.color != null and query.color!=''">
+            and c.color = #{query.color}
         </if>
         <if test="query.sort != null">
             and c.sort = #{query.sort}
@@ -68,6 +73,9 @@
             <if test="query.backgroundFuzzy!= null  and query.backgroundFuzzy!=''">
                 and c.background like concat('%', #{query.backgroundFuzzy}, '%')
             </if>
+            <if test="query.colorFuzzy!= null  and query.colorFuzzy!=''">
+                and c.color like concat('%', #{query.colorFuzzy}, '%')
+            </if>
         </where>
     </sql>
 
@@ -86,7 +94,7 @@
     </delete>
 
     <select id="selectByIdOrParentIds" resultType="com.neon.nilocommon.entity.po.CategoryInfo">
-        SELECT c.category_id, c.category_number, c.category_name, c.p_category_id, c.icon, c.background
+        SELECT c.category_id, c.category_number, c.category_name, c.p_category_id, c.icon, c.background, c.color
         FROM category_info c
         WHERE c.category_id IN
         <foreach collection="idOrParentIds" item="id" separator="," open="(" close=")">
@@ -150,6 +158,9 @@
             <if test="bean.background != null">
                 background,
             </if>
+            <if test="bean.color != null">
+                color,
+            </if>
             <if test="bean.sort != null">
                 sort,
             </if>
@@ -169,6 +180,9 @@
             </if>
             <if test="bean.background!=null">
                 #{bean.background},
+            </if>
+            <if test="bean.color!=null">
+                #{bean.color},
             </if>
             <if test="bean.sort!=null">
                 #{bean.sort},
@@ -198,6 +212,9 @@
             <if test="bean.background != null">
                 background,
             </if>
+            <if test="bean.color != null">
+                color,
+            </if>
             <if test="bean.sort != null">
                 sort,
             </if>
@@ -221,6 +238,9 @@
             <if test="bean.background!=null">
                 #{bean.background},
             </if>
+            <if test="bean.color!=null">
+                #{bean.color},
+            </if>
             <if test="bean.sort!=null">
                 #{bean.sort},
             </if>
@@ -242,6 +262,9 @@
             <if test="bean.background!=null">
                 background = VALUES(background),
             </if>
+            <if test="bean.color!=null">
+                color = VALUES(color),
+            </if>
             <if test="bean.sort!=null">
                 sort = VALUES(sort),
             </if>
@@ -257,6 +280,7 @@
         p_category_id,
         icon,
         background,
+        color,
         sort
         )values
         <foreach collection="list" item="item" separator=",">
@@ -266,6 +290,7 @@
             #{item.pCategoryId},
             #{item.icon},
             #{item.background},
+            #{item.color},
             #{item.sort}
             )
         </foreach>
@@ -279,6 +304,7 @@
         p_category_id,
         icon,
         background,
+        color,
         sort
         )values
         <foreach collection="list" item="item" separator=",">
@@ -288,6 +314,7 @@
             #{item.pCategoryId},
             #{item.icon},
             #{item.background},
+            #{item.color},
             #{item.sort}
             )
         </foreach>
@@ -297,6 +324,7 @@
         p_category_id = VALUES(p_category_id),
         icon = VALUES(icon),
         background = VALUES(background),
+        color = VALUES(color),
         sort = VALUES(sort)
     </insert>
 
@@ -318,6 +346,9 @@
             </if>
             <if test="bean.background != null">
                 background = #{bean.background},
+            </if>
+            <if test="bean.color != null">
+                color = #{bean.color},
             </if>
             <if test="bean.sort != null">
                 sort = #{bean.sort},
@@ -350,6 +381,9 @@
             </if>
             <if test="bean.background != null">
                 background = #{bean.background},
+            </if>
+            <if test="bean.color != null">
+                color = #{bean.color},
             </if>
             <if test="bean.sort != null">
                 sort = #{bean.sort},
@@ -387,6 +421,9 @@
             </if>
             <if test="bean.background != null">
                 background = #{bean.background},
+            </if>
+            <if test="bean.color != null">
+                color = #{bean.color},
             </if>
             <if test="bean.sort != null">
                 sort = #{bean.sort},

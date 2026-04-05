@@ -1,7 +1,7 @@
 package com.neon.niloweb.controller;
 
 
-import com.neon.nilocommon.entity.po.CategoryInfo;
+import com.neon.nilocommon.entity.vo.CategoryInfoVO;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.niloweb.service.CategoryService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,7 +26,7 @@ public class CategoryController
      */
     @Operation(summary = "分层获取所有分类")
     @GetMapping(path = "/categories/all")
-    public ResponseVO <List <CategoryInfo>> getAllCategoriesWithChildren()
+    public ResponseVO <List <CategoryInfoVO>> getAllCategoriesWithChildren()
     {
         return ResponseVO.success(service.findAllWithChildren());
     }

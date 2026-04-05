@@ -3,6 +3,7 @@ package com.neon.niloweb.service;
 
 import com.neon.nilocommon.entity.po.CategoryInfo;
 import com.neon.nilocommon.entity.query.CategoryInfoQuery;
+import com.neon.nilocommon.entity.vo.CategoryInfoVO;
 import com.neon.niloweb.mapper.CategoryInfoMapper;
 import com.neon.niloweb.repository.redis.CategoryRedisRepository;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static com.neon.nilocommon.entity.constants.RedisKey.CATEGORY_UPDATE_LOCK;
 
@@ -36,19 +38,15 @@ public class CategoryService
     /**
      * 查询所有分类，分类下一级的子分类会被加入children属性中
      */
-    public List <CategoryInfo> findAllWithChildren()
+    public List <CategoryInfoVO> findAllWithChildren()
     {
         checkCache();
         List <CategoryInfo> list = categoryRedisRepository.getCategoryInfo();
-        if (list != null)
-        {
-            return list;
-        }
-        else
+        if (list == null)
         {
             list = mapper.selectList(new CategoryInfoQuery());
         }
-        return buildTree(list, 0);
+        return convertToVOList(buildTree(list, 0));
     }
 
     /**
@@ -78,6 +76,34 @@ public class CategoryService
             }
         }
         return children;
+    }
+
+    /**
+     * 将 CategoryInfo 列表转换为 CategoryInfoVO 列表（含子分类递归转换）
+     */
+    private List <CategoryInfoVO> convertToVOList(List <CategoryInfo> list)
+    {
+        if (list == null) return new ArrayList <>();
+        return list.stream().map(this::convertToVO).collect(Collectors.toList());
+    }
+
+    /**
+     * 将单个 CategoryInfo 转换为 CategoryInfoVO
+     */
+    private CategoryInfoVO convertToVO(CategoryInfo info)
+    {
+        CategoryInfoVO vo = new CategoryInfoVO();
+        vo.setCategoryNumber(info.getCategoryNumber());
+        vo.setCategoryName(info.getCategoryName());
+        vo.setIcon(info.getIcon());
+        vo.setBackground(info.getBackground());
+        vo.setColor(info.getColor());
+        vo.setSort(info.getSort());
+        if (info.getChildren() != null)
+        {
+            vo.setChildren(convertToVOList(info.getChildren()));
+        }
+        return vo;
     }
 
     /**

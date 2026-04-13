@@ -2,7 +2,6 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.neon.niloweb.mapper.UserInfoMapper">
-
     <!--实体映射-->
     <resultMap id="base_result_map" type="com.neon.nilocommon.entity.po.UserInfo">
         <!--用户id-->
@@ -824,7 +823,8 @@
 
     <!--  根据userId列表批量获取用户信息  -->
     <select id="selectBatchByUserId" resultMap="base_result_map">
-        select <include refid="base_column_list"/>
+        select
+        <include refid="base_column_list"/>
         from user_info u
         where u.user_id in
         <foreach collection="userIdList" item="userId" open="(" separator="," close=")">
@@ -832,4 +832,24 @@
         </foreach>
     </select>
 
+    <update id="increaseCoin">
+        UPDATE user_info
+        <set>
+            current_coin = current_coin + #{coinAmount}
+        </set>
+        <where>
+            user_id = #{userId}
+        </where>
+    </update>
+
+    <update id="decreaseCoin">
+        UPDATE user_info
+        <set>
+            current_coin = current_coin - #{coinAmount}
+        </set>
+        <where>
+            user_id = #{userId}
+            and current_coin >= #{coinAmount}
+        </where>
+    </update>
 </mapper>

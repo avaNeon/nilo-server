@@ -984,4 +984,66 @@
         WHERE v.video_id = #{videoId}
     </select>
 
+    <update id="increaseByField">
+        UPDATE video_info
+        <set>
+            ${field} = ${field} + ${increment}
+            <if test="field == 'play_count'">
+                ,last_play_time = now()
+            </if>
+        </set>
+        <where>
+            video_id = #{videoId}
+        </where>
+    </update>
+
+    <update id="increaseLikeCount">
+        UPDATE video_info
+        <set>
+            like_count = like_count + 1
+        </set>
+        <where>
+            video_id = #{videoId}
+        </where>
+    </update>
+
+    <update id="decreaseLikeCount">
+        UPDATE video_info
+        <set>
+            like_count = like_count - 1
+        </set>
+        <where>
+            video_id = #{videoId}
+        </where>
+    </update>
+
+    <update id="increaseCollectCount">
+        UPDATE video_info
+        <set>
+            collect_count = collect_count + 1
+        </set>
+        <where>
+            video_id = #{videoId}
+        </where>
+    </update>
+
+    <update id="decreaseCollectCount">
+        UPDATE video_info
+        <set>
+            collect_count = collect_count - 1
+        </set>
+        <where>
+            video_id = #{videoId}
+        </where>
+    </update>
+
+    <update id="increaseCoinCount">
+        UPDATE video_info
+        <set>
+            coin_count = coin_count + #{coinAmount}
+        </set>
+        <where>
+            video_id = #{videoId}
+        </where>
+    </update>
 </mapper>

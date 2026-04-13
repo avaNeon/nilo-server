@@ -29,10 +29,11 @@ public interface UserInfoMapper<T, P extends BaseQuery> extends BaseMapper <T, P
 
     /**
      * 通过userId批量查找用户信息
+     *
      * @param userIdList userId列表
      * @return 用户信息列表
      */
-    List<T> selectBatchByUserId(@Param("userIdList") List <Long> userIdList);
+    List <T> selectBatchByUserId(@Param("userIdList") List <Long> userIdList);
 
     /**
      * 根据Email更新
@@ -64,4 +65,19 @@ public interface UserInfoMapper<T, P extends BaseQuery> extends BaseMapper <T, P
      */
     T selectByNickName(@Param("nickName") String nickName);
 
+    /**
+     * 增加用户硬币数量
+     * @param userId 用户ID
+     * @param coinAmount 硬币增加数量
+     * @return 更改行数
+     */
+    Integer increaseCoin(@Param("userId") Long userId, @Param("coinAmount") Short coinAmount);
+
+    /**
+     * 减少用户的硬币数量
+     * @param userId 用户ID
+     * @param coinAmount 扣减硬币总数
+     * @return 更改行数（如果为0说明用户ID不对，或者用户硬币余额不足）
+     */
+    Integer decreaseCoin(@Param("userId") Long userId, @Param("coinAmount") Short coinAmount);
 }

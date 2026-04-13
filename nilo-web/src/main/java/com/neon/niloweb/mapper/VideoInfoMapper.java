@@ -40,9 +40,32 @@ public interface VideoInfoMapper<T, P> extends BaseMapper <T, P>
 
     /**
      * 通过videoId查询VideoInfoVO
+     *
      * @param videoId 视频ID
      * @return VideoInfoVO
      */
     VideoInfoVO selectVoByVideoId(@Param("videoId") Long videoId);
 
+    /**
+     * 将指定字段增加一定的量
+     * @param filed 指定字段
+     * @param increment 增量
+     * @return 修改行数
+     */
+    Integer increaseByField(@Param("videoId") Long videoId, @Param("field") String filed, @Param("increment") Integer increment);
+
+    /**
+     * 喜欢+1
+     * @param videoId 视频ID
+     * @return 修改行数
+     */
+    Integer increaseLikeCount(@Param("videoId") Long videoId);
+
+    Integer decreaseLikeCount(@Param("videoId") Long videoId);
+
+    Integer increaseCollectCount(@Param("videoId") Long videoId);
+
+    Integer decreaseCollectCount(@Param("videoId") Long videoId);
+
+    Integer increaseCoinCount(@Param("videoId") Long videoId, @Param("coinAmount") Short coinAmount);
 }

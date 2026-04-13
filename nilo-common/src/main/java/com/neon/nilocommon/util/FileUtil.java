@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Comparator;
 import java.util.stream.Stream;
 
@@ -33,6 +34,30 @@ public class FileUtil
             log.error("删除文件夹时错误");
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * 校验文件是否合法且存在
+     *
+     * @param rootPathStr 文件根路径
+     * @param filePathStr 文件相对路径
+     * @return 是否合法存在
+     */
+    public static boolean fileExists(String rootPathStr, String filePathStr)
+    {
+        // 首先，应该不是空
+        if (filePathStr == null || filePathStr.trim().isEmpty())
+        {
+            return false;
+        }
+        Path path = Paths.get(rootPathStr, filePathStr);
+        // 然后，必须合法，不能离开指定目录
+        if (!StringUtil.isValidPath(path.toString(), Paths.get(rootPathStr).toString()))
+        {
+            return false;
+        }
+        // 最后校验是否存在，是否是一个文件而非目录
+        return Files.exists(path) && Files.isRegularFile(path);
     }
 
     /**

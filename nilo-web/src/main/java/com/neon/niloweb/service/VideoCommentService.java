@@ -113,7 +113,11 @@ public class VideoCommentService
             getVideoComment(parentCommentId, videoId);
         }
 
-        if (orderType.equals(CommentOrderType.LATEST.getValue()))
+        if (orderType.equals(CommentOrderType.EARLIEST.getValue()))
+        {
+            return getVideoCommentListBatch(videoId, parentCommentId, pageNo, "top_type DESC, post_time", depth);
+        }
+        else if (orderType.equals(CommentOrderType.LATEST.getValue()))
         {
             // 把 top_type 为 1 的放在最前面
             return getVideoCommentListBatch(videoId, parentCommentId, pageNo, "top_type DESC, post_time DESC", depth);

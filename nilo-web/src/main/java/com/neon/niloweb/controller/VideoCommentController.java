@@ -61,13 +61,15 @@ public class VideoCommentController
         return ResponseVO.success(null);
     }
 
-    @Operation(summary = "获取视频评论列表", description = "获取视频评论列表接口，登录状态通过token传递，页大小为10，子评论页大小为5，深度默认为3")
+    @Operation(summary = "获取视频评论列表",
+               description = "获取视频评论列表接口，登录状态通过token传递，页大小为10，子评论页大小为5，深度默认为3")
     @GetMapping(path = "/comment")
     public ResponseVO <List <VideoCommentVO>> getCommentList(@RequestParam(name = "videoId") @NotNull Long videoId,
                                                              @RequestParam(name = "parentCommentId") @NotNull Long parentCommentId,
                                                              @RequestParam(name = "pageNo") @NotNull @Positive Integer pageNo,
                                                              @RequestParam(name = "orderType") @NotEmpty
-                                                             @Parameter(description = "可以传入的值：latest, popular") String orderType,
+                                                             @Parameter(description = "可以传入的值：earliest, latest, popular")
+                                                             String orderType,
                                                              @RequestParam(name = "depth", required = false) @Min(1) @Max(3) Integer depth)
     {
         if (!EnumFieldChecker.containsFieldValue(CommentOrderType.class, "value", orderType))

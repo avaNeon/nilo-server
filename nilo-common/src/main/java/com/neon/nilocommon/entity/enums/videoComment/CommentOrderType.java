@@ -7,7 +7,7 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum CommentOrderType
 {
-    LATEST("latest"), POPULAR("popular");
+    EARLIEST("earliest"), LATEST("latest"), POPULAR("popular");
 
     private final String value;
 }

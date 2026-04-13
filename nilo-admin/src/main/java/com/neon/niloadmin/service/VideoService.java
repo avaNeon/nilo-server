@@ -1,12 +1,9 @@
 package com.neon.niloadmin.service;
 
-import com.neon.niloadmin.config.AdminConfig;
 import com.neon.niloadmin.mapper.VideoInfoFileMapper;
 import com.neon.niloadmin.mapper.VideoInfoFileUploadMapper;
 import com.neon.niloadmin.mapper.VideoInfoMapper;
 import com.neon.niloadmin.mapper.VideoInfoUploadMapper;
-import com.neon.niloadmin.repository.rabbitmq.MqRepository;
-import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.dto.VideoInfoUploadAdminJoinDTO;
 import com.neon.nilocommon.entity.enums.videoInfoFileUpload.UpdateType;
 import com.neon.nilocommon.entity.enums.videoInfoUpload.VideoStatus;
@@ -21,7 +18,6 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.file.Paths;
 import java.util.List;
 
 @RequiredArgsConstructor
@@ -36,10 +32,6 @@ public class VideoService
     private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
 
     private final VideoInfoFileMapper <VideoInfoFile, VideoInfoFileQuery> videoInfoFileMapper;
-
-    private final MqRepository mqRepository;
-
-    private final AdminConfig adminConfig;
 
     /**
      * 查询视频
@@ -102,10 +94,9 @@ public class VideoService
         BeanUtils.copyProperties(infoUpload, videoInfo);
         videoInfoMapper.insertOrUpdate(videoInfo);
 
-        // 删除videoInfoFile记录
+        // 删除旧的video_info_file记录（DB层面）
         VideoInfoFileQuery infoFileQuery = new VideoInfoFileQuery();
         infoFileQuery.setVideoId(videoId);
-        List <VideoInfoFile> deletedFile = videoInfoFileMapper.selectList(infoFileQuery);
         videoInfoFileMapper.deleteByParam(infoFileQuery);
 
         // 获取videoInfoFileUpload记录
@@ -122,13 +113,10 @@ public class VideoService
                                                                             }).toList();
         videoInfoFileMapper.insertBatch(infoFileList);
 
-        // 删除原video_info_file文件
-        List <String> pathList = deletedFile.stream()
-                                            .map(file -> Paths.get(adminConfig.getRootFilePath(),
-                                                                   Constants.FILE_FOLDER_NAME,
-                                                                   file.getFilePath()).toString())
-                                            .toList();
-        mqRepository.addPathList2DeleteQueue(pathList);
+        // 注意：不在此处删除物理文件，因为：
+        // 1. 用户修改视频时，videoUpload(CreativeCenterService)已经处理了文件删除
+        // 2. 未修改的文件在新旧记录中路径相同，删除会导致数据丢失
+        // 3. 只有用户明确移除的文件才应该被删除，这已在上传阶段处理
 
         //todo 保存信息到ES中
     }

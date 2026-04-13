@@ -25,6 +25,7 @@ import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -40,7 +41,7 @@ public class VideoService
 
     private final VideoInfoFileMapper <VideoInfoFile, VideoInfoFileQuery> videoInfoFileMapper;
 
-    private final UserInfoMapper<UserInfo, UserInfoQuery>  userInfoMapper;
+    private final UserInfoMapper <UserInfo, UserInfoQuery> userInfoMapper;
 
     private final CategoryRedisRepository categoryRedisRepository;
 
@@ -172,7 +173,8 @@ public class VideoService
         {
             throw new BusinessException(ResponseCode.NOT_FOUND);
         }
-        return partitionFiles;
+        // sort list in ascending order
+        return partitionFiles.stream().sorted(Comparator.comparing((VideoInfoFileVO::getFileIndex))).toList();
     }
 
     /**

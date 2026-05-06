@@ -1,12 +1,16 @@
 package com.neon.nilocommon.util;
 
+import com.neon.nilocommon.entity.constants.Constants;
+import com.neon.nilocommon.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
 import java.util.stream.Stream;
 
@@ -76,6 +80,54 @@ public class FileUtil
         {
             log.error("删除文件时错误");
             throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * 验证图片是否存在，并将其移动 tmp -> cover
+     *
+     * @param rootPathStr  项目根路径
+     * @param coverPathStr 封面图片相对路径
+     */
+    public static void verifyAndMoveCover(String rootPathStr, String coverPathStr)
+    {
+        // 先把封面移动到COVER文件夹
+        Path rootPath = Path.of(rootPathStr, Constants.FILE_FOLDER_NAME, Constants.TMP_FOLDER_NAME);
+        Path coverAbsPath = Path.of(rootPath.toString(), coverPathStr);
+        if (fileExists(rootPath.toString(), coverPathStr))
+        {
+            Path destPath = Path.of(rootPathStr, Constants.FILE_FOLDER_NAME, Constants.COVER_FOLDER_NAME, coverPathStr);
+            try
+            {
+                // 确保目标目录存在
+                Files.createDirectories(destPath.getParent());
+                // 删除目标位置源文件
+                if (Files.exists(destPath))
+                {
+                    if (Files.isRegularFile(destPath) || Files.isSymbolicLink(destPath))
+                    {
+                        Files.deleteIfExists(destPath);
+                    }
+                    else if (Files.isDirectory(destPath))
+                    {
+                        FileUtils.deleteDirectory(destPath.toFile());
+                    }
+                    else
+                    {
+                        throw new RuntimeException("未知的文件格式");
+                    }
+                }
+                Files.move(coverAbsPath, destPath, StandardCopyOption.REPLACE_EXISTING);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+        else
+        {
+            // TODO TMP文件清理速度尽量快于预上传视频key的清理速度，因为预上传视频的key总比视频封面产生早，这样如果触发到这条异常说明用户正在做出不正常的行为
+            throw new BusinessException("图片资源不存在");
         }
     }
 }

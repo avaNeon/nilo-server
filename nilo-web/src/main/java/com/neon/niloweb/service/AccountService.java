@@ -2,25 +2,27 @@ package com.neon.niloweb.service;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.lang.Snowflake;
+import com.neon.nilocommon.entity.constants.RedisKey;
 import com.neon.nilocommon.entity.dto.TokenUserInfo;
-import com.neon.nilocommon.entity.enums.PageSize;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.userInfo.UserGender;
 import com.neon.nilocommon.entity.enums.userInfo.UserStatus;
 import com.neon.nilocommon.entity.po.UserInfo;
-import com.neon.nilocommon.entity.query.PageCalculator;
+import com.neon.nilocommon.entity.po.UserState;
 import com.neon.nilocommon.entity.query.UserInfoQuery;
 import com.neon.nilocommon.entity.vo.BriefUserInfoVO;
-import com.neon.nilocommon.entity.vo.PaginationResponseVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.mapper.UserInfoMapper;
 import com.neon.niloweb.repository.redis.AccountRedisRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
+import org.springframework.beans.BeanUtils;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -28,15 +30,20 @@ import java.util.concurrent.TimeUnit;
 /**
  * 用户信息 业务接口实现
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AccountService
 {
+    private static final int expireDays = 7;
+
     private final UserInfoMapper <UserInfo, UserInfoQuery> userInfoMapper;
 
     private final Snowflake snowflake;
 
     private final AccountRedisRepository accountRedisRepository;
+
+    private final RedissonClient redisson;
 
     private BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
@@ -79,9 +86,18 @@ public class AccountService
         userInfoMapper.updateByUserId(updatedUserInfo, userInfo.getUserId()); // 就用主键执行UPDATE不用回表，效率更高
         // 设置token
         // 新建一个7天时长的token
-        TokenUserInfo tokenUserInfo = BeanUtil.copyProperties(userInfo, TokenUserInfo.class);
-        tokenUserInfo.setUserInfo(BeanUtil.copyProperties(userInfo, BriefUserInfoVO.class));
-        generateAndSaveToken(tokenUserInfo, 7);
+        BriefUserInfoVO briefUserInfoVO = BeanUtil.copyProperties(userInfo, BriefUserInfoVO.class);
+        TokenUserInfo tokenUserInfo = new TokenUserInfo();
+        // 先只保存brief user info
+        tokenUserInfo.setUserInfo(briefUserInfoVO);
+        generateAndSaveToken(tokenUserInfo, expireDays);
+        // 然后设置 followingCount, followerCount, currentCoin
+        // TODO 设置 followingCount, followerCount,
+        tokenUserInfo.setFollowerCount(0);
+        tokenUserInfo.setFollowingCount(0);
+
+        tokenUserInfo.setCurrentCoin(userInfo.getCurrentCoin());
+        accountRedisRepository.saveUserState(tokenUserInfo, expireDays);
         return tokenUserInfo;
     }
 
@@ -90,12 +106,26 @@ public class AccountService
      */
     public TokenUserInfo autoLogin(String token)
     {
-        TokenUserInfo tokenUserInfo = accountRedisRepository.getUserInfoByToken(token);
+        TokenUserInfo tokenUserInfo = accountRedisRepository.getTokenUserInfoByToken(token);
         if (tokenUserInfo == null) return null;
             // 如果过期时间小于1天，则自动延长至7天
         else if (tokenUserInfo.getExpireTime() - System.currentTimeMillis() < TimeUnit.DAYS.toMillis(1))
         {
-            accountRedisRepository.setUserInfoByToken(token, tokenUserInfo, 7);// 延长时间至7天
+            // 先延长token缓存
+            accountRedisRepository.extendExpireTime(RedisKey.WEB_TOKEN_PREFIX + token, expireDays);
+        }
+        // 获取用户统计信息
+        Long userId = tokenUserInfo.getUserInfo().getUserId();
+        if (userId == null)
+        {
+            // 如果查找不到userId，那么说明缓存的用户信息异常，删除缓存
+            accountRedisRepository.deleteTokenUserInfo(token);
+            throw new BusinessException(ResponseCode.LOGIN_FAILURE);
+        }
+        UserState userState = getUserStateByUserId(userId);
+        if (userState != null)
+        {
+            BeanUtils.copyProperties(userState, tokenUserInfo);
         }
         return tokenUserInfo;
     }
@@ -119,38 +149,56 @@ public class AccountService
     }
 
     /**
-     * 根据条件分页查询列表
+     * 获取统计信息
      *
-     * @param param 条件参数
-     * @return 所有符合条件的结果
+     * @param userId 用户ID
+     * @return 统计信息（有可能为null）
      */
-    public List <UserInfo> findListByParam(UserInfoQuery param)
+    private UserState getUserStateByUserId(long userId)
     {
-        return this.userInfoMapper.selectList(param);
-    }
-
-    /**
-     * 根据条件分页查询列表
-     *
-     * @param param 条件参数
-     * @return 符合条件的个数
-     */
-    public Integer findCountByParam(UserInfoQuery param)
-    {
-        return this.userInfoMapper.selectCount(param);
-    }
-
-    /**
-     * 分页查询方法
-     */
-    public PaginationResponseVO <UserInfo> findListByPage(UserInfoQuery param)
-    {
-        int count = this.findCountByParam(param); // TODO 每次分页查询都要获取表的行数会消耗性能，需要将这个数据保存在redis或者前端中
-        int pageSize = param.getPageSize() == null ? PageSize.SIZE15.getSize() : param.getPageSize();
-        PageCalculator page = new PageCalculator(param.getPageNo(), count, pageSize);
-        param.setPageCalculator(page);
-        List <UserInfo> list = this.findListByParam(param);
-        return new PaginationResponseVO <>(count, page.getPageSize(), page.getPageNo(), page.getPageTotal(), list);
+        // 查统计信息
+        UserState userState = accountRedisRepository.getUserStateUserId(userId);
+        // 如果缓存中没有统计信息
+        if (userState == null)
+        {
+            RLock lock = redisson.getLock(RedisKey.USER_STATE_LOCK_PREFIX + userId);
+            boolean locked = false;
+            try
+            {
+                locked = lock.tryLock(5, 20, TimeUnit.SECONDS);
+                // 抢到锁了，进行二次检查
+                if (locked)
+                {
+                    userState = accountRedisRepository.getUserStateUserId(userId);
+                    if (userState == null)
+                    {
+                        // 缓存还没更新，手动更新缓存
+                        UserInfo userInfo = userInfoMapper.selectByUserId(userId);
+                        userState = new UserState(0, 0, userInfo.getCurrentCoin());
+                        accountRedisRepository.saveUserState(userId, userState, expireDays);
+                    }
+                }
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException(e);
+            }
+            finally
+            {
+                if (locked)
+                {
+                    if (lock.isHeldByCurrentThread())
+                    {
+                        lock.unlock();
+                    }
+                    else
+                    {
+                        log.warn("RLock在业务完成之前释放");
+                    }
+                }
+            }
+        }
+        return userState;
     }
 
     /**

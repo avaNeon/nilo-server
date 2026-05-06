@@ -10,6 +10,7 @@ import com.neon.nilocommon.entity.po.VideoInfoUpload;
 import com.neon.nilocommon.entity.query.VideoInfoFileUploadQuery;
 import com.neon.nilocommon.entity.query.VideoInfoUploadQuery;
 import com.neon.nilocommon.util.FFmpegUtil;
+import com.neon.nilocommon.util.FileUtil;
 import com.neon.nilocommon.util.VideoMergeUtils;
 import com.neon.nilomqconsumer.mapper.VideoInfoFileUploadMapper;
 import com.neon.nilomqconsumer.mapper.VideoInfoUploadMapper;
@@ -19,7 +20,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
@@ -63,12 +63,19 @@ public class VideoTransCodingConsumer
     {
         try
         {
-            UploadedVideoFileDTO fileDTO = transCodingRedisRepository.getPreUploadKey(fileUpload.getUserId(), fileUpload.getUploadId());
+            // 先转换视频封面
+            VideoInfoUpload videoInfoUpload = videoInfoUploadMapper.selectByVideoId(fileUpload.getVideoId());
+            FileUtil.verifyAndMoveCover(rootPathStr, videoInfoUpload.getVideoCover());
+
+            UploadedVideoFileDTO fileDTO = transCodingRedisRepository.getPreUploadKey(fileUpload.getUserId(),
+                                                                                      fileUpload.getUploadId());
             if (fileDTO == null) throw new RuntimeException("未找到转码文件的记录");
 
-            String from = Paths.get(rootPathStr, Constants.FILE_FOLDER_NAME, Constants.TMP_FOLDER_NAME, fileDTO.getFilePath()).toString();
+            String from = Paths.get(rootPathStr, Constants.FILE_FOLDER_NAME, Constants.TMP_FOLDER_NAME, fileDTO.getFilePath())
+                               .toString();
             Path srcPath = Path.of(from);
-            String to = Paths.get(rootPathStr, Constants.FILE_FOLDER_NAME, Constants.VIDEO_FOLDER_NAME, fileDTO.getFilePath()).toString();
+            String to = Paths.get(rootPathStr, Constants.FILE_FOLDER_NAME, Constants.VIDEO_FOLDER_NAME, fileDTO.getFilePath())
+                             .toString();
             Path destPath = Path.of(to);
 
             // 移动视频文件

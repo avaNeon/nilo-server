@@ -3,6 +3,7 @@ package com.neon.niloweb.service;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.userVideoAction.VideoActionType;
 import com.neon.nilocommon.entity.po.UserInfo;
+import com.neon.nilocommon.entity.po.UserState;
 import com.neon.nilocommon.entity.po.UserVideoAction;
 import com.neon.nilocommon.entity.po.VideoInfo;
 import com.neon.nilocommon.entity.query.UserInfoQuery;
@@ -14,6 +15,7 @@ import com.neon.nilocommon.util.EnumFieldChecker;
 import com.neon.niloweb.mapper.UserInfoMapper;
 import com.neon.niloweb.mapper.UserVideoActionMapper;
 import com.neon.niloweb.mapper.VideoInfoMapper;
+import com.neon.niloweb.repository.redis.AccountRedisRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,11 +27,15 @@ import java.util.List;
 @Service
 public class UserVideoActionService
 {
+    private static final int expireDays = 7;
+
     private final UserInfoMapper <UserInfo, UserInfoQuery> userInfoMapper;
 
     private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
 
     private final UserVideoActionMapper <UserVideoAction, UserVideoActionQuery> userVideoActionMapper;
+
+    private final AccountRedisRepository accountRedisRepository;
 
     /**
      * 视频操作记录
@@ -114,6 +120,11 @@ public class UserVideoActionService
                         throw new BusinessException("硬币余额不足");
                     }
                     userInfoMapper.increaseCoin(videoInfo.getUserId(), coinAmount);
+                    // 更新用户统计缓存信息
+                    // 更新本用户
+                    updateUserState(userId);
+                    // 更新视频发布者
+                    updateUserState(videoInfo.getUserId());
                 }
                 // UNKNOWN
                 default -> throw new BusinessException(ResponseCode.UNKNOWN_ERROR);
@@ -152,6 +163,11 @@ public class UserVideoActionService
                         throw new BusinessException("硬币余额不足");
                     }
                     userInfoMapper.increaseCoin(videoInfo.getUserId(), coinAmount);
+                    // 更新用户统计缓存信息
+                    // 更新本用户
+                    updateUserState(userId);
+                    // 更新视频发布者
+                    updateUserState(videoInfo.getUserId());
                 }
             }
             // 点赞、收藏
@@ -205,5 +221,18 @@ public class UserVideoActionService
                                                         return userVideoActionVO;
                                                     }).toList();
         }
+    }
+
+    /**
+     * 更新redis缓存中的统计信息
+     *
+     * @param userId 用户ID
+     */
+    private void updateUserState(long userId)
+    {
+        UserInfo userInfo = userInfoMapper.selectByUserId(userId);
+        // 更新硬币数到缓存中
+        // todo 保存关注数、粉丝数
+        accountRedisRepository.saveUserState(userId, new UserState(0, 0, userInfo.getCurrentCoin()), expireDays);
     }
 }

@@ -15,13 +15,12 @@ import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.config.SystemConfig;
 import com.neon.niloweb.mapper.VideoInfoFileUploadMapper;
 import com.neon.niloweb.mapper.VideoInfoUploadMapper;
-import com.neon.niloweb.repository.rabbitmq.MqRepository;
+import com.neon.niloweb.repository.rabbitmq.VideoMqRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -38,7 +37,7 @@ public class CreativeCenterService
 
     private final Snowflake snowflake;
 
-    private final MqRepository mqRepository;
+    private final VideoMqRepository videoMqRepository;
 
     /**
      * 视频上传<hr/>
@@ -107,7 +106,7 @@ public class CreativeCenterService
                 uploadFile.setTransferResult(VideoFileStatus.TRANSCODING.getStatus());
             }
             videoInfoFileUploadMapper.insertBatch(uploadFileList);
-            mqRepository.addVideoFile2TranscodingQueue(uploadFileList);
+            videoMqRepository.addVideoFile2TranscodingQueue(uploadFileList);
         }
         else // 修改情况
         {
@@ -146,7 +145,9 @@ public class CreativeCenterService
                                                                                                          Function.identity(),
                                                                                                          (d1, d2) -> d2));
             // 请求中携带的 uploadId 集合
-            Set <Long> requestUploadIds = uploadFileList.stream().map(VideoInfoFileUpload::getUploadId).collect(Collectors.toSet());
+            Set <Long> requestUploadIds = uploadFileList.stream()
+                                                        .map(VideoInfoFileUpload::getUploadId)
+                                                        .collect(Collectors.toSet());
 
             // 被删除的视频文件：在 DB 中有、但本次请求中没有
             ArrayList <VideoInfoFileUpload> removedFileList = dbUploadFileList.stream()
@@ -203,7 +204,7 @@ public class CreativeCenterService
                                                             .toList();
                 if (!filePathList.isEmpty())
                 {
-                    mqRepository.addVideoFile2DeleteQueue(filePathList);
+                    videoMqRepository.addVideoFile2DeleteQueue(filePathList);
                 }
             }
 
@@ -230,7 +231,7 @@ public class CreativeCenterService
                     newFile.setUserId(userId);
                     newFile.setVideoId(videoId);
                 }
-                mqRepository.addVideoFile2TranscodingQueue(newFileList);
+                videoMqRepository.addVideoFile2TranscodingQueue(newFileList);
             }
         }
     }
@@ -255,7 +256,8 @@ public class CreativeCenterService
             // 若为-1，则查询未审核的视频，即状态为0、1、2的视频
             if (status == (short) -1)
             {
-                query.setExclusiveStatusList(List.of(VideoStatus.REVIEW_SUCCESS.getStatus(), VideoStatus.REVIEW_FAILED.getStatus()));
+                query.setExclusiveStatusList(List.of(VideoStatus.REVIEW_SUCCESS.getStatus(),
+                                                     VideoStatus.REVIEW_FAILED.getStatus()));
             }
             else // 否则，查询相应状态的视频
             {
@@ -314,6 +316,5 @@ public class CreativeCenterService
                                                     dbInfo.getIntroduction()) && Objects.equals(newInfo.getInteraction(),
                                                                                                 dbInfo.getInteraction());
     }
-
 
 }

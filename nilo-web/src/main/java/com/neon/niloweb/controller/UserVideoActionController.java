@@ -3,8 +3,8 @@ package com.neon.niloweb.controller;
 import com.neon.nilocommon.entity.constants.RedisKey;
 import com.neon.nilocommon.entity.dto.TokenUserInfo;
 import com.neon.nilocommon.entity.enums.ResponseCode;
-import com.neon.nilocommon.entity.vo.UserVideoActionVO;
 import com.neon.nilocommon.entity.vo.ResponseVO;
+import com.neon.nilocommon.entity.vo.UserVideoActionVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.service.UserVideoActionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -38,7 +38,10 @@ public class UserVideoActionController
                                            @RequestParam(name = "coinAmount", required = false) @Min(1) @Max(2) Short coinAmount)
     {
         TokenUserInfo loginState = getLoginState(token);
-        userVideoActionService.videoAction(loginState.getUserInfo().getUserId(), videoId, actionType, coinAmount == null ? (short) 0 : coinAmount);
+        userVideoActionService.videoAction(loginState.getUserInfo().getUserId(),
+                                           videoId,
+                                           actionType,
+                                           coinAmount == null ? (short) 0 : coinAmount);
         return ResponseVO.success(null);
     }
 

@@ -58,7 +58,8 @@ public class FileService
     public String uploadImage(MultipartFile file, Boolean createThumbnail)
     {
         String dateName = LocalDate.now().format(DateTimeFormatter.ofPattern(DatePattern.DATE)); // 目录按日划分
-        String folderPath = webConfig.getRootFilePath() + "/" + Constants.FILE_FOLDER_NAME + "/" + Constants.COVER_FOLDER_NAME + "/" + dateName;
+        // 现在上传到的图片先放在临时文件夹中
+        String folderPath = webConfig.getRootFilePath() + "/" + Constants.FILE_FOLDER_NAME + "/" + Constants.TMP_FOLDER_NAME + "/" + dateName;
 
         File folderFile = new File(folderPath);
         if (!folderFile.exists()) folderFile.mkdirs();
@@ -91,16 +92,29 @@ public class FileService
      *
      * @param response HttpServletResponse
      * @param filePath 文件路径
+     * @param tmp
      */
-    public void downloadImage(HttpServletResponse response, String filePath)
+    public void downloadImage(HttpServletResponse response, String filePath, boolean tmp)
     {
-        String coverRootPath = Paths.get(webConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME, Constants.COVER_FOLDER_NAME).toString();
+        String coverRootPath;
+        if (tmp)
+        {
+            coverRootPath = Paths.get(webConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME, Constants.TMP_FOLDER_NAME)
+                                 .toString();
+        }
+        else
+        {
+            coverRootPath = Paths.get(webConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME, Constants.COVER_FOLDER_NAME)
+                                 .toString();
+        }
+
         String absolutePath = Paths.get(coverRootPath, filePath).toString();
         if (!StringUtil.isValidPath(absolutePath, coverRootPath)) throw new BusinessException("非法的文件路径");
         String suffix = StringUtil.getSuffix(filePath);
         response.setContentType(resolveImageContentType(suffix));
         response.setHeader("Cache-Control", "max-age=2592000"); // 30天
-        readFile(response, Constants.COVER_FOLDER_NAME + "/" + filePath);
+        String folderName = tmp ? Constants.TMP_FOLDER_NAME : Constants.COVER_FOLDER_NAME;
+        readFile(response, folderName + "/" + filePath);
     }
 
     /**

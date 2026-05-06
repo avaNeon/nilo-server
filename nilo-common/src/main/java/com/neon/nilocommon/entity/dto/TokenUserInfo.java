@@ -21,6 +21,7 @@ public class TokenUserInfo
 
     private String token;
 
+    // 下面三个数字在关注、投币时会发生改变，我们需要根据情况更新这个值
     private Integer followerCount;
 
     private Integer followingCount;

@@ -10,7 +10,7 @@ import java.util.List;
 
 @RequiredArgsConstructor
 @Repository
-public class MqRepository
+public class VideoMqRepository
 {
     private final RabbitTemplate rabbitTemplate;
 

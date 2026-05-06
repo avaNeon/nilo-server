@@ -1,4 +1,4 @@
-package com.neon.niloweb;
+package com.neon.niloweb.task;
 
 import com.neon.nilocommon.entity.constants.RedisKey;
 import com.neon.niloweb.config.SystemConfig;

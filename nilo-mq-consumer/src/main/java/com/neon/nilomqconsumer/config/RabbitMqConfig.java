@@ -7,6 +7,11 @@ import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import static com.neon.nilocommon.entity.constants.MqInfo.*;
+
 @Configuration
 public class RabbitMqConfig
 {
@@ -32,7 +37,7 @@ public class RabbitMqConfig
     public Queue storageDeleteQueue()
     {
         return QueueBuilder.durable(MqInfo.STORAGE_DELETE_QUEUE).quorum() // 声明为仲裁队列
-                           .deadLetterExchange(MqInfo.DLX_EXCHANGE)        // 绑定死信交换机
+                           .deadLetterExchange(MqInfo.DLX_STORAGE_EXCHANGE)        // 绑定死信交换机
                            .deadLetterRoutingKey(MqInfo.DLQ_STORAGE_DELETE_ROUTING_KEY)   // 绑定死信路由键
                            .build();
     }
@@ -48,7 +53,7 @@ public class RabbitMqConfig
     public Queue storageTranscodingQueue()
     {
         return QueueBuilder.durable(MqInfo.STORAGE_TRANSCODING_QUEUE).quorum() // 声明为仲裁队列
-                           .deadLetterExchange(MqInfo.DLX_EXCHANGE)        // 绑定死信交换机
+                           .deadLetterExchange(MqInfo.DLX_STORAGE_EXCHANGE)        // 绑定死信交换机
                            .deadLetterRoutingKey(MqInfo.DLQ_STORAGE_TRANSCODING_ROUTING_KEY)   // 绑定死信路由键
                            .build();
     }
@@ -61,9 +66,9 @@ public class RabbitMqConfig
 
     /* --死信交换机-- */
     @Bean
-    public DirectExchange dlxExchange()
+    public DirectExchange dlxStorageExchange()
     {
-        return new DirectExchange(MqInfo.DLX_EXCHANGE);
+        return new DirectExchange(MqInfo.DLX_STORAGE_EXCHANGE);
     }
 
     /* --[死信]删除队列-- */
@@ -77,7 +82,7 @@ public class RabbitMqConfig
     @Bean
     public Binding bindingStorageDeleteDlq()
     {
-        return BindingBuilder.bind(dlqStorageDeleteQueue()).to(dlxExchange()).with(MqInfo.DLQ_STORAGE_DELETE_ROUTING_KEY);
+        return BindingBuilder.bind(dlqStorageDeleteQueue()).to(dlxStorageExchange()).with(MqInfo.DLQ_STORAGE_DELETE_ROUTING_KEY);
     }
 
     /* --[死信]转码队列-- */
@@ -91,7 +96,57 @@ public class RabbitMqConfig
     @Bean
     public Binding bindingStorageTranscodingDlq()
     {
-        return BindingBuilder.bind(dlqStorageTranscodingQueue()).to(dlxExchange()).with(MqInfo.DLQ_STORAGE_TRANSCODING_ROUTING_KEY);
+        return BindingBuilder.bind(dlqStorageTranscodingQueue())
+                             .to(dlxStorageExchange())
+                             .with(MqInfo.DLQ_STORAGE_TRANSCODING_ROUTING_KEY);
+    }
+
+    // 1. 声明死信交换机和队列
+    @Bean
+    public DirectExchange dlxVideoHeartbeatExchange()
+    {
+        return new DirectExchange(DLX_VIDEO_HEARTBEAT_EXCHANGE);
+    }
+
+    @Bean
+    public Queue videoHeartbeatDlxQueue()
+    {
+        return new Queue(DLQ_VIDEO_HEARTBEAT_QUEUE, true);
+    }
+
+    @Bean
+    public Binding videoHeartbeatDlxBinding()
+    {
+        return BindingBuilder.bind(videoHeartbeatDlxQueue())
+                             .to(dlxVideoHeartbeatExchange())
+                             .with(DLQ_VIDEO_HEARTBEAT_ROUTING_KEY);
+    }
+
+    // 2. 声明业务交换机
+    @Bean
+    public DirectExchange heartbeatExchange()
+    {
+        return new DirectExchange(VIDEO_HEARTBEAT_EXCHANGE);
+    }
+
+    // 3. 声明业务队列，并绑定死信交换机
+    @Bean
+    public Queue heartbeatQueue()
+    {
+        Map <String, Object> args = new HashMap <>();
+        // 绑定死信交换机
+        args.put("x-dead-letter-exchange", DLX_VIDEO_HEARTBEAT_EXCHANGE);
+        args.put("x-dead-letter-routing-key", DLQ_VIDEO_HEARTBEAT_ROUTING_KEY);
+        // 消息过期时间 (例如心跳消息超过15秒没被消费，直接丢到死信，因为心跳讲究实时，旧的心跳没用了)
+        args.put("x-message-ttl", 15000);
+        return new Queue(VIDEO_HEARTBEAT_QUEUE, true, false, false, args);
+    }
+
+    // 4. 业务绑定
+    @Bean
+    public Binding heartbeatBinding()
+    {
+        return BindingBuilder.bind(heartbeatQueue()).to(heartbeatExchange()).with(VIDEO_HEARTBEAT_ROUTING_KEY);
     }
 
 }

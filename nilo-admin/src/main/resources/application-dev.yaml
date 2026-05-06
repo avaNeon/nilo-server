@@ -1,0 +1,37 @@
+spring:
+  rabbitmq:
+    addresses: rocky11:5672,rocky11:5673,rocky11:5674
+    username: rabbitMQAdmin
+    password: rabbitMQCipher
+    template:
+      retry:
+        enabled: true
+        initial-interval: 1000ms
+        max-attempts: 3
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 100MB
+  banner:
+    location: banner-dev.txt
+logging:
+  level:
+    com.neon.niloweb.mapper: debug # 便于查看实际的SQL
+
+# springdoc-openapi项目配置
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: 'default'
+      paths-to-match: '/**'
+      packages-to-scan: com.neon.niloadmin.controller
+# knife4j的增强配置，不需要增强可以不配
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn

@@ -104,7 +104,7 @@
         <!--原资源说明-->
         <result column="origin_info" property="originInfo"/>
         <!--标签-->
-        <result column="tags" property="tags"/>
+        <result column="tags" property="tags" typeHandler="com.neon.nilocommon.handler.StringArrayToStringTypeHandler"/>
         <!--简介-->
         <result column="introduction" property="introduction"/>
         <!--互动设置-->

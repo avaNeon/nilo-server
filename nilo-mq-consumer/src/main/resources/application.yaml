@@ -1,7 +1,0 @@
-spring:
-  application:
-    name: nilo-mq-consumer
-  profiles:
-    active: dev
-  jackson:
-    time-zone: Asia/Shanghai # 注意时区

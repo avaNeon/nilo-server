@@ -7,6 +7,7 @@ package com.neon.nilocommon.entity.constants;
  */
 public class MqInfo
 {
+    // ————STORAGE————————————————————————————————————————————————————————
     public static final String STORAGE_EXCHANGE = "storage.file.direct";
     // 文件删除
     public static final String STORAGE_DELETE_QUEUE = "storage.file.delete.queue";
@@ -15,11 +16,21 @@ public class MqInfo
     public static final String STORAGE_TRANSCODING_QUEUE = "storage.file.transcoding.queue";
     public static final String STORAGE_TRANSCODING_ROUTING_KEY = "file.transcoding";
 
-    public static final String DLX_EXCHANGE = "storage.file.dlx";
+    public static final String DLX_STORAGE_EXCHANGE = "storage.file.dlx";
     // [死信]文件删除
     public static final String DLQ_STORAGE_DELETE_QUEUE = "storage.file.delete.dlq";
     public static final String DLQ_STORAGE_DELETE_ROUTING_KEY = "file.delete.dead";
     // [死信]视频转码
     public static final String DLQ_STORAGE_TRANSCODING_QUEUE = "storage.file.transcoding.dlq";
     public static final String DLQ_STORAGE_TRANSCODING_ROUTING_KEY = "file.transcoding.dead";
+
+    // ————HEARTBEAT————————————————————————————————————————————————————————
+    // 视频在线统计
+    public static final String VIDEO_HEARTBEAT_EXCHANGE = "video.heartbeat.direct";
+    public static final String VIDEO_HEARTBEAT_QUEUE = "video.heartbeat.queue";
+    public static final String VIDEO_HEARTBEAT_ROUTING_KEY = "heartbeat.routing.key";
+    // [死信]视频在线统计
+    public static final String DLX_VIDEO_HEARTBEAT_EXCHANGE = "video.heartbeat.dlx";
+    public static final String DLQ_VIDEO_HEARTBEAT_QUEUE = "video.heartbeat.dlq";
+    public static final String DLQ_VIDEO_HEARTBEAT_ROUTING_KEY = "heartbeat.dlx.routing.key";
 }

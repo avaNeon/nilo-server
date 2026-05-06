@@ -1,4 +1,13 @@
 package com.neon.nilocommon.entity.enums.videoComment;
 
-public enum DeleteType {
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+
+@Getter
+@AllArgsConstructor
+public enum DeleteType
+{
+    UNDELETED(0), DELETED_BY_USER(1), DELETED_BY_VIDEO_CREATER(2);
+
+    private final int value;
 }

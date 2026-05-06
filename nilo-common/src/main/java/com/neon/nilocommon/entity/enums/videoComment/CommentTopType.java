@@ -9,5 +9,5 @@ public enum CommentTopType
 {
     NOT_TOP((short) 0), TOP((short) 1);
 
-    private final short value;
+    private final int value;
 }

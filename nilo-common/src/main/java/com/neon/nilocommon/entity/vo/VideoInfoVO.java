@@ -51,7 +51,7 @@ public class VideoInfoVO extends BasicVideoInfo
     /**
      * 标签
      */
-    private String tags;
+    private String[] tags;
 
     /**
      * 简介

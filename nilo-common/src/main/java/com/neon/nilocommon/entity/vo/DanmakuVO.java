@@ -4,6 +4,8 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 
+import java.time.LocalDateTime;
+
 @Getter
 @Setter
 @ToString
@@ -38,4 +40,9 @@ public class DanmakuVO
      * 展示时刻（单位：毫秒）
      */
     private Integer displayMoment;
+
+    /**
+     * 发布时间
+     */
+    private LocalDateTime postTime;
 }

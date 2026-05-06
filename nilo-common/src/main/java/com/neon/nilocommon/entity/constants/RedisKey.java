@@ -34,9 +34,29 @@ public class RedisKey
     public static final String WEB_TOKEN_PREFIX = REDIS_KEY_PREFIX + "token:web:";
 
     /**
+     * 用户统计信息的分布式锁
+     */
+    public static final String USER_STATE_LOCK_PREFIX = REDIS_KEY_PREFIX + "user:state:lock:";
+
+    /**
+     * 用户统计信息前缀
+     */
+    public static final String USER_STATE_PREFIX = REDIS_KEY_PREFIX + "user:state:";
+
+    /**
      * 验证码相关前缀
      */
     public static final String CAPTCHA_PREFIX = REDIS_KEY_PREFIX + "captcha:";
+
+    /**
+     * 视频在线统计 —— 心跳连接前缀
+     */
+    public static final String VIDEO_HEARTBEAT_PREFIX = REDIS_KEY_PREFIX + "video:heartbeat:";
+
+    /**
+     * 视频在线统计 —— 活跃视频列表前缀
+     */
+    public static final String VIDEO_ACTIVE_LIST = REDIS_KEY_PREFIX + "video:active-list";
 
     /**
      * 缩略图后缀

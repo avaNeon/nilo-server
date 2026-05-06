@@ -44,7 +44,7 @@ public class VideoComment
     /**
      * 图片路径
      */
-    private String imgPath;
+    private String imgPaths;
 
     /**
      * 用户ID
@@ -80,5 +80,10 @@ public class VideoComment
      * 直接子评论数（仅统计下一层，不含子评论的子评论）
      */
     private Integer replyCount;
+
+    /**
+     * 逻辑删除标记：0-未删除，1-已删除
+     */
+    private Integer deleted;
 
 }

@@ -45,9 +45,9 @@ public class VideoCommentQuery extends BaseQuery
     /**
      * 图片路径
      */
-    private String imgPath;
+    private String imgPaths;
 
-    private String imgPathFuzzy;
+    private String imgPathsFuzzy;
 
     /**
      * 用户ID
@@ -82,6 +82,11 @@ public class VideoCommentQuery extends BaseQuery
      * 点踩数量
      */
     private Integer downvoteCount;
+
+    /**
+     * 逻辑删除标记：0-未删除，1-已删除
+     */
+    private Integer deleted;
 
 
 }

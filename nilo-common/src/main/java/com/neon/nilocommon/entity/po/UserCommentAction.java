@@ -4,7 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 
-import java.util.Date;
+import java.time.LocalDateTime;
 
 
 /**
@@ -44,5 +44,5 @@ public class UserCommentAction
     /**
      * 操作时间
      */
-    private Date actionTime;
+    private LocalDateTime actionTime;
 }

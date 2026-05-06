@@ -1,10 +1,12 @@
 package com.neon.nilocommon.entity.vo;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.neon.nilocommon.entity.po.UserCommentAction;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 
-import java.util.Date;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
@@ -30,7 +32,7 @@ public class VideoCommentVO
     /**
      * 图片路径
      */
-    private String imgPath;
+    private String imgPaths;
 
     /**
      * 用户ID
@@ -45,7 +47,7 @@ public class VideoCommentVO
     /**
      * 发布时间
      */
-    private Date postTime;
+    private LocalDateTime postTime;
 
     /**
      * 点赞数量
@@ -64,13 +66,46 @@ public class VideoCommentVO
     private Integer replyCount;
 
     /**
+     * 逻辑删除标记：0-未删除，1-已删除
+     */
+    private Integer deleted;
+
+    /**
      * 子评论列表
      */
-    private List<VideoCommentVO> childCommentList;
+    private List <VideoCommentVO> childCommentList;
 
     /**
      * 是否还有更多子评论未展示（用于前端渲染"查看更多回复"入口）
      */
     private boolean hasMoreChildren;
+
+    /**
+     * 用户是否点赞
+     */
+    @JsonProperty("isUpvoted")
+    private boolean isUpvoted;
+
+    /**
+     * 用户是否点踩
+     */
+    @JsonProperty("isDownvoted")
+    private boolean isDownvoted;
+
+    /**
+     * 评论者昵称（关联 user_info.nick_name）
+     */
+    private String nickName;
+
+    /**
+     * 评论者头像（关联 user_info.avatar）
+     */
+    private String avatar;
+
+    /**
+     * 当前查询用户对该评论的操作记录（null 表示未登录或尚未操作）<br/>
+     * 由 SQL 关联 user_comment_action 表得到，Service 层据此设置 isUpvoted / isDownvoted。
+     */
+    private UserCommentAction currentUserAction;
 
 }

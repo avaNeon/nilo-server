@@ -15,7 +15,7 @@
         <!--回复内容-->
         <result column="content" property="content"/>
         <!--图片路径-->
-        <result column="img_path" property="imgPath"/>
+        <result column="img_paths" property="imgPaths"/>
         <!--用户ID-->
         <result column="user_id" property="userId"/>
         <!--回复人ID-->
@@ -30,14 +30,49 @@
         <result column="downvote_count" property="downvoteCount"/>
         <!--直接子评论数-->
         <result column="reply_count" property="replyCount"/>
+        <!--逻辑删除标记：0-未删除 1-已删除-->
+        <result column="deleted" property="deleted"/>
     </resultMap>
 
+
+    <!--
+        VO 结果映射：包含评论本身所有展示字段 + 评论者信息（user_info）+ 当前用户操作记录（user_comment_action）。
+        user_comment_action 使用 columnPrefix="uca_" 进行关联映射：
+          - 登录且有操作记录 → currentUserAction 非 null，Service 层据此设置 isUpvoted/isDownvoted
+          - 登录但无操作记录（LEFT JOIN 未命中）或未登录 → currentUserAction 为 null
+    -->
+    <resultMap id="vo_result_map" type="com.neon.nilocommon.entity.vo.VideoCommentVO">
+        <result column="comment_id" property="commentId"/>
+        <result column="parent_comment_id" property="parentCommentId"/>
+        <result column="content" property="content"/>
+        <result column="img_paths" property="imgPaths"/>
+        <result column="user_id" property="userId"/>
+        <result column="top_type" property="topType"/>
+        <result column="post_time" property="postTime"/>
+        <result column="upvote_count" property="upvoteCount"/>
+        <result column="downvote_count" property="downvoteCount"/>
+        <result column="reply_count" property="replyCount"/>
+        <result column="deleted" property="deleted"/>
+        <result column="nick_name" property="nickName"/>
+        <result column="avatar" property="avatar"/>
+        <!--
+            columnPrefix="uca_" 对应 SELECT 中的 uca.* AS uca_* 别名。
+            若所有 uca_ 列均为 NULL（LEFT JOIN 未命中或未登录时传入 NULL 占位），MyBatis 自动将该属性置为 null。
+        -->
+        <association property="currentUserAction"
+                     javaType="com.neon.nilocommon.entity.po.UserCommentAction"
+                     columnPrefix="uca_">
+            <result column="user_id" property="userId"/>
+            <result column="comment_id" property="commentId"/>
+            <result column="action_type" property="actionType"/>
+        </association>
+    </resultMap>
 
     <!-- 通用查询结果列-->
     <sql id="base_column_list">
         v.comment_id,v.parent_comment_id,v.video_id,v.video_user_id,v.content,
-		 v.img_path,v.user_id,v.reply_user_id,v.top_type,v.post_time,
-		 v.upvote_count,v.downvote_count,v.reply_count
+		 v.img_paths,v.user_id,v.reply_user_id,v.top_type,v.post_time,
+		 v.upvote_count,v.downvote_count,v.reply_count,v.deleted
     </sql>
 
     <sql id="base_condition_filed">
@@ -56,8 +91,8 @@
         <if test="query.content != null and query.content!=''">
             and v.content = #{query.content}
         </if>
-        <if test="query.imgPath != null and query.imgPath!=''">
-            and v.img_path = #{query.imgPath}
+        <if test="query.imgPaths != null and query.imgPaths!=''">
+            and v.img_paths = #{query.imgPaths}
         </if>
         <if test="query.userId != null">
             and v.user_id = #{query.userId}
@@ -77,6 +112,9 @@
         <if test="query.downvoteCount != null">
             and v.downvote_count = #{query.downvoteCount}
         </if>
+        <if test="query.deleted != null">
+            and v.deleted = #{query.deleted}
+        </if>
     </sql>
 
     <!-- 通用查询条件列-->
@@ -86,8 +124,8 @@
             <if test="query.contentFuzzy!= null  and query.contentFuzzy!=''">
                 and v.content like concat('%', #{query.contentFuzzy}, '%')
             </if>
-            <if test="query.imgPathFuzzy!= null  and query.imgPathFuzzy!=''">
-                and v.img_path like concat('%', #{query.imgPathFuzzy}, '%')
+            <if test="query.imgPathsFuzzy!= null  and query.imgPathsFuzzy!=''">
+                and v.img_paths like concat('%', #{query.imgPathsFuzzy}, '%')
             </if>
             <if test="query.postTimeStart!= null and query.postTimeStart!=''">
                 <![CDATA[ and  v.post_time>=str_to_date(#{query.postTimeStart}, '%Y-%m-%d') ]]>
@@ -137,8 +175,8 @@
             <if test="bean.content != null">
                 content,
             </if>
-            <if test="bean.imgPath != null">
-                img_path,
+            <if test="bean.imgPaths != null">
+                img_paths,
             </if>
             <if test="bean.userId != null">
                 user_id,
@@ -158,6 +196,9 @@
             <if test="bean.downvoteCount != null">
                 downvote_count,
             </if>
+            <if test="bean.deleted != null">
+                deleted,
+            </if>
         </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="bean.commentId!=null">
@@ -175,8 +216,8 @@
             <if test="bean.content!=null">
                 #{bean.content},
             </if>
-            <if test="bean.imgPath!=null">
-                #{bean.imgPath},
+            <if test="bean.imgPaths!=null">
+                #{bean.imgPaths},
             </if>
             <if test="bean.userId!=null">
                 #{bean.userId},
@@ -195,6 +236,9 @@
             </if>
             <if test="bean.downvoteCount!=null">
                 #{bean.downvoteCount},
+            </if>
+            <if test="bean.deleted!=null">
+                #{bean.deleted},
             </if>
         </trim>
     </insert>
@@ -218,8 +262,8 @@
             <if test="bean.content != null">
                 content,
             </if>
-            <if test="bean.imgPath != null">
-                img_path,
+            <if test="bean.imgPaths != null">
+                img_paths,
             </if>
             <if test="bean.userId != null">
                 user_id,
@@ -239,6 +283,9 @@
             <if test="bean.downvoteCount != null">
                 downvote_count,
             </if>
+            <if test="bean.deleted != null">
+                deleted,
+            </if>
         </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="bean.commentId!=null">
@@ -256,8 +303,8 @@
             <if test="bean.content!=null">
                 #{bean.content},
             </if>
-            <if test="bean.imgPath!=null">
-                #{bean.imgPath},
+            <if test="bean.imgPaths!=null">
+                #{bean.imgPaths},
             </if>
             <if test="bean.userId!=null">
                 #{bean.userId},
@@ -277,6 +324,9 @@
             <if test="bean.downvoteCount!=null">
                 #{bean.downvoteCount},
             </if>
+            <if test="bean.deleted!=null">
+                #{bean.deleted},
+            </if>
         </trim>
         on DUPLICATE key update
         <trim prefix="" suffix="" suffixOverrides=",">
@@ -295,8 +345,8 @@
             <if test="bean.content!=null">
                 content = VALUES(content),
             </if>
-            <if test="bean.imgPath!=null">
-                img_path = VALUES(img_path),
+            <if test="bean.imgPaths!=null">
+                img_paths = VALUES(img_paths),
             </if>
             <if test="bean.userId!=null">
                 user_id = VALUES(user_id),
@@ -316,6 +366,9 @@
             <if test="bean.downvoteCount!=null">
                 downvote_count = VALUES(downvote_count),
             </if>
+            <if test="bean.deleted!=null">
+                deleted = VALUES(deleted),
+            </if>
         </trim>
     </insert>
 
@@ -327,13 +380,14 @@
         video_id,
         video_user_id,
         content,
-        img_path,
+        img_paths,
         user_id,
         reply_user_id,
         top_type,
         post_time,
         upvote_count,
-        downvote_count
+        downvote_count,
+        deleted
         )values
         <foreach collection="list" item="item" separator=",">
             (
@@ -342,13 +396,14 @@
             #{item.videoId},
             #{item.videoUserId},
             #{item.content},
-            #{item.imgPath},
+            #{item.imgPaths},
             #{item.userId},
             #{item.replyUserId},
             #{item.topType},
             #{item.postTime},
             #{item.upvoteCount},
-            #{item.downvoteCount}
+            #{item.downvoteCount},
+            IFNULL(#{item.deleted}, 0)
             )
         </foreach>
     </insert>
@@ -361,13 +416,14 @@
         video_id,
         video_user_id,
         content,
-        img_path,
+        img_paths,
         user_id,
         reply_user_id,
         top_type,
         post_time,
         upvote_count,
-        downvote_count
+        downvote_count,
+        deleted
         )values
         <foreach collection="list" item="item" separator=",">
             (
@@ -376,13 +432,14 @@
             #{item.videoId},
             #{item.videoUserId},
             #{item.content},
-            #{item.imgPath},
+            #{item.imgPaths},
             #{item.userId},
             #{item.replyUserId},
             #{item.topType},
             #{item.postTime},
             #{item.upvoteCount},
-            #{item.downvoteCount}
+            #{item.downvoteCount},
+            IFNULL(#{item.deleted}, 0)
             )
         </foreach>
         on DUPLICATE key update
@@ -391,13 +448,14 @@
         video_id = VALUES(video_id),
         video_user_id = VALUES(video_user_id),
         content = VALUES(content),
-        img_path = VALUES(img_path),
+        img_paths = VALUES(img_paths),
         user_id = VALUES(user_id),
         reply_user_id = VALUES(reply_user_id),
         top_type = VALUES(top_type),
         post_time = VALUES(post_time),
         upvote_count = VALUES(upvote_count),
-        downvote_count = VALUES(downvote_count)
+        downvote_count = VALUES(downvote_count),
+        deleted = VALUES(deleted)
     </insert>
 
     <!--多条件修改-->
@@ -419,8 +477,8 @@
             <if test="bean.content != null">
                 content = #{bean.content},
             </if>
-            <if test="bean.imgPath != null">
-                img_path = #{bean.imgPath},
+            <if test="bean.imgPaths != null">
+                img_paths = #{bean.imgPaths},
             </if>
             <if test="bean.userId != null">
                 user_id = #{bean.userId},
@@ -439,6 +497,9 @@
             </if>
             <if test="bean.downvoteCount != null">
                 downvote_count = #{bean.downvoteCount},
+            </if>
+            <if test="bean.deleted != null">
+                deleted = #{bean.deleted},
             </if>
         </set>
         <include refid="query_condition"/>
@@ -466,8 +527,8 @@
             <if test="bean.content != null">
                 content = #{bean.content},
             </if>
-            <if test="bean.imgPath != null">
-                img_path = #{bean.imgPath},
+            <if test="bean.imgPaths != null">
+                img_paths = #{bean.imgPaths},
             </if>
             <if test="bean.userId != null">
                 user_id = #{bean.userId},
@@ -487,16 +548,29 @@
             <if test="bean.downvoteCount != null">
                 downvote_count = #{bean.downvoteCount},
             </if>
+            <if test="bean.deleted != null">
+                deleted = #{bean.deleted},
+            </if>
         </set>
         where comment_id=#{commentId}
     </update>
 
     <!-- 根据CommentId删除-->
-    <delete id="deleteByCommentId">
+    <delete id="destroyByCommentId">
         delete
         from video_comment
         where comment_id = #{commentId}
+          and deleted != 0
     </delete>
+
+    <!-- 根据CommentId逻辑删除-->
+    <update id="safeDeleteByCommentId">
+        update video_comment
+        set deleted  = #{deletedType},
+            top_type = 0
+        where comment_id = #{commentId}
+          and deleted = 0
+    </update>
 
     <!-- 根据PrimaryKey获取对象-->
     <select id="selectByCommentId" resultMap="base_result_map">
@@ -509,15 +583,42 @@
         每个父节点只取前 limitPerParent 条子评论（per-parent top-K）。
         用 ROW_NUMBER() OVER (PARTITION BY parent_comment_id ORDER BY post_time ASC) 实现。
         是否还有更多子评论由调用方通过 replyCount > limitPerParent 判断。
+
+        JOIN 策略：
+          - INNER JOIN user_info：评论一定有评论者，获取 nick_name / avatar（user_id 为主键，等值查找极快）
+          - LEFT JOIN user_comment_action（仅 userId != null 时）：
+              索引覆盖（user_id, comment_id, action_type），只取这三列，无需回表。
+              userId == null 时跳过 JOIN，并在 SELECT 中以 NULL 占位，确保 resultMap 列名一致。
     -->
-    <select id="selectByParentIdList" resultMap="base_result_map">
-        SELECT comment_id, parent_comment_id, video_id, video_user_id, content, img_path,
-        user_id, reply_user_id, top_type, post_time, upvote_count, downvote_count, reply_count
+    <select id="selectByParentIdList" resultMap="vo_result_map">
+        SELECT
+        r.comment_id,
+        r.parent_comment_id,
+        r.content,
+        r.img_paths,
+        r.user_id,
+        r.top_type,
+        r.post_time,
+        r.upvote_count,
+        r.downvote_count,
+        r.reply_count,
+        r.deleted,
+        ui.nick_name,
+        ui.avatar
+        <if test="userId != null">
+            , uca.user_id AS uca_user_id
+            , uca.comment_id AS uca_comment_id
+            , uca.action_type AS uca_action_type
+        </if>
+        <if test="userId == null">
+            , NULL AS uca_user_id
+            , NULL AS uca_comment_id
+            , NULL AS uca_action_type
+        </if>
         FROM (
         SELECT
-        v.comment_id, v.parent_comment_id, v.video_id, v.video_user_id,
-        v.content, v.img_path, v.user_id, v.reply_user_id,
-        v.top_type, v.post_time, v.upvote_count, v.downvote_count, v.reply_count,
+        v.comment_id, v.parent_comment_id, v.content, v.img_paths, v.user_id,
+        v.top_type, v.post_time, v.upvote_count, v.downvote_count, v.reply_count, v.deleted,
         ROW_NUMBER() OVER (PARTITION BY v.parent_comment_id ORDER BY v.post_time) AS rn
         FROM video_comment v
         WHERE v.video_id = #{videoId}
@@ -525,8 +626,57 @@
         <foreach collection="parentIdList" item="id" open="(" separator="," close=")">
             #{id}
         </foreach>
-        ) ranked
-        <![CDATA[ WHERE rn <= #{limitPerParent} ]]>
+        ) r
+        INNER JOIN user_info ui ON ui.user_id = r.user_id
+        <if test="userId != null">
+            LEFT JOIN user_comment_action uca
+            ON uca.user_id = #{userId} AND uca.comment_id = r.comment_id
+        </if>
+        <![CDATA[ WHERE r.rn <= #{limitPerParent} ]]>
+    </select>
+
+    <!--
+        分页查询评论列表 VO（等价于 selectList，但额外 JOIN user_info 和可选 LEFT JOIN user_comment_action）。
+        JOIN 策略与 selectByParentIdList 相同。
+    -->
+    <select id="selectListVO" resultMap="vo_result_map">
+        SELECT
+        v.comment_id,
+        v.parent_comment_id,
+        v.content,
+        v.img_paths,
+        v.user_id,
+        v.top_type,
+        v.post_time,
+        v.upvote_count,
+        v.downvote_count,
+        v.reply_count,
+        v.deleted,
+        ui.nick_name,
+        ui.avatar
+        <if test="userId != null">
+            , uca.user_id AS uca_user_id
+            , uca.comment_id AS uca_comment_id
+            , uca.action_type AS uca_action_type
+        </if>
+        <if test="userId == null">
+            , NULL AS uca_user_id
+            , NULL AS uca_comment_id
+            , NULL AS uca_action_type
+        </if>
+        FROM video_comment v
+        INNER JOIN user_info ui ON ui.user_id = v.user_id
+        <if test="userId != null">
+            LEFT JOIN user_comment_action uca
+            ON uca.user_id = #{userId} AND uca.comment_id = v.comment_id
+        </if>
+        <include refid="query_condition"/>
+        <if test="query.orderBy!=null">
+            order by ${query.orderBy}
+        </if>
+        <if test="query.pageCalculator!=null">
+            limit #{query.pageCalculator.start},#{query.pageCalculator.size}
+        </if>
     </select>
 
     <!-- 发布回复时将父评论的直接子评论数 +1 -->
@@ -534,6 +684,46 @@
         UPDATE video_comment
         <set>
             reply_count = reply_count + 1
+        </set>
+        <where>
+            comment_id = #{commentId}
+        </where>
+    </update>
+
+    <update id="increaseUpvoteCount">
+        UPDATE video_comment
+        <set>
+            upvote_count = upvote_count + 1
+        </set>
+        <where>
+            comment_id = #{commentId}
+        </where>
+    </update>
+
+    <update id="decreaseUpVoteCount">
+        UPDATE video_comment
+        <set>
+            upvote_count = upvote_count - 1
+        </set>
+        <where>
+            comment_id = #{commentId}
+        </where>
+    </update>
+
+    <update id="increaseDownvoteCount">
+        UPDATE video_comment
+        <set>
+            downvote_count = downvote_count + 1
+        </set>
+        <where>
+            comment_id = #{commentId}
+        </where>
+    </update>
+
+    <update id="decreaseDownvoteCount">
+        UPDATE video_comment
+        <set>
+            downvote_count = downvote_count - 1
         </set>
         <where>
             comment_id = #{commentId}

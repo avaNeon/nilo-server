@@ -34,7 +34,7 @@ public class VideoDanmakuController
     public ResponseVO <Object> postDanmaku(@RequestHeader(name = "token") String token, @RequestBody @NotNull @Valid DanmakuDTO danmakuDTO)
     {
 
-        TokenUserInfo userInfo = accountRedisRepository.getUserInfoByToken(token);
+        TokenUserInfo userInfo = accountRedisRepository.getTokenUserInfoByToken(token);
         if (userInfo == null)
         {
             throw new BusinessException(ResponseCode.NOT_LOGIN);

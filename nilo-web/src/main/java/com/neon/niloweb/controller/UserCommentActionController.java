@@ -29,11 +29,12 @@ public class UserCommentActionController
     @Operation(summary = "评论操作接口", description = "用户对评论进行点赞、点踩")
     @PostMapping("/action")
     public ResponseVO <Object> commentAction(@RequestHeader(name = "token") String token,
+                                             @RequestParam(name = "videoId") @NotNull Long videoId,
                                              @RequestParam(name = "commentId") @NotNull Long commentId,
                                              @RequestParam(name = "actionType") @NotNull Integer actionType)
     {
         TokenUserInfo loginState = getLoginState(token);
-        userCommentActionService.commentAction(loginState.getUserInfo().getUserId(), commentId, actionType);
+        userCommentActionService.commentAction(loginState.getUserInfo().getUserId(), videoId, commentId, actionType);
         return ResponseVO.success(null);
     }
 

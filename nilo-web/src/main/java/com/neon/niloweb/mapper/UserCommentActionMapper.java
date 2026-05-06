@@ -25,6 +25,18 @@ public interface UserCommentActionMapper<T, P> extends BaseMapper <T, P>
      */
     T selectByActionId(@Param("actionId") Long actionId);
 
+    /**
+     * 根据 commentId 和 userId 查询
+     *
+     */
+    T selectByCommentIdAndUserId(@Param("commentId") Long commentId, @Param("userId") Long userId);
+
+    /**
+     * 根据CommentIdAndUserIdAndActionType获取对象
+     */
+    T selectByCommentIdAndUserIdAndActionType(@Param("commentId") Long commentId,
+                                              @Param("userId") Long userId,
+                                              @Param("actionType") Integer actionType);
 
     /**
      * 根据CommentIdAndUserIdAndActionType更新
@@ -41,14 +53,5 @@ public interface UserCommentActionMapper<T, P> extends BaseMapper <T, P>
     Integer deleteByCommentIdAndUserIdAndActionType(@Param("commentId") Long commentId,
                                                     @Param("userId") Long userId,
                                                     @Param("actionType") Integer actionType);
-
-
-    /**
-     * 根据CommentIdAndUserIdAndActionType获取对象
-     */
-    T selectByCommentIdAndUserIdAndActionType(@Param("commentId") Long commentId,
-                                              @Param("userId") Long userId,
-                                              @Param("actionType") Integer actionType);
-
 
 }

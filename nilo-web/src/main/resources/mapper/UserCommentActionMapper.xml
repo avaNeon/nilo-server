@@ -18,11 +18,26 @@
         <result column="action_time" property="actionTime"/>
     </resultMap>
 
+    <!-- 简短的映射，索引覆盖 -->
+    <resultMap id="brief_result_map" type="com.neon.nilocommon.entity.po.UserCommentAction">
+        <!--自增ID-->
+        <id column="action_id" property="actionId"/>
+        <!--评论ID-->
+        <result column="comment_id" property="commentId"/>
+        <!--0:评论点赞 1:评论点踩-->
+        <result column="action_type" property="actionType"/>
+        <!--用户ID-->
+        <result column="user_id" property="userId"/>
+    </resultMap>
 
     <!-- 通用查询结果列-->
     <sql id="base_column_list">
         u.action_id,u.video_id,u.comment_id,u.action_type,u.user_id,
 		 u.action_time
+    </sql>
+
+    <sql id="brief_column_list">
+        u.action_id,u.comment_id,u.action_type,u.user_id
     </sql>
 
     <sql id="base_condition_filed">
@@ -326,5 +341,14 @@
         select
         <include refid="base_column_list"/>
         from user_comment_action u where comment_id=#{commentId} and user_id=#{userId} and action_type=#{actionType}
+    </select>
+
+    <select id="selectByCommentIdAndUserId" resultMap="brief_result_map">
+        SELECT
+        <include refid="brief_column_list"/>
+        FROM user_comment_action
+        <where>
+            comment_id = #{commentId} and user_id = #{userId}
+        </where>
     </select>
 </mapper>

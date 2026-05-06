@@ -36,7 +36,7 @@ public class FileController
      */
     @Operation(summary = "上传图片")
     @PutMapping("/image")
-    public ResponseVO <String> uploadImage(@RequestParam(name = "MultipartFile") @NotNull MultipartFile file,
+    public ResponseVO <String> uploadImage(@RequestParam(name = "file") @NotNull MultipartFile file,
                                            @RequestParam(name = "createThumbnail") @NotNull Boolean createThumbnail)
     {
         return ResponseVO.success(fileService.uploadImage(file, createThumbnail));
@@ -50,9 +50,15 @@ public class FileController
     @Operation(summary = "获取图片")
     @GetMapping("/image")
     public void downloadImage(@Parameter(hidden = true) HttpServletResponse response,
-                              @RequestParam(name = "sourcePath") @Parameter(description = "必须是 xxx/ xx 格式") @NotNull String sourcePath)
+                              @RequestParam(name = "sourcePath") @Parameter(description = "必须是 xxx/ xx 格式") @NotNull
+                              String sourcePath,
+                              @RequestParam(name = "tmp", required = false, defaultValue = "false") Boolean tmp)
     {
-        fileService.downloadImage(response, sourcePath);
+        if (tmp == null)
+        {
+            throw new BusinessException(ResponseCode.UNKNOWN_ERROR);
+        }
+        fileService.downloadImage(response, sourcePath, tmp);
     }
 
     /**

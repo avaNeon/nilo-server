@@ -1,6 +1,7 @@
 package com.neon.nilocommon.entity.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import com.neon.nilocommon.entity.vo.VideoFileUploadVO;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -34,17 +35,11 @@ public class VideoUploadDTO
     private String videoTitle;
 
     /**
-     * 所属父分类ID
+     * 所属分类编码 (业务主键，对应CategoryInfo.categoryNumber)
      */
-    @Schema(description = "所属父分类ID", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull(message = "父分类不能为空")
-    private Integer pCategoryId;
-
-    /**
-     * 所属分类ID
-     */
-    @Schema(description = "所属分类ID", requiredMode = Schema.RequiredMode.REQUIRED)
-    private Integer categoryId;
+    @Schema(description = "所属分类编码", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotEmpty(message = "分类不能为空")
+    private String categoryNumber;
 
     /**
      * 自制/转载
@@ -68,6 +63,12 @@ public class VideoUploadDTO
     private String introduction;
 
     /**
+     * 原资源说明
+     */
+    @Schema(description = "原资源说明", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private String originInfo;
+
+    /**
      * 互动设置
      */
     @Schema(description = "互动设置", requiredMode = Schema.RequiredMode.REQUIRED)
@@ -75,9 +76,9 @@ public class VideoUploadDTO
     private String interaction;
 
     /**
-     * uploadId列表，一个uploadId对应一个视频文件
+     * 视频文件列表
      */
-    @Schema(description = "uploadId列表 (临时文件映射ID)", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "视频文件列表 (包含uploadId和用户自定义文件名)", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotEmpty(message = "没有视频文件")
-    private List <Long> uploadIdList;
+    private List <VideoFileUploadVO> videoFileUploadList;
 }

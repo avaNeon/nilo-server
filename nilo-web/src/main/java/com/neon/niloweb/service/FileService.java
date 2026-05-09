@@ -33,6 +33,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class FileService
@@ -151,7 +152,7 @@ public class FileService
         UploadedVideoFileDTO videoFileDTO = uploadRedisRepository.getPreUploadKey(userId, uploadId);
         if (videoFileDTO == null) throw new BusinessException("文件不存在，请重新上传");
         // 查看视频文件是否超过限制
-        if (videoFileDTO.getFileSize() + chunkFile.getSize() > systemConfig.getVideoMaxSize() * Constants.Mebibyte)
+        if (videoFileDTO.getFileSize() + chunkFile.getSize() > systemConfig.getVideoFileMaxSize() * Constants.Mebibyte)
         {
             throw new BusinessException("文件大小超过限制");
         }

@@ -19,10 +19,16 @@ import jakarta.validation.constraints.Min;
 public class SystemConfig
 {
     /**
-     * 视频大小上限，单位:MB
+     * 视频文件大小上限，单位:MB
      */
     @Min(0)
-    private Integer videoMaxSize = 64;
+    private Integer videoFileMaxSize = 64;
+
+    /**
+     * 图片文件大小上限，单位:MB
+     */
+    @Min(0)
+    private Integer imageMaxSize = 10;
 
     /**
      * 单个视频最大分P数
@@ -55,5 +61,22 @@ public class SystemConfig
      */
     @Min(1)
     private Integer onlineCountCleanUpTimeMs = 30_000;
+
+    /**
+     * 最大内容时长，单位:min
+     */
+    @Min(1)
+    private Integer maxPartitionDuration = 60;
+
+    /**
+     * 最大分辨率支持
+     */
+    private String maxResolutionRatio = "1280×720";
+
+    /**
+     * 最大码率支持，单位:fps
+     */
+    @Min(1)
+    private Integer maxBitRate = 60;
 
 }

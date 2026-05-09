@@ -1,6 +1,8 @@
 package com.neon.niloweb.controller;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.neon.nilocommon.entity.vo.ResponseVO;
+import com.neon.nilocommon.entity.vo.SystemConfigVO;
 import com.neon.niloweb.config.SystemConfig;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -22,8 +24,10 @@ public class SystemConfigController
 
     @Operation(summary = "获取系统配置")
     @GetMapping("/config")
-    public ResponseVO <SystemConfig> getSystemConfig()
+    public ResponseVO <SystemConfigVO> getSystemConfig()
     {
-        return ResponseVO.success(systemConfig);
+        SystemConfigVO systemConfigVO = new SystemConfigVO();
+        BeanUtil.copyProperties(systemConfig, systemConfigVO);
+        return ResponseVO.success(systemConfigVO);
     }
 }

@@ -5,10 +5,13 @@ import com.neon.nilocommon.entity.dto.TokenUserInfo;
 import com.neon.nilocommon.entity.dto.VideoInfoUploadJoinDTO;
 import com.neon.nilocommon.entity.dto.VideoUploadDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
+import com.neon.nilocommon.entity.po.CategoryInfo;
 import com.neon.nilocommon.entity.po.VideoInfoFileUpload;
 import com.neon.nilocommon.entity.vo.ResponseVO;
+import com.neon.nilocommon.entity.vo.VideoFileUploadVO;
 import com.neon.nilocommon.entity.vo.VideoStatusCountVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.niloweb.repository.redis.CategoryRedisRepository;
 import com.neon.niloweb.service.CreativeCenterService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -32,6 +35,8 @@ public class CreativeCenterController
 
     private final CreativeCenterService creativeCenterService;
 
+    private final CategoryRedisRepository categoryRedisRepository;
+
     /**
      * 上传/修改视频
      *
@@ -44,26 +49,47 @@ public class CreativeCenterController
                                            @RequestBody @Valid @NotNull VideoUploadDTO videoUploadDTO)
     {
         TokenUserInfo tokenUserInfo = getLoginState(token);
-        List <Long> uploadIdList = videoUploadDTO.getUploadIdList();
+        List <VideoFileUploadVO> uploadIdList = videoUploadDTO.getVideoFileUploadList();
         if (uploadIdList == null || uploadIdList.isEmpty())
         {
             throw new BusinessException(ResponseCode.SERVER_ERROR); // 文件为什么是空的！
         }
-        List <VideoInfoFileUpload> uploadFileList = uploadIdList.stream().map(uploadId ->
+
+        String categoryNumber = videoUploadDTO.getCategoryNumber();
+        List <CategoryInfo> categories = categoryRedisRepository.getCategoryInfo();
+        if (categories == null || categories.isEmpty())
+        {
+            throw new BusinessException(ResponseCode.SERVER_ERROR); // 分类数据不可用
+        }
+        CategoryInfo matchedCategory = categories.stream()
+                                                 .flatMap(c ->
+                                                          {
+                                                              List <CategoryInfo> all = new java.util.ArrayList <>();
+                                                              all.add(c);
+                                                              if (c.getChildren() != null) all.addAll(c.getChildren());
+                                                              return all.stream();
+                                                          })
+                                                 .filter(c -> categoryNumber.equals(c.getCategoryNumber()))
+                                                 .findFirst()
+                                                 .orElseThrow(() -> new BusinessException(ResponseCode.SERVER_ERROR)); // 无效的分类编码
+
+        List <VideoInfoFileUpload> uploadFileList = uploadIdList.stream().map(vo ->
                                                                               {
                                                                                   VideoInfoFileUpload fileUpload = new VideoInfoFileUpload();
-                                                                                  fileUpload.setUploadId(uploadId);
+                                                                                  fileUpload.setUploadId(vo.getUploadId());
+                                                                                  fileUpload.setFileName(vo.getFilename());
                                                                                   return fileUpload;
                                                                               }).toList();
         creativeCenterService.videoUpload(videoUploadDTO.getVideoId(),
                                           videoUploadDTO.getCoverPath(),
                                           videoUploadDTO.getVideoTitle(),
-                                          videoUploadDTO.getPCategoryId(),
-                                          videoUploadDTO.getCategoryId(),
+                                          matchedCategory.getPCategoryId(),
+                                          matchedCategory.getCategoryId(),
                                           videoUploadDTO.getPostType(),
                                           videoUploadDTO.getTags(),
                                           videoUploadDTO.getIntroduction(),
                                           videoUploadDTO.getInteraction(),
+                                          videoUploadDTO.getOriginInfo(),
                                           uploadFileList,
                                           tokenUserInfo);
         return ResponseVO.success(null);
@@ -87,7 +113,11 @@ public class CreativeCenterController
                                                                     @RequestParam(name = "nameFuzzy") String nameFuzzy)
     {
         TokenUserInfo tokenUserInfo = getLoginState(token);
-        List <VideoInfoUploadJoinDTO> result = creativeCenterService.loadVideoList(tokenUserInfo, status, pageNo, pageSize, nameFuzzy);
+        List <VideoInfoUploadJoinDTO> result = creativeCenterService.loadVideoList(tokenUserInfo,
+                                                                                   status,
+                                                                                   pageNo,
+                                                                                   pageSize,
+                                                                                   nameFuzzy);
         return ResponseVO.success(result);
     }
 

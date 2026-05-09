@@ -59,6 +59,7 @@ public class CreativeCenterService
                             String tags,
                             String introduction,
                             String interaction,
+                            String originInfo,
                             List <VideoInfoFileUpload> uploadFileList,
                             TokenUserInfo tokenUserInfo)
     {
@@ -75,6 +76,7 @@ public class CreativeCenterService
         videoInfoUpload.setTags(tags);
         videoInfoUpload.setIntroduction(introduction);
         videoInfoUpload.setInteraction(interaction);
+        videoInfoUpload.setOriginInfo(originInfo);
 
         // 检查分P数是否在合理范围内
         if (uploadFileList.size() > systemConfig.getVideoMaxEpisodes())
@@ -163,7 +165,6 @@ public class CreativeCenterService
                 {
                     uploadFile.setFileId(dbMatch.getFileId());
                     uploadFile.setFilePath(dbMatch.getFilePath());
-                    uploadFile.setFileName(dbMatch.getFileName());
                     uploadFile.setFileSize(dbMatch.getFileSize());
                     uploadFile.setTransferResult(dbMatch.getTransferResult());
                     uploadFile.setDuration(dbMatch.getDuration());

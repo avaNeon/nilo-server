@@ -35,6 +35,8 @@ public class Constants
 
     public static final String M3U8_NAME = "index.m3u8";
 
+    public static final String MASTER_M3U8_NAME = "master.m3u8";
+
     public static final String TS_FOLDER_NAME = "tsFolder";
 
     /* 文件相关 */

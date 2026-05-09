@@ -4,6 +4,7 @@ package com.neon.niloweb.service;
 import cn.hutool.core.lang.Snowflake;
 import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.constants.DatePattern;
+import com.neon.nilocommon.entity.constants.VideoResolution;
 import com.neon.nilocommon.entity.dto.TokenUserInfo;
 import com.neon.nilocommon.entity.dto.UploadedVideoFileDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
@@ -20,6 +21,7 @@ import com.neon.niloweb.repository.redis.UploadRedisRepository;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -58,6 +60,8 @@ public class FileService
      */
     public String uploadImage(MultipartFile file, Boolean createThumbnail)
     {
+        validateImage(file);
+
         String dateName = LocalDate.now().format(DateTimeFormatter.ofPattern(DatePattern.DATE)); // 目录按日划分
         // 现在上传到的图片先放在临时文件夹中
         String folderPath = webConfig.getRootFilePath() + "/" + Constants.FILE_FOLDER_NAME + "/" + Constants.TMP_FOLDER_NAME + "/" + dateName;
@@ -122,17 +126,15 @@ public class FileService
      * 预上传视频<hr/>
      * 文件路径：/&lt;root&gt;/file/tmp
      *
-     * @param fileName      文件名
      * @param chunkSize     （视频文件）分块大小
      * @param tokenUserInfo 用户信息DTO（带token）
      * @return uploadId
      */
-    public Long preUploadVideo(String fileName, Integer chunkSize, TokenUserInfo tokenUserInfo)
+    public Long preUploadVideo(Integer chunkSize, TokenUserInfo tokenUserInfo)
     {
         UploadedVideoFileDTO video = new UploadedVideoFileDTO();
         Long uploadId = snowflake.nextId();
         video.setUploadId(uploadId);
-        video.setFileName(fileName);
         video.setChunkSize(chunkSize);
         video.setChunkIndex(0); // 设置初始的chunkIndex
         uploadRedisRepository.addPreUploadKey(video, tokenUserInfo.getUserInfo().getUserId());
@@ -186,62 +188,98 @@ public class FileService
     public void deleteVideo(long uploadId, long userId)
     {
         UploadedVideoFileDTO fileDTO = uploadRedisRepository.getPreUploadKey(userId, uploadId);
+        // delete redis key first
+        uploadRedisRepository.deletePreUploadKey(userId, uploadId);
         if (fileDTO == null)
         {
-            throw new BusinessException("所要删除的文件不存在");
+            log.warn("删除不存在的临时文件");
         }
-        uploadRedisRepository.deletePreUploadKey(userId, uploadId);
-        FileUtil.deleteFolder(new File(webConfig.getRootFilePath() + "/" + Constants.FILE_FOLDER_NAME + "/" + Constants.TMP_FOLDER_NAME + "/" + fileDTO.getFilePath()));
+        else
+        {
+            FileUtil.deleteFolder(new File(webConfig.getRootFilePath() + "/" + Constants.FILE_FOLDER_NAME + "/" + Constants.TMP_FOLDER_NAME + "/" + fileDTO.getFilePath()));
+        }
     }
 
     /**
-     * 获取index.m3u8
+     * 获取主M3U8
      *
-     * @param videoId  视频ID
-     * @param index    分P索引
-     * @param response HttpServletResponse
+     * @param videoId 视频ID
+     * @param index   文件序号
      */
-    public void downloadVideoResourceM3u8(Long videoId, Integer index, HttpServletResponse response)
+    public void downloadVideoMasterM3u8(Long videoId, Integer index, HttpServletResponse response)
+    {
+        VideoInfoFile infoFile = queryOneVideoInfoFile(videoId, index);
+        readFile(response, infoFile.getFilePath() + "/" + Constants.MASTER_M3U8_NAME);
+    }
+
+    /**
+     * 获取指定分辨率的M3U8
+     *
+     * @param videoId    视频ID
+     * @param index      文件序号
+     * @param resolution 分辨率
+     */
+    public void downloadVideoPlaylistM3u8(Long videoId, Integer index, Integer resolution, HttpServletResponse response)
+    {
+        VideoInfoFile infoFile = queryOneVideoInfoFile(videoId, index);
+        String folder = resolveResolutionFolder(resolution);
+        readFile(response, infoFile.getFilePath() + "/" + folder + "/" + Constants.M3U8_NAME);
+    }
+
+    /**
+     * 获取指定TS切片
+     *
+     * @param videoId    视频ID
+     * @param index      文件序号
+     * @param resolution 分辨率
+     * @param segment    TS切片名
+     */
+    public void downloadVideoSegmentTs(Long videoId,
+                                       Integer index,
+                                       Integer resolution,
+                                       String segment,
+                                       HttpServletResponse response)
+    {
+        if (!isValidSegmentName(segment))
+        {
+            throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
+        }
+        VideoInfoFile infoFile = queryOneVideoInfoFile(videoId, index);
+        String folder = resolveResolutionFolder(resolution);
+        readFile(response, infoFile.getFilePath() + "/" + folder + "/" + Constants.TS_FOLDER_NAME + "/" + segment);
+    }
+
+    private String resolveResolutionFolder(Integer resolution)
+    {
+        VideoResolution vr = VideoResolution.fromResolution(resolution);
+        if (vr == null)
+        {
+            throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
+        }
+        return vr.getFolderName();
+    }
+
+    private boolean isValidSegmentName(String segment)
+    {
+        return segment != null && segment.matches("^\\d{4}\\.ts$");
+    }
+
+    /**
+     * 查询唯一视频文件记录
+     */
+    private VideoInfoFile queryOneVideoInfoFile(Long videoId, Integer index)
     {
         VideoInfoFileQuery infoFileQuery = new VideoInfoFileQuery();
         infoFileQuery.setVideoId(videoId);
         infoFileQuery.setFileIndex(index);
         List <VideoInfoFile> videoInfoFiles = videoInfoFileMapper.selectList(infoFileQuery);
-        // 这里获取的应该是一个文件
         if (videoInfoFiles == null || videoInfoFiles.size() != 1)
         {
             throw new BusinessException(ResponseCode.NOT_FOUND);
         }
-        VideoInfoFile infoFile = videoInfoFiles.get(0);
-        String filePath = infoFile.getFilePath();
-        // todo 更新视频的播放信息（例如：播放量）
-        readFile(response, filePath + "/" + Constants.M3U8_NAME);
+        return videoInfoFiles.get(0);
     }
 
-    /**
-     * 获取ts文件
-     *
-     * @param videoId   视频ID
-     * @param index     分P索引
-     * @param tsPathStr ts文件路径
-     * @param response  HttpServletResponse
-     */
-    public void downloadVideoResourceTs(Long videoId, Integer index, String tsPathStr, HttpServletResponse response)
-    {
-        VideoInfoFileQuery infoFileQuery = new VideoInfoFileQuery();
-        infoFileQuery.setVideoId(videoId);
-        infoFileQuery.setFileIndex(index);
-        List <VideoInfoFile> videoInfoFiles = videoInfoFileMapper.selectList(infoFileQuery);
-        // 这里获取的应该是一个文件
-        if (videoInfoFiles == null || videoInfoFiles.size() != 1)
-        {
-            throw new BusinessException(ResponseCode.NOT_FOUND);
-        }
-        VideoInfoFile infoFile = videoInfoFiles.get(0);
-        String filePath = infoFile.getFilePath();
-        // todo 更新视频的播放信息（例如：播放量）
-        readFile(response, filePath + "/" + Constants.TS_FOLDER_NAME + "/" + tsPathStr);
-    }
 
     /**
      * 从系统中读取文件，写出到response中
@@ -328,5 +366,31 @@ public class FileService
             case ".txt" -> "text/plain;charset=UTF-8";
             default -> "application/octet-stream";
         };
+    }
+
+    /**
+     * 校验上传文件是否为真实图片（通过文件头魔数），防止伪造 Content-Type 上传恶意文件
+     */
+    private void validateImage(MultipartFile file)
+    {
+        byte[] header = new byte[512];
+        try (java.io.InputStream in = file.getInputStream())
+        {
+            int totalRead = 0;
+            while (totalRead < header.length)
+            {
+                int read = in.read(header, totalRead, header.length - totalRead);
+                if (read == -1) break;
+                totalRead += read;
+            }
+            if (!FileUtil.isImage(header, totalRead))
+            {
+                throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
+            }
+        }
+        catch (IOException e)
+        {
+            throw new BusinessException("文件读取失败");
+        }
     }
 }

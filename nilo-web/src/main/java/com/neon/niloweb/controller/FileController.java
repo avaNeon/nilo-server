@@ -11,7 +11,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -62,20 +61,19 @@ public class FileController
     }
 
     /**
-     * 预上传视频<hr/>
-     * 上传视频名称，分块数，以及验证用户token<br/>
+     * 预上传视频文件<hr/>
+     * 上传视频文件名称，分块数，以及验证用户token<br/>
      * 会在redis里保存一个临时的记录
      *
-     * @return uploadId，用于指定唯一视频（一个视频可能被分为多个块）
+     * @return uploadId，用于指定唯一视频文件（一个视频文件可能被分为多个块）
      */
-    @Operation(summary = "预上传视频", description = "上传视频标签")
+    @Operation(summary = "预上传视频文件", description = "上传视频文件分块数")
     @PostMapping("/videoTag")
-    public ResponseVO <Long> preUploadVideo(@NotEmpty @RequestParam(name = "filename") String filename,
-                                            @NotNull @RequestParam(name = "chunkSize") Integer chunkSize,
+    public ResponseVO <Long> preUploadVideo(@NotNull @RequestParam(name = "chunkSize") Integer chunkSize,
                                             @RequestHeader(name = "token") String token)
     {
         TokenUserInfo tokenUserInfo = getLoginState(token);
-        Long uploadId = fileService.preUploadVideo(filename, chunkSize, tokenUserInfo);
+        Long uploadId = fileService.preUploadVideo(chunkSize, tokenUserInfo);
         return ResponseVO.success(uploadId);
     }
 
@@ -115,38 +113,34 @@ public class FileController
         return ResponseVO.success(null);
     }
 
-    /**
-     * 下载视频资源（index.m3u8）
-     *
-     * @param videoId  视频ID
-     * @param index    分片索引
-     * @param response HttpServletResponse
-     */
-    @Operation(summary = "下载视频资源（index.m3u8）")
-    @GetMapping(path = "/video/resource/{videoId}")
-    public void downloadVideoResource(@PathVariable(name = "videoId") @NotNull Long videoId,
-                                      @RequestParam(name = "index") @NotNull Integer index,
-                                      @Parameter(hidden = true) HttpServletResponse response)
-    {
-        fileService.downloadVideoResourceM3u8(videoId, index, response);
-    }
-
-    /**
-     * 下载视频资源（ts文件）
-     *
-     * @param videoId   视频ID
-     * @param index     分片索引
-     * @param tsPathStr ts文件路径
-     * @param response  HttpServletResponse
-     */
-    @Operation(summary = "下载视频资源（ts文件）")
-    @GetMapping(path = "/video/ts/{videoId}")
-    public void downloadVideoResourceTs(@PathVariable(name = "videoId") @NotNull Long videoId,
-                                        @RequestParam(name = "index") @NotNull Integer index,
-                                        @RequestParam(name = "tsPathStr") @NotNull String tsPathStr,
+    @Operation(summary = "下载HLS主播放列表（master.m3u8）")
+    @GetMapping(path = "/video/hls/{videoId}/{index}/master.m3u8")
+    public void downloadVideoMasterM3u8(@PathVariable(name = "videoId") @NotNull Long videoId,
+                                        @PathVariable(name = "index") @NotNull Integer index,
                                         @Parameter(hidden = true) HttpServletResponse response)
     {
-        fileService.downloadVideoResourceTs(videoId, index, tsPathStr, response);
+        fileService.downloadVideoMasterM3u8(videoId, index, response);
+    }
+
+    @Operation(summary = "下载HLS分辨率播放列表（playlist.m3u8）")
+    @GetMapping(path = "/video/hls/{videoId}/{index}/playlist/{resolution}.m3u8")
+    public void downloadVideoPlaylistM3u8(@PathVariable(name = "videoId") @NotNull Long videoId,
+                                          @PathVariable(name = "index") @NotNull Integer index,
+                                          @PathVariable(name = "resolution") @NotNull Integer resolution,
+                                          @Parameter(hidden = true) HttpServletResponse response)
+    {
+        fileService.downloadVideoPlaylistM3u8(videoId, index, resolution, response);
+    }
+
+    @Operation(summary = "下载HLS分片（segment.ts）")
+    @GetMapping(path = "/video/hls/{videoId}/{index}/segment/{resolution}/{segment}")
+    public void downloadVideoSegmentTs(@PathVariable(name = "videoId") @NotNull Long videoId,
+                                       @PathVariable(name = "index") @NotNull Integer index,
+                                       @PathVariable(name = "resolution") @NotNull Integer resolution,
+                                       @PathVariable(name = "segment") @NotNull String segment,
+                                       @Parameter(hidden = true) HttpServletResponse response)
+    {
+        fileService.downloadVideoSegmentTs(videoId, index, resolution, segment, response);
     }
 
     /**

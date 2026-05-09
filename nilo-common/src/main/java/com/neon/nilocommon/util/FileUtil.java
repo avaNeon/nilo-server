@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
 import java.util.stream.Stream;
 
@@ -62,6 +63,55 @@ public class FileUtil
         }
         // 最后校验是否存在，是否是一个文件而非目录
         return Files.exists(path) && Files.isRegularFile(path);
+    }
+
+    /**
+     * 通过文件头魔数校验是否为图片<hr/>
+     * 仅读取文件头部少量字节，性能开销极低，能够可靠识别文件真实类型（防止伪造 Content-Type）<br/>
+     * 支持的格式：JPEG、PNG、GIF、BMP、WebP、AVIF、SVG
+     *
+     * @param bytes 文件头部字节
+     * @param len   有效字节长度
+     * @return true 是图片
+     */
+    public static boolean isImage(byte[] bytes, int len)
+    {
+        if (bytes == null || len < 4) return false;
+
+        // JPEG: FF D8 FF
+        if ((bytes[0] & 0xFF) == 0xFF && (bytes[1] & 0xFF) == 0xD8 && (bytes[2] & 0xFF) == 0xFF)
+            return true;
+
+        // PNG: 89 50 4E 47
+        if (bytes[0] == (byte) 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47)
+            return true;
+
+        // GIF: 47 49 46 38 (GIF8)
+        if (bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x38)
+            return true;
+
+        // BMP: 42 4D (BM)
+        if (bytes[0] == 0x42 && bytes[1] == 0x4D)
+            return true;
+
+        // WebP: 52 49 46 46 ... 57 45 42 50 (RIFF .... WEBP)
+        if (bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46
+                && len >= 12
+                && bytes[8] == 0x57 && bytes[9] == 0x45 && bytes[10] == 0x42 && bytes[11] == 0x50)
+            return true;
+
+        // AVIF: xx xx xx xx 66 74 79 70 61 76 69 66 (ftyp box with avif brand)
+        if (len >= 12
+                && bytes[4] == 0x66 && bytes[5] == 0x74 && bytes[6] == 0x79 && bytes[7] == 0x70
+                && bytes[8] == 0x61 && bytes[9] == 0x76 && bytes[10] == 0x69 && bytes[11] == 0x66)
+            return true;
+
+        // SVG: 文本格式，跳过 BOM 和空白后检查是否以 <svg 或 <?xml 开头
+        String head = new String(bytes, 0, len, StandardCharsets.UTF_8).stripLeading();
+        if (head.startsWith("<svg") || head.startsWith("<?xml") || head.startsWith("<!DOCTYPE svg"))
+            return true;
+
+        return false;
     }
 
     /**

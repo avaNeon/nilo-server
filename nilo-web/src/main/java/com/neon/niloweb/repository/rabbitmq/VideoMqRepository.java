@@ -30,6 +30,16 @@ public class VideoMqRepository
     }
 
     /**
+     * 将单个文件的删除任务添加至MQ <hr/>
+     *
+     * @param filePath 一个文件路径
+     */
+    public void addVideoFile2DeleteQueue(String filePath)
+    {
+        rabbitTemplate.convertAndSend(MqInfo.STORAGE_EXCHANGE, MqInfo.STORAGE_DELETE_ROUTING_KEY, filePath);
+    }
+
+    /**
      * 将视频文件的转码任务添加至MQ <hr/>
      * 将List拆分为单个路径，一个路径对应一个message传给MQ<br/>
      *

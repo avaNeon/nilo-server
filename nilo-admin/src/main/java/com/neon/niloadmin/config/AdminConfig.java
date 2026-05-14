@@ -20,4 +20,6 @@ public class AdminConfig
 
     @Value("${log.command}")
     private boolean showCommandLogs;
+
+    private short coinBonusPerVideo = 10;
 }

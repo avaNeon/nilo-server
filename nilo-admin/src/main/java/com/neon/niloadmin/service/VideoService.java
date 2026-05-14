@@ -1,37 +1,77 @@
 package com.neon.niloadmin.service;
 
-import com.neon.niloadmin.mapper.VideoInfoFileMapper;
-import com.neon.niloadmin.mapper.VideoInfoFileUploadMapper;
-import com.neon.niloadmin.mapper.VideoInfoMapper;
-import com.neon.niloadmin.mapper.VideoInfoUploadMapper;
+import cn.hutool.core.lang.Snowflake;
+import com.neon.niloadmin.config.AdminConfig;
+import com.neon.niloadmin.mapper.*;
+import com.neon.niloadmin.repository.rabbitmq.MqRepository;
+import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.dto.VideoInfoUploadAdminJoinDTO;
 import com.neon.nilocommon.entity.enums.videoInfoFileUpload.UpdateType;
+import com.neon.nilocommon.entity.enums.videoInfoFileUpload.VideoFileStatus;
 import com.neon.nilocommon.entity.enums.videoInfoUpload.VideoStatus;
-import com.neon.nilocommon.entity.po.VideoInfo;
-import com.neon.nilocommon.entity.po.VideoInfoFile;
-import com.neon.nilocommon.entity.po.VideoInfoFileUpload;
-import com.neon.nilocommon.entity.po.VideoInfoUpload;
+import com.neon.nilocommon.entity.po.*;
 import com.neon.nilocommon.entity.query.*;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.nilocommon.util.FileUtil;
+import com.neon.nilocommon.util.StringUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.file.Path;
 import java.util.List;
+import java.util.function.Supplier;
 
 @RequiredArgsConstructor
 @Service
 public class VideoService
 {
 
+    private final UserInfoMapper <UserInfo, UserInfoQuery> userInfoMapper;
+
+
+    // --- upload ---
+
     private final VideoInfoUploadMapper <VideoInfoUpload, VideoInfoUploadQuery> videoInfoUploadMapper;
 
     private final VideoInfoFileUploadMapper <VideoInfoFileUpload, VideoInfoFileUploadQuery> videoInfoFileUploadMapper;
 
+    // --- info ---
+
     private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
 
     private final VideoInfoFileMapper <VideoInfoFile, VideoInfoFileQuery> videoInfoFileMapper;
+
+    private final VideoCommentMapper <VideoComment, VideoCommentQuery> videoCommentMapper;
+
+    private final VideoDanmakuMapper <VideoDanmaku, VideoDanmakuQuery> videoDanmakuMapper;
+
+    private final UserCommentActionMapper <UserCommentAction, UserCommentActionQuery> userCommentActionMapper;
+
+    private final UserVideoActionMapper <UserVideoAction, UserVideoActionQuery> userVideoActionMapper;
+
+    // --- archive ---
+
+    private final VideoInfoArchiveMapper <VideoInfoArchive, VideoInfoArchiveQuery> videoInfoArchiveMapper;
+
+    private final VideoInfoFileArchiveMapper <VideoInfoFileArchive, VideoInfoFileArchiveQuery> videoInfoFileArchiveMapper;
+
+    private final VideoCommentArchiveMapper <VideoCommentArchive, VideoCommentArchiveQuery> videoCommentArchiveMapper;
+
+    private final VideoDanmakuArchiveMapper <VideoDanmakuArchive, VideoDanmakuArchiveQuery> videoDanmakuArchiveMapper;
+
+    private final UserCommentActionArchiveMapper <UserCommentActionArchive, UserCommentActionArchiveQuery> userCommentActionArchiveMapper;
+
+    private final UserVideoActionArchiveMapper <UserVideoActionArchive, UserVideoActionArchiveQuery> userVideoActionArchiveMapper;
+
+    // --- other ---
+
+    private final MqRepository mqRepository;
+
+    private final AdminConfig adminConfig;
+
+    private final Snowflake snowflake;
 
     /**
      * 查询视频
@@ -87,7 +127,13 @@ public class VideoService
         if (videoInfo == null)
         {
             videoInfo = new VideoInfo();
-            //todo 给用户加硬币
+
+            Long userId = infoUpload.getUserId();
+            if (userId == null)
+            {
+                throw new BusinessException("数据库记录错误，没有用户ID！");
+            }
+            userInfoMapper.increaseCoin(userId, adminConfig.getCoinBonusPerVideo());
         }
 
         // 更新/填入videoInfo信息
@@ -97,6 +143,7 @@ public class VideoService
         // 删除旧的video_info_file记录（DB层面）
         VideoInfoFileQuery infoFileQuery = new VideoInfoFileQuery();
         infoFileQuery.setVideoId(videoId);
+        List <VideoInfoFile> oldFileList = videoInfoFileMapper.selectList(infoFileQuery);
         videoInfoFileMapper.deleteByParam(infoFileQuery);
 
         // 获取videoInfoFileUpload记录
@@ -108,16 +155,193 @@ public class VideoService
         List <VideoInfoFile> infoFileList = infoFileUploadList.stream().map(infoFileUpload ->
                                                                             {
                                                                                 VideoInfoFile infoFile = new VideoInfoFile();
-                                                                                BeanUtils.copyProperties(infoFileUpload, infoFile);
+                                                                                BeanUtils.copyProperties(infoFileUpload,
+                                                                                                         infoFile);
                                                                                 return infoFile;
                                                                             }).toList();
         videoInfoFileMapper.insertBatch(infoFileList);
 
-        // 注意：不在此处删除物理文件，因为：
-        // 1. 用户修改视频时，videoUpload(CreativeCenterService)已经处理了文件删除
-        // 2. 未修改的文件在新旧记录中路径相同，删除会导致数据丢失
-        // 3. 只有用户明确移除的文件才应该被删除，这已在上传阶段处理
-
+        // 删除不需要的视频（所有fileId不存在于新出现的文件中的视频文件）
+        List <Long> remainFileIdList = infoFileList.stream().map(VideoInfoFile::getFileId).toList();
+        String rootFilePath = Path.of(adminConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME).normalize().toString();
+        List <String> deletePathList = oldFileList.stream()
+                                                  .filter(oldFile -> !remainFileIdList.contains(oldFile.getFileId())) // 不在新文件列表中的文件
+                                                  .map(VideoInfoFile::getFilePath)
+                                                  .filter(filePath -> filePath != null && !filePath.isBlank())
+                                                  .map(filePath -> Path.of(rootFilePath, filePath).normalize().toString())
+                                                  .filter(absPath -> StringUtil.isValidPath(absPath, rootFilePath))
+                                                  .filter(absPath -> FileUtil.fileExists(absPath))
+                                                  .distinct()
+                                                  .toList();
+        if (!deletePathList.isEmpty())
+        {
+            mqRepository.addPathList2DeleteQueue(deletePathList);
+        }
         //todo 保存信息到ES中
     }
+
+    /**
+     * 恢复一条视频
+     *
+     * @param videoId 视频ID
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void recoverVideo(long videoId)
+    {
+        VideoInfoArchive videoInfoArchive = videoInfoArchiveMapper.selectByVideoId(videoId);
+        // 如果视频不在存档中
+        if (videoInfoArchive == null)
+        {
+            throw new BusinessException("没发现该视频");
+        }
+
+        // --- 将所有数据迁移到主表 ---
+
+        // video_info
+        VideoInfo videoInfo = videoInfoMapper.selectByVideoId(videoId);
+        // 对应删除操作，我们认为 video_info 的存在代表整个数据得到了恢复
+        // 虽然主表数据和archive数据同时存在的情况在我们的业务设计中几乎不可能，但一旦出现我们就需要主动介入解决
+        if (videoInfo != null)
+        {
+            throw new BusinessException("视频无法回复，因为数据存在冲突，请联系管理员");
+        }
+        videoInfo = new VideoInfo();
+        BeanUtils.copyProperties(videoInfoArchive, videoInfo);
+        videoInfoMapper.insert(videoInfo);
+
+        // video_info_upload
+        if (videoInfoUploadMapper.selectByVideoId(videoId) != null)
+        {
+            throw new BusinessException("视频无法恢复，因为上传表数据存在冲突，请联系管理员");
+        }
+        VideoInfoUpload videoInfoUpload = new VideoInfoUpload();
+        BeanUtils.copyProperties(videoInfoArchive, videoInfoUpload);
+        videoInfoUpload.setStatus(VideoStatus.REVIEW_SUCCESS.getStatus());
+        videoInfoUploadMapper.insert(videoInfoUpload);
+
+        // video_info_file
+        VideoInfoFileArchiveQuery videoInfoFileArchiveQuery = new VideoInfoFileArchiveQuery();
+        videoInfoFileArchiveQuery.setVideoId(videoId);
+        List <VideoInfoFileArchive> videoInfoFileArchiveList = videoInfoFileArchiveMapper.selectList(videoInfoFileArchiveQuery);
+
+        VideoInfoFileQuery videoInfoFileQuery = new VideoInfoFileQuery();
+        videoInfoFileQuery.setVideoId(videoId);
+        assertRecoverTargetEmpty(videoInfoFileQuery, videoInfoFileMapper);
+        archiveBatch(videoInfoFileArchiveList, VideoInfoFile::new, videoInfoFileMapper);
+
+        // video_info_file_upload
+        VideoInfoFileUploadQuery videoInfoFileUploadQuery = new VideoInfoFileUploadQuery();
+        videoInfoFileUploadQuery.setVideoId(videoId);
+        assertRecoverTargetEmpty(videoInfoFileUploadQuery, videoInfoFileUploadMapper);
+        List <VideoInfoFileUpload> videoInfoFileUploadList = videoInfoFileArchiveList.stream().map(archive ->
+                                                                                                   {
+                                                                                                       VideoInfoFileUpload upload = new VideoInfoFileUpload();
+                                                                                                       BeanUtils.copyProperties(
+                                                                                                               archive,
+                                                                                                               upload);
+                                                                                                       upload.setUploadId(
+                                                                                                               snowflake.nextId());
+                                                                                                       upload.setUpdateType(
+                                                                                                               UpdateType.NO_UPDATE.getUpdateType());
+                                                                                                       upload.setTransferResult(
+                                                                                                               VideoFileStatus.TRANSCODING_SUCCESS.getStatus());
+                                                                                                       return upload;
+                                                                                                   }).toList();
+        if (!videoInfoFileUploadList.isEmpty())
+        {
+            videoInfoFileUploadMapper.insertBatch(videoInfoFileUploadList);
+        }
+
+        // video_comment
+        VideoCommentArchiveQuery videoCommentArchiveQuery = new VideoCommentArchiveQuery();
+        videoCommentArchiveQuery.setVideoId(videoId);
+        List <VideoCommentArchive> videoCommentArchiveList = videoCommentArchiveMapper.selectList(videoCommentArchiveQuery);
+
+        VideoCommentQuery videoCommentQuery = new VideoCommentQuery();
+        videoCommentQuery.setVideoId(videoId);
+        assertRecoverTargetEmpty(videoCommentQuery, videoCommentMapper);
+        archiveBatch(videoCommentArchiveList, VideoComment::new, videoCommentMapper);
+
+        // video_danmaku
+        VideoDanmakuArchiveQuery videoDanmakuArchiveQuery = new VideoDanmakuArchiveQuery();
+        videoDanmakuArchiveQuery.setVideoId(videoId);
+        List <VideoDanmakuArchive> videoDanmakuArchiveList = videoDanmakuArchiveMapper.selectList(videoDanmakuArchiveQuery);
+
+        VideoDanmakuQuery videoDanmakuQuery = new VideoDanmakuQuery();
+        videoDanmakuQuery.setVideoId(videoId);
+        assertRecoverTargetEmpty(videoDanmakuQuery, videoDanmakuMapper);
+        archiveBatch(videoDanmakuArchiveList, VideoDanmaku::new, videoDanmakuMapper);
+
+        // user_comment_action
+        UserCommentActionArchiveQuery userCommentActionArchiveQuery = new UserCommentActionArchiveQuery();
+        userCommentActionArchiveQuery.setVideoId(videoId);
+        List <UserCommentActionArchive> userCommentActionArchiveList = userCommentActionArchiveMapper.selectList(
+                userCommentActionArchiveQuery);
+
+        UserCommentActionQuery userCommentActionQuery = new UserCommentActionQuery();
+        userCommentActionQuery.setVideoId(videoId);
+        assertRecoverTargetEmpty(userCommentActionQuery, userCommentActionMapper);
+        archiveBatch(userCommentActionArchiveList, UserCommentAction::new, userCommentActionMapper);
+
+        // user_video_action
+        UserVideoActionArchiveQuery userVideoActionArchiveQuery = new UserVideoActionArchiveQuery();
+        userVideoActionArchiveQuery.setVideoId(videoId);
+        List <UserVideoActionArchive> userVideoActionArchiveList = userVideoActionArchiveMapper.selectList(
+                userVideoActionArchiveQuery);
+
+        UserVideoActionQuery userVideoActionQuery = new UserVideoActionQuery();
+        userVideoActionQuery.setVideoId(videoId);
+        assertRecoverTargetEmpty(userVideoActionQuery, userVideoActionMapper);
+        archiveBatch(userVideoActionArchiveList, UserVideoAction::new, userVideoActionMapper);
+
+        // --- 清理 archive 表数据 ---
+
+        userCommentActionArchiveMapper.deleteByParam(userCommentActionArchiveQuery);
+        userVideoActionArchiveMapper.deleteByParam(userVideoActionArchiveQuery);
+        videoDanmakuArchiveMapper.deleteByParam(videoDanmakuArchiveQuery);
+        videoCommentArchiveMapper.deleteByParam(videoCommentArchiveQuery);
+        videoInfoFileArchiveMapper.deleteByParam(videoInfoFileArchiveQuery);
+        videoInfoArchiveMapper.deleteByVideoId(videoId);
+    }
+
+    /**
+     * 检查是否会从表中查询到空数据
+     *
+     * @param query        查询条件
+     * @param targetMapper 表对应mapper
+     * @param <P>          查询条件类型
+     */
+    private <P> void assertRecoverTargetEmpty(P query, BaseMapper <?, P> targetMapper)
+    {
+        Integer count = targetMapper.selectCount(query);
+        if (count != null && count > 0)
+        {
+            throw new BusinessException("视频无法恢复，因为目标表数据存在冲突，请联系管理员");
+        }
+    }
+
+    /**
+     * 批量将数据从一张表导入到另一张表
+     *
+     * @param sourceList     原始数据列表
+     * @param targetSupplier 构建单个目标数据PO的函数，应为 Supplier
+     * @param archiveMapper  目标表 mapper
+     * @param <S>            原始数据PO类型
+     * @param <T>            目标数据PO类型
+     */
+    private <S, T> void archiveBatch(List <S> sourceList, Supplier <T> targetSupplier, BaseMapper <T, ?> archiveMapper)
+    {
+        if (sourceList == null || sourceList.isEmpty())
+        {
+            return;
+        }
+        List <T> archiveList = sourceList.stream().map(source ->
+                                                       {
+                                                           T target = targetSupplier.get();
+                                                           BeanUtils.copyProperties(source, target);
+                                                           return target;
+                                                       }).toList();
+        archiveMapper.insertBatch(archiveList);
+    }
+
 }

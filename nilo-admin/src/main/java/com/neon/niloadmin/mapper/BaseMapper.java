@@ -5,7 +5,7 @@ import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
-interface BaseMapper<T, P>
+public interface BaseMapper<T, P>
 {
 
     /**

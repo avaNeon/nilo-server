@@ -1,0 +1,411 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neon.niloadmin.mapper.VideoDanmakuMapper">
+    <!--实体映射-->
+    <resultMap id="base_result_map" type="com.neon.nilocommon.entity.po.VideoDanmaku">
+        <!--弹幕ID【对外展示】-->
+        <result column="danmaku_id" property="danmakuId"/>
+        <!--视频ID-->
+        <result column="video_id" property="videoId"/>
+        <!--视频文件ID-->
+        <result column="file_id" property="fileId"/>
+        <!--用户ID-->
+        <result column="user_id" property="userId"/>
+        <!--发布时间-->
+        <result column="post_time" property="postTime"/>
+        <!--内容-->
+        <result column="content" property="content"/>
+        <!--展示位置-->
+        <result column="position" property="position"/>
+        <!--颜色(HEX+不透明度)-->
+        <result column="color" property="color"/>
+        <!--展示时刻（单位：毫秒）-->
+        <result column="display_moment" property="displayMoment"/>
+    </resultMap>
+
+
+    <!-- 通用查询结果列-->
+    <sql id="base_column_list">
+        v.danmaku_id,v.video_id,v.file_id,v.user_id,v.post_time,
+		 v.content,v.position,v.color,v.display_moment
+    </sql>
+
+    <sql id="base_condition_filed">
+        <if test="query.danmakuId != null">
+            and v.danmaku_id = #{query.danmakuId}
+        </if>
+        <if test="query.videoId != null">
+            and v.video_id = #{query.videoId}
+        </if>
+        <if test="query.fileId != null">
+            and v.file_id = #{query.fileId}
+        </if>
+        <if test="query.userId != null">
+            and v.user_id = #{query.userId}
+        </if>
+        <if test="query.postTime != null and query.postTime!=''">
+            <![CDATA[ and  v.post_time=str_to_date(#{query.postTime}, '%Y-%m-%d') ]]>
+        </if>
+        <if test="query.content != null and query.content!=''">
+            and v.content = #{query.content}
+        </if>
+        <if test="query.position != null">
+            and v.position = #{query.position}
+        </if>
+        <if test="query.color != null and query.color!=''">
+            and v.color = #{query.color}
+        </if>
+        <if test="query.displayMoment != null">
+            and v.display_moment = #{query.displayMoment}
+        </if>
+    </sql>
+
+    <!-- 通用查询条件列-->
+    <sql id="query_condition">
+        <where>
+            <include refid="base_condition_filed"/>
+            <if test="query.postTimeStart!= null and query.postTimeStart!=''">
+                <![CDATA[ and  v.post_time>=str_to_date(#{query.postTimeStart}, '%Y-%m-%d') ]]>
+            </if>
+            <if test="query.postTimeEnd!= null and query.postTimeEnd!=''">
+                <![CDATA[ and  v.post_time< date_sub(str_to_date(#{query.postTimeEnd},'%Y-%m-%d'),interval -1 day) ]]>
+            </if>
+            <if test="query.contentFuzzy!= null  and query.contentFuzzy!=''">
+                and v.content like concat('%', #{query.contentFuzzy}, '%')
+            </if>
+            <if test="query.colorFuzzy!= null  and query.colorFuzzy!=''">
+                and v.color like concat('%', #{query.colorFuzzy}, '%')
+            </if>
+        </where>
+    </sql>
+
+    <!-- 查询集合-->
+    <select id="selectList" resultMap="base_result_map">
+        SELECT
+        <include refid="base_column_list"/>
+        FROM video_danmaku v
+        <include refid="query_condition"/>
+        <if test="query.orderBy!=null">
+            order by ${query.orderBy}
+        </if>
+        <if test="query.pageCalculator!=null">
+            limit #{query.pageCalculator.start},#{query.pageCalculator.size}
+        </if>
+    </select>
+
+    <!-- 查询数量-->
+    <select id="selectCount" resultType="java.lang.Integer">
+        SELECT count(1) FROM video_danmaku v
+        <include refid="query_condition"/>
+    </select>
+
+    <!-- 插入 （匹配有值的字段）-->
+    <insert id="insert" parameterType="com.neon.nilocommon.entity.po.VideoDanmaku">
+        INSERT INTO video_danmaku
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="bean.danmakuId != null">
+                danmaku_id,
+            </if>
+            <if test="bean.videoId != null">
+                video_id,
+            </if>
+            <if test="bean.fileId != null">
+                file_id,
+            </if>
+            <if test="bean.userId != null">
+                user_id,
+            </if>
+            <if test="bean.postTime != null">
+                post_time,
+            </if>
+            <if test="bean.content != null">
+                content,
+            </if>
+            <if test="bean.position != null">
+                position,
+            </if>
+            <if test="bean.color != null">
+                color,
+            </if>
+            <if test="bean.displayMoment != null">
+                display_moment,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="bean.danmakuId!=null">
+                #{bean.danmakuId},
+            </if>
+            <if test="bean.videoId!=null">
+                #{bean.videoId},
+            </if>
+            <if test="bean.fileId!=null">
+                #{bean.fileId},
+            </if>
+            <if test="bean.userId!=null">
+                #{bean.userId},
+            </if>
+            <if test="bean.postTime!=null">
+                #{bean.postTime},
+            </if>
+            <if test="bean.content!=null">
+                #{bean.content},
+            </if>
+            <if test="bean.position!=null">
+                #{bean.position},
+            </if>
+            <if test="bean.color!=null">
+                #{bean.color},
+            </if>
+            <if test="bean.displayMoment!=null">
+                #{bean.displayMoment},
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 插入或者更新 （匹配有值的字段）-->
+    <insert id="insertOrUpdate" parameterType="com.neon.nilocommon.entity.po.VideoDanmaku">
+        INSERT INTO video_danmaku
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="bean.danmakuId != null">
+                danmaku_id,
+            </if>
+            <if test="bean.videoId != null">
+                video_id,
+            </if>
+            <if test="bean.fileId != null">
+                file_id,
+            </if>
+            <if test="bean.userId != null">
+                user_id,
+            </if>
+            <if test="bean.postTime != null">
+                post_time,
+            </if>
+            <if test="bean.content != null">
+                content,
+            </if>
+            <if test="bean.position != null">
+                position,
+            </if>
+            <if test="bean.color != null">
+                color,
+            </if>
+            <if test="bean.displayMoment != null">
+                display_moment,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="bean.danmakuId!=null">
+                #{bean.danmakuId},
+            </if>
+            <if test="bean.videoId!=null">
+                #{bean.videoId},
+            </if>
+            <if test="bean.fileId!=null">
+                #{bean.fileId},
+            </if>
+            <if test="bean.userId!=null">
+                #{bean.userId},
+            </if>
+            <if test="bean.postTime!=null">
+                #{bean.postTime},
+            </if>
+            <if test="bean.content!=null">
+                #{bean.content},
+            </if>
+            <if test="bean.position!=null">
+                #{bean.position},
+            </if>
+            <if test="bean.color!=null">
+                #{bean.color},
+            </if>
+            <if test="bean.displayMoment!=null">
+                #{bean.displayMoment},
+            </if>
+        </trim>
+        on DUPLICATE key update
+        <trim prefix="" suffix="" suffixOverrides=",">
+            <if test="bean.danmakuId!=null">
+                danmaku_id = VALUES(danmaku_id),
+            </if>
+            <if test="bean.videoId!=null">
+                video_id = VALUES(video_id),
+            </if>
+            <if test="bean.fileId!=null">
+                file_id = VALUES(file_id),
+            </if>
+            <if test="bean.userId!=null">
+                user_id = VALUES(user_id),
+            </if>
+            <if test="bean.postTime!=null">
+                post_time = VALUES(post_time),
+            </if>
+            <if test="bean.content!=null">
+                content = VALUES(content),
+            </if>
+            <if test="bean.position!=null">
+                position = VALUES(position),
+            </if>
+            <if test="bean.color!=null">
+                color = VALUES(color),
+            </if>
+            <if test="bean.displayMoment!=null">
+                display_moment = VALUES(display_moment),
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 添加 （批量插入）-->
+    <insert id="insertBatch" parameterType="com.neon.nilocommon.entity.po.VideoDanmaku">
+        INSERT INTO video_danmaku(
+        danmaku_id,
+        video_id,
+        file_id,
+        user_id,
+        post_time,
+        content,
+        position,
+        color,
+        display_moment
+        )values
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.danmakuId},
+            #{item.videoId},
+            #{item.fileId},
+            #{item.userId},
+            #{item.postTime},
+            #{item.content},
+            #{item.position},
+            #{item.color},
+            #{item.displayMoment}
+            )
+        </foreach>
+    </insert>
+
+    <!-- 批量新增修改 （批量插入）-->
+    <insert id="insertOrUpdateBatch" parameterType="com.neon.nilocommon.entity.po.VideoDanmaku">
+        INSERT INTO video_danmaku(
+        danmaku_id,
+        video_id,
+        file_id,
+        user_id,
+        post_time,
+        content,
+        position,
+        color,
+        display_moment
+        )values
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.danmakuId},
+            #{item.videoId},
+            #{item.fileId},
+            #{item.userId},
+            #{item.postTime},
+            #{item.content},
+            #{item.position},
+            #{item.color},
+            #{item.displayMoment}
+            )
+        </foreach>
+        on DUPLICATE key update
+        danmaku_id = VALUES(danmaku_id),
+        video_id = VALUES(video_id),
+        file_id = VALUES(file_id),
+        user_id = VALUES(user_id),
+        post_time = VALUES(post_time),
+        content = VALUES(content),
+        position = VALUES(position),
+        color = VALUES(color),
+        display_moment = VALUES(display_moment)
+    </insert>
+
+    <!--多条件修改-->
+    <update id="updateByParam" parameterType="com.neon.nilocommon.entity.query.VideoDanmakuQuery">
+        UPDATE video_danmaku v
+        <set>
+            <if test="bean.danmakuId != null">
+                danmaku_id = #{bean.danmakuId},
+            </if>
+            <if test="bean.videoId != null">
+                video_id = #{bean.videoId},
+            </if>
+            <if test="bean.fileId != null">
+                file_id = #{bean.fileId},
+            </if>
+            <if test="bean.userId != null">
+                user_id = #{bean.userId},
+            </if>
+            <if test="bean.postTime != null">
+                post_time = #{bean.postTime},
+            </if>
+            <if test="bean.content != null">
+                content = #{bean.content},
+            </if>
+            <if test="bean.position != null">
+                position = #{bean.position},
+            </if>
+            <if test="bean.color != null">
+                color = #{bean.color},
+            </if>
+            <if test="bean.displayMoment != null">
+                display_moment = #{bean.displayMoment},
+            </if>
+        </set>
+        <include refid="query_condition"/>
+    </update>
+
+    <!--多条件删除-->
+    <delete id="deleteByParam">
+        delete v from video_danmaku v
+        <include refid="query_condition"/>
+    </delete>
+
+    <!-- 根据DanmakuId修改-->
+    <update id="updateByDanmakuId" parameterType="com.neon.nilocommon.entity.po.VideoDanmaku">
+        UPDATE video_danmaku
+        <set>
+            <if test="bean.videoId != null">
+                video_id = #{bean.videoId},
+            </if>
+            <if test="bean.fileId != null">
+                file_id = #{bean.fileId},
+            </if>
+            <if test="bean.userId != null">
+                user_id = #{bean.userId},
+            </if>
+            <if test="bean.postTime != null">
+                post_time = #{bean.postTime},
+            </if>
+            <if test="bean.content != null">
+                content = #{bean.content},
+            </if>
+            <if test="bean.position != null">
+                position = #{bean.position},
+            </if>
+            <if test="bean.color != null">
+                color = #{bean.color},
+            </if>
+            <if test="bean.displayMoment != null">
+                display_moment = #{bean.displayMoment},
+            </if>
+        </set>
+        where danmaku_id=#{danmakuId}
+    </update>
+
+    <!-- 根据DanmakuId删除-->
+    <delete id="deleteByDanmakuId">
+        delete
+        from video_danmaku
+        where danmaku_id = #{danmakuId}
+    </delete>
+
+    <!-- 根据PrimaryKey获取对象-->
+    <select id="selectByDanmakuId" resultMap="base_result_map">
+        select
+        <include refid="base_column_list"/>
+        from video_danmaku v where danmaku_id=#{danmakuId}
+    </select>
+</mapper>

@@ -68,6 +68,21 @@
         </association>
     </resultMap>
 
+    <resultMap id="management_vo_result_map" type="com.neon.nilocommon.entity.vo.CommentManagementVO">
+        <result column="comment_id" property="commentId"/>
+        <result column="user_id" property="userId"/>
+        <result column="reply_user_id" property="replyUserId"/>
+        <result column="content" property="content"/>
+        <result column="img_paths" property="imgPaths"/>
+        <result column="post_time" property="postTime"/>
+        <result column="video_id" property="videoId"/>
+        <result column="video_name" property="videoName"/>
+        <result column="video_cover" property="videoCover"/>
+        <result column="nick_name" property="nickName"/>
+        <result column="reply_nick_name" property="replyNickName"/>
+        <result column="avatar" property="avatar"/>
+    </resultMap>
+
     <!-- 通用查询结果列-->
     <sql id="base_column_list">
         v.comment_id,v.parent_comment_id,v.video_id,v.video_user_id,v.content,
@@ -729,4 +744,57 @@
             comment_id = #{commentId}
         </where>
     </update>
+
+    <select id="selectCommentManagementVOCount" resultType="long">
+        SELECT COUNT(1)
+        FROM video_comment vc
+        LEFT JOIN video_info v ON v.video_id = vc.video_id
+        LEFT JOIN user_info u1 ON vc.user_id = u1.user_id
+        LEFT JOIN user_info u2 ON vc.reply_user_id = u2.user_id
+        <where>
+            vc.deleted = 0
+            <if test="userId != null">
+                AND vc.video_user_id = #{userId}
+            </if>
+            <if test="videoId != null">
+                AND vc.video_id = #{videoId}
+            </if>
+            <if test="nameFuzzy != null and nameFuzzy != ''">
+                AND v.video_name LIKE CONCAT('%',#{nameFuzzy},'%')
+            </if>
+        </where>
+    </select>
+
+    <select id="selectCommentManagementVO" resultMap="management_vo_result_map">
+        SELECT vc.comment_id,
+        vc.user_id,
+        vc.reply_user_id,
+        vc.content,
+        vc.img_paths,
+        vc.post_time,
+        vc.video_id,
+        v.video_name,
+        v.video_cover,
+        u1.nick_name as nick_name,
+        u2.nick_name as reply_nick_name,
+        u1.avatar
+        FROM video_comment vc
+        LEFT JOIN video_info v ON v.video_id = vc.video_id
+        LEFT JOIN user_info u1 ON vc.user_id = u1.user_id
+        LEFT JOIN user_info u2 ON vc.reply_user_id = u2.user_id
+        <where>
+            vc.deleted = 0
+            <if test="userId != null">
+                AND vc.video_user_id = #{userId}
+            </if>
+            <if test="videoId != null">
+                AND vc.video_id = #{videoId}
+            </if>
+            <if test="nameFuzzy != null and nameFuzzy != ''">
+                AND v.video_name LIKE CONCAT('%',#{nameFuzzy},'%')
+            </if>
+        </where>
+        ORDER BY vc.post_time DESC
+        LIMIT #{start},#{pageSize}
+    </select>
 </mapper>

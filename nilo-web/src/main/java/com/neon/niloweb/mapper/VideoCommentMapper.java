@@ -1,5 +1,6 @@
 package com.neon.niloweb.mapper;
 
+import com.neon.nilocommon.entity.vo.CommentManagementVO;
 import com.neon.nilocommon.entity.vo.VideoCommentVO;
 import org.apache.ibatis.annotations.Param;
 
@@ -25,7 +26,7 @@ public interface VideoCommentMapper<T, P> extends BaseMapper <T, P>
     /**
      * 根据CommentId逻辑删除（将 deleted 更新为 1）
      */
-    Integer safeDeleteByCommentId(@Param("commentId") Long commentId,@Param("deletedType") Integer deletedType);
+    Integer safeDeleteByCommentId(@Param("commentId") Long commentId, @Param("deletedType") Integer deletedType);
 
     /**
      * 根据CommentId获取对象
@@ -76,4 +77,27 @@ public interface VideoCommentMapper<T, P> extends BaseMapper <T, P>
 
     Integer decreaseDownvoteCount(@Param("commentId") Long commentId);
 
+    /**
+     * 评论管理页面，查询多个视频的评论信息数量
+     *
+     * @param userId 视频ID列表
+     * @return 评论信息列表
+     */
+    Long selectCommentManagementVOCount(@Param("userId") Long userId,
+                                        @Param("videoId") Long videoId,
+                                        @Param("nameFuzzy") String nameFuzzy);
+
+    /**
+     * 评论管理页面，查询多个视频的评论信息
+     *
+     * @param userId   视频ID列表
+     * @param start    起始偏移量 (pageNo - 1) * pageSize
+     * @param pageSize 页大小
+     * @return 评论信息列表
+     */
+    List <CommentManagementVO> selectCommentManagementVO(@Param("userId") Long userId,
+                                                          @Param("videoId") Long videoId,
+                                                          @Param("nameFuzzy") String nameFuzzy,
+                                                          @Param("start") Integer start,
+                                                          @Param("pageSize") Integer pageSize);
 }

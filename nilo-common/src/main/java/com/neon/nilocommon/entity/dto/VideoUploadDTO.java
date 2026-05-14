@@ -1,7 +1,7 @@
 package com.neon.nilocommon.entity.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import com.neon.nilocommon.entity.vo.VideoFileUploadVO;
+import com.neon.nilocommon.entity.vo.VideoFileUploadDTO;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -80,5 +80,5 @@ public class VideoUploadDTO
      */
     @Schema(description = "视频文件列表 (包含uploadId和用户自定义文件名)", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotEmpty(message = "没有视频文件")
-    private List <VideoFileUploadVO> videoFileUploadList;
+    private List <VideoFileUploadDTO> videoFileUploadList;
 }

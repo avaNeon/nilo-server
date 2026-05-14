@@ -18,7 +18,6 @@ import com.neon.niloweb.mapper.UserInfoMapper;
 import com.neon.niloweb.mapper.VideoInfoFileMapper;
 import com.neon.niloweb.mapper.VideoInfoMapper;
 import com.neon.niloweb.repository.redis.CategoryRedisRepository;
-import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -164,12 +163,18 @@ public class VideoService
      * 获取分P文件信息
      *
      * @param videoId 视频ID
+     * @param userId
      * @return 所有分P文件信息
      */
-    public List <VideoInfoFileVO> loadVideoFile(@NotNull Long videoId)
+    public List <VideoInfoFileVO> loadVideoFile(long videoId)
     {
         List <VideoInfoFileVO> partitionFiles = videoInfoFileMapper.selectVoByVideoID(videoId);
         if (partitionFiles == null || partitionFiles.isEmpty())
+        {
+            throw new BusinessException(ResponseCode.NOT_FOUND);
+        }
+        VideoInfo videoInfo = videoInfoMapper.selectByVideoId(videoId);
+        if (videoInfo == null)
         {
             throw new BusinessException(ResponseCode.NOT_FOUND);
         }

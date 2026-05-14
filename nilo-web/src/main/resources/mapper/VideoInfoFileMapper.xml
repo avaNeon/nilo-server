@@ -2,7 +2,6 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.neon.niloweb.mapper.VideoInfoFileMapper">
-
     <!--实体映射-->
     <resultMap id="base_result_map" type="com.neon.nilocommon.entity.po.VideoInfoFile">
         <!--唯一ID-->
@@ -394,5 +393,4 @@
         FROM video_info_file v
         where v.video_id=#{videoId}
     </select>
-
 </mapper>

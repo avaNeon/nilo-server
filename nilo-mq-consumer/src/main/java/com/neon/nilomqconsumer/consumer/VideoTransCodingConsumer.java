@@ -10,8 +10,7 @@ import com.neon.nilocommon.entity.po.VideoInfoFileUpload;
 import com.neon.nilocommon.entity.po.VideoInfoUpload;
 import com.neon.nilocommon.entity.query.VideoInfoFileUploadQuery;
 import com.neon.nilocommon.entity.query.VideoInfoUploadQuery;
-import com.neon.nilocommon.util.FFmpegUtil;
-import com.neon.nilocommon.util.FileUtil;
+import com.neon.nilocommon.util.FfmpegUtil;
 import com.neon.nilocommon.util.VideoMergeUtils;
 import com.neon.nilomqconsumer.mapper.VideoInfoFileUploadMapper;
 import com.neon.nilomqconsumer.mapper.VideoInfoUploadMapper;
@@ -27,6 +26,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -43,6 +43,8 @@ public class VideoTransCodingConsumer
     private final VideoInfoUploadMapper <VideoInfoUpload, VideoInfoUploadQuery> videoInfoUploadMapper;
 
     private final TransCodingRedisRepository transCodingRedisRepository;
+
+    private final FileDeleteService fileDeleteService;
 
     @Value("${project.folder}")
     private String rootPathStr;
@@ -65,15 +67,15 @@ public class VideoTransCodingConsumer
     @RabbitListener(queues = MqInfo.STORAGE_TRANSCODING_QUEUE)
     public void receiveMessage(VideoInfoFileUpload fileUpload)
     {
+
+        UploadedVideoFileDTO fileDTO = transCodingRedisRepository.getPreUploadKey(fileUpload.getUserId(),
+                                                                                  fileUpload.getUploadId());
         try
         {
-            // 先转换视频封面
-            VideoInfoUpload videoInfoUpload = videoInfoUploadMapper.selectByVideoId(fileUpload.getVideoId());
-            FileUtil.verifyAndMoveCover(rootPathStr, videoInfoUpload.getVideoCover());
-
-            UploadedVideoFileDTO fileDTO = transCodingRedisRepository.getPreUploadKey(fileUpload.getUserId(),
-                                                                                      fileUpload.getUploadId());
-            if (fileDTO == null) throw new RuntimeException("未找到转码文件的记录");
+            if (fileDTO == null)
+            {
+                throw new RuntimeException("未找到转码文件的记录");
+            }
 
             String from = Paths.get(rootPathStr, Constants.FILE_FOLDER_NAME, Constants.TMP_FOLDER_NAME, fileDTO.getFilePath())
                                .toString();
@@ -91,13 +93,13 @@ public class VideoTransCodingConsumer
             VideoMergeUtils.mergeChunks(to, completeVideoPath, true);
 
             // 检查合并后的文件是否包含视频流
-            if (!FFmpegUtil.hasVideoStream(completeVideoPath))
+            if (!FfmpegUtil.hasVideoStream(completeVideoPath))
             {
                 throw new RuntimeException("文件不包含视频流，无法转码");
             }
 
             // 获取视频时长
-            Integer duration = FFmpegUtil.getVideoDuration(completeVideoPath, false);
+            Integer duration = FfmpegUtil.getVideoDuration(completeVideoPath, false);
             if (duration == null)
             {
                 throw new RuntimeException("无法获取视频时长");
@@ -119,12 +121,39 @@ public class VideoTransCodingConsumer
         catch (Exception e)
         {
             fileUpload.setTransferResult(VideoFileStatus.TRANSCODING_FAIL.getStatus());
+            // 转码失败的文件，其文件要么在TMP路径，要么在VIDEO路径，前者不用管，后者只要在 video_upload_file 中有记录，DB中记录在用户再次提交时删除，文件现在就删除
+            // 幂等删除，因为有3次重试，我们不删除redis中的记录，但是把目标地址的文件删除，这样后续重试也有原文件（如果不是原文件异常的情况）
+            // 必须是同步删除，否则可能出现刚产生新文件就被删除的情况
+            try
+            {
+                if (fileDTO != null)
+                {
+                    String to = Paths.get(rootPathStr,
+                                          Constants.FILE_FOLDER_NAME,
+                                          Constants.VIDEO_FOLDER_NAME,
+                                          fileDTO.getFilePath()).toString();
+                    fileDeleteService.delete(to);
+                }
+            }
+            catch (InvalidPathException invalidPathException)
+            {
+                // 文件路径不合法可能是由于 video_info_file_upload 存了脏数据，便于排错
+                log.warn("文件路径不合法：{}，异常信息：{}", fileDTO, invalidPathException.toString());
+            }
+            catch (Exception innerException)
+            {
+                // 删除文件失败在日志中记录一下，避免硬盘存脏文件
+                log.error("文件删除失败！文件路径：{}，异常信息:{}",
+                          Paths.get(rootPathStr, Constants.FILE_FOLDER_NAME, Constants.VIDEO_FOLDER_NAME, fileDTO.getFilePath()),
+                          innerException.toString());
+            }
             throw new RuntimeException("视频转码失败", e);
         }
         finally
         {
             // 将对VideoInfoFileUpload的修改保存到MySQL
             videoInfoFileUploadMapper.updateByUploadIdAndUserId(fileUpload, fileUpload.getUploadId(), fileUpload.getUserId());
+            // 查询是否有文件转码失败
             VideoInfoFileUploadQuery query = new VideoInfoFileUploadQuery();
             query.setVideoId(fileUpload.getVideoId());
             query.setTransferResult(VideoFileStatus.TRANSCODING_FAIL.getStatus());
@@ -164,13 +193,13 @@ public class VideoTransCodingConsumer
     private void convertVideo2Ts(String videoPathStr) throws IOException
     {
         String parentPath = Path.of(videoPathStr).getParent().toString();
-        FFmpegUtil.VideoSize sourceSize = FFmpegUtil.getVideoSize(videoPathStr);
+        FfmpegUtil.VideoSize sourceSize = FfmpegUtil.getVideoSize(videoPathStr);
         List <HlsVariant> variants = selectHlsVariants(sourceSize);
 
         for (HlsVariant variant : variants)
         {
             String outputPath = Paths.get(parentPath, variant.folderName()).toString();
-            FFmpegUtil.convertVideo2Ts(videoPathStr,
+            FfmpegUtil.convertVideo2Ts(videoPathStr,
                                        outputPath,
                                        variant.width(),
                                        variant.height(),
@@ -183,13 +212,14 @@ public class VideoTransCodingConsumer
         Files.deleteIfExists(Path.of(videoPathStr));
     }
 
-    private List <HlsVariant> selectHlsVariants(FFmpegUtil.VideoSize sourceSize)
+    private List <HlsVariant> selectHlsVariants(FfmpegUtil.VideoSize sourceSize)
     {
         List <HlsVariant> variants = new ArrayList <>();
         if (sourceSize.height() >= 720)
         {
+            int width = evenSize(sourceSize.width() * 720 / sourceSize.height());
             variants.add(new HlsVariant(VideoResolution.RES_720P.getFolderName(),
-                                        1280,
+                                        width,
                                         720,
                                         VideoResolution.RES_720P.getResolution(),
                                         4000,
@@ -200,8 +230,9 @@ public class VideoTransCodingConsumer
 
         if (sourceSize.height() >= 480)
         {
+            int width = evenSize(sourceSize.width() * 480 / sourceSize.height());
             variants.add(new HlsVariant(VideoResolution.RES_480P.getFolderName(),
-                                        854,
+                                        width,
                                         480,
                                         VideoResolution.RES_480P.getResolution(),
                                         1600,
@@ -233,21 +264,21 @@ public class VideoTransCodingConsumer
     private void writeMasterM3u8(Path parentPath, List <HlsVariant> variants) throws IOException
     {
         StringBuilder content = new StringBuilder("""
-                                                  #EXTM3U
-                                                  #EXT-X-VERSION:3
-                                                  #EXT-X-INDEPENDENT-SEGMENTS
-                                                  """);
+                                                          #EXTM3U
+                                                          #EXT-X-VERSION:3
+                                                          #EXT-X-INDEPENDENT-SEGMENTS
+                                                          """);
         for (HlsVariant variant : variants)
         {
             content.append("""
-                           #EXT-X-STREAM-INF:BANDWIDTH=%d,AVERAGE-BANDWIDTH=%d,RESOLUTION=%dx%d,CODECS="%s,mp4a.40.2"
-                           playlist/%d.m3u8
-                           """.formatted(variant.bandwidth(),
-                                          variant.averageBandwidth(),
-                                          variant.width(),
-                                          variant.height(),
-                                          variant.videoCodec(),
-                                          variant.resolution()));
+                                   #EXT-X-STREAM-INF:BANDWIDTH=%d,AVERAGE-BANDWIDTH=%d,RESOLUTION=%dx%d,CODECS="%s,mp4a.40.2"
+                                   playlist/%d.m3u8
+                                   """.formatted(variant.bandwidth(),
+                                                 variant.averageBandwidth(),
+                                                 variant.width(),
+                                                 variant.height(),
+                                                 variant.videoCodec(),
+                                                 variant.resolution()));
         }
         Files.writeString(parentPath.resolve(Constants.MASTER_M3U8_NAME), content.toString(), StandardCharsets.UTF_8);
     }

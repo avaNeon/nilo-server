@@ -11,12 +11,13 @@ import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.po.VideoInfoFile;
 import com.neon.nilocommon.entity.query.VideoInfoFileQuery;
 import com.neon.nilocommon.exception.BusinessException;
-import com.neon.nilocommon.util.FFmpegUtil;
+import com.neon.nilocommon.util.FfmpegUtil;
 import com.neon.nilocommon.util.FileUtil;
 import com.neon.nilocommon.util.StringUtil;
 import com.neon.niloweb.config.SystemConfig;
 import com.neon.niloweb.config.WebConfig;
 import com.neon.niloweb.mapper.VideoInfoFileMapper;
+import com.neon.niloweb.repository.rabbitmq.VideoMqRepository;
 import com.neon.niloweb.repository.redis.UploadRedisRepository;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletResponse;
@@ -33,6 +34,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -49,6 +51,8 @@ public class FileService
     private final UploadRedisRepository uploadRedisRepository;
 
     private final VideoInfoFileMapper <VideoInfoFile, VideoInfoFileQuery> videoInfoFileMapper;
+
+    private final VideoMqRepository videoMqRepository;
 
     /**
      * 上传视频封面（分类的封面和视频封面都是放在file/cover下的，但是视频的cover按天保存，分类的cover按月保存）<hr/>
@@ -86,7 +90,7 @@ public class FileService
         // 生成缩略图
         if (createThumbnail)
         {
-            FFmpegUtil.creatImgThumbnail(filePath, false);
+            FfmpegUtil.creatImgThumbnail(filePath, false);
         }
 
         return dateName + "/" + savedFileName;
@@ -196,7 +200,16 @@ public class FileService
         }
         else
         {
-            FileUtil.deleteFolder(new File(webConfig.getRootFilePath() + "/" + Constants.FILE_FOLDER_NAME + "/" + Constants.TMP_FOLDER_NAME + "/" + fileDTO.getFilePath()));
+            Path deletePath = Path.of(webConfig.getRootFilePath(),
+                                      Constants.FILE_FOLDER_NAME,
+                                      Constants.TMP_FOLDER_NAME,
+                                      fileDTO.getFilePath());
+            if (FileUtil.fileExists(deletePath.toString()))
+            {
+                ArrayList <String> deleteList = new ArrayList <>();
+                deleteList.add(deletePath.toString());
+                videoMqRepository.addVideoFile2DeleteQueue(deleteList);
+            }
         }
     }
 

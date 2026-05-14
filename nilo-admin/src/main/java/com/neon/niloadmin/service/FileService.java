@@ -4,7 +4,7 @@ import com.neon.niloadmin.config.AdminConfig;
 import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.constants.DatePattern;
 import com.neon.nilocommon.exception.BusinessException;
-import com.neon.nilocommon.util.FFmpegUtil;
+import com.neon.nilocommon.util.FfmpegUtil;
 import com.neon.nilocommon.util.StringUtil;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletResponse;
@@ -52,21 +52,23 @@ public class FileService
         // 生成缩略图
         if (createThumbnail)
         {
-            FFmpegUtil.creatImgThumbnail(filePath, adminConfig.isShowCommandLogs());
+            FfmpegUtil.creatImgThumbnail(filePath, adminConfig.isShowCommandLogs());
         }
 
         return "/" + dateName + "/" + savedFileName;
     }
 
-    public void downloadImage(HttpServletResponse response, String filePath)
+    public void downloadImage(HttpServletResponse response, String filePath, boolean tmp)
     {
-        String coverRootPath = Paths.get(adminConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME, Constants.COVER_FOLDER_NAME).toString();
+        String coverRootPath = Paths.get(adminConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME, Constants.COVER_FOLDER_NAME)
+                                    .toString();
         String absolutePath = Paths.get(coverRootPath, filePath).toString();
         if (!StringUtil.isValidPath(absolutePath, coverRootPath)) throw new BusinessException("非法的文件路径");
         String suffix = StringUtil.getSuffix(filePath);
         response.setContentType(resolveImageContentType(suffix));
         response.setHeader("Cache-Control", "max-age=2592000"); // 30天
-        readFile(response, Constants.COVER_FOLDER_NAME + filePath);
+        String folderName = tmp ? Constants.TMP_FOLDER_NAME : Constants.COVER_FOLDER_NAME;
+        readFile(response, folderName + "/" + filePath);
     }
 
     /**
@@ -76,7 +78,8 @@ public class FileService
     {
         File file = new File(adminConfig.getRootFilePath() + "/" + Constants.FILE_FOLDER_NAME + "/" + fileName);
         if (!file.exists()) return;
-        try (ServletOutputStream outputStream = response.getOutputStream() ; FileInputStream inputStream = new FileInputStream(file))
+        try (ServletOutputStream outputStream = response.getOutputStream() ; FileInputStream inputStream = new FileInputStream(
+                file))
         {
             byte[] bytes = new byte[1024];
             int len;

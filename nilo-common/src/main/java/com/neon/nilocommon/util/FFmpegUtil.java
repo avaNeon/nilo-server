@@ -11,7 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 
-public class FFmpegUtil
+public class FfmpegUtil
 {
     public static class VideoSize
     {
@@ -106,7 +106,7 @@ public class FFmpegUtil
     }
 
     /**
-     * 将视频转换成Ts分片，转换为H.264编码、1280x720分辨率、60fps帧率、4Mbps码率<hr/>
+     * 将视频转换成Ts分片，转换为H.264编码、高度720px、60fps帧率、4Mbps码率，宽度按原比例自适应<hr/>
      * <li>生成的TS文件分片自动保存在原文件同目录下的tsFolder文件夹中</li>
      * <li>生成的m3u8索引文件保存在原文件同目录下</li>
      * <h4>注意：这个操作很耗时</h4>
@@ -117,7 +117,11 @@ public class FFmpegUtil
     public static void convertVideo2Ts(String srcPathStr, boolean showLogs) throws IOException
     {
         Path parentFolder = Path.of(srcPathStr).getParent();
-        convertVideo2Ts(srcPathStr, parentFolder.toString(), 1280, 720, VideoResolution.RES_720P.getResolution(), 4000, showLogs);
+        VideoSize sourceSize = getVideoSize(srcPathStr);
+        int width = sourceSize.width() * 720 / sourceSize.height();
+        if (width % 2 != 0) width--;
+        if (width < 2) width = 2;
+        convertVideo2Ts(srcPathStr, parentFolder.toString(), width, 720, VideoResolution.RES_720P.getResolution(), 4000, showLogs);
     }
 
     /**
@@ -140,13 +144,11 @@ public class FFmpegUtil
     {
         Path outputFolder = Path.of(outputFolderStr);
         Files.createDirectories(outputFolder);
-        String tsPathStr = outputFolder.toAbsolutePath() + "/" + Constants.TS_NAME;
+        Path tsPath = outputFolder.toAbsolutePath().resolve(Constants.TS_NAME);
+        String tsPathStr = tsPath.toString();
         String bitrate = bitrateKbps + "k";
         String bufferSize = bitrateKbps * 2 + "k";
-        String videoFilter = "scale=%d:%d:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=%d:%d:(ow-iw)/2:(oh-ih)/2".formatted(width,
-                                                                                                                                                 height,
-                                                                                                                                                 width,
-                                                                                                                                                 height);
+        String videoFilter = "scale=%d:%d".formatted(width, height);
         String cmd = """
                 ffmpeg -y -i "%s" -vf "%s" -r 60 -c:v libx264 -b:v %s -maxrate %s -bufsize %s -c:a aac -b:a 128k -ar 44100 -ac 2 -pix_fmt yuv420p "%s"
                 """.formatted(srcPathStr, videoFilter, bitrate, bitrate, bufferSize, tsPathStr);
@@ -160,5 +162,6 @@ public class FFmpegUtil
                 ffmpeg -i "%s" -c copy -map 0 -f segment -segment_list "%s" -segment_list_entry_prefix %s -segment_time 10 %s/%%4d.ts
                 """.formatted(tsPathStr, m3u8PathStr, segmentEntryPrefix, tsFolderPathStr);
         ProcessUtil.executeCommand(cmd, showLogs);
+        Files.deleteIfExists(tsPath);
     }
 }

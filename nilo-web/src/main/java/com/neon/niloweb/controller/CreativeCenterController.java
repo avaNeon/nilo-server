@@ -7,15 +7,16 @@ import com.neon.nilocommon.entity.dto.VideoUploadDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.po.CategoryInfo;
 import com.neon.nilocommon.entity.po.VideoInfoFileUpload;
-import com.neon.nilocommon.entity.vo.ResponseVO;
-import com.neon.nilocommon.entity.vo.VideoFileUploadVO;
-import com.neon.nilocommon.entity.vo.VideoStatusCountVO;
+import com.neon.nilocommon.entity.vo.*;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.repository.redis.CategoryRedisRepository;
 import com.neon.niloweb.service.CreativeCenterService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -24,7 +25,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@Tag(name = "创作中心视频上传管理")
+@Tag(name = "创作中心视频管理")
 @RequestMapping(path = "/creativeCenter")
 @Validated
 @RequiredArgsConstructor
@@ -45,11 +46,11 @@ public class CreativeCenterController
      */
     @Operation(summary = "上传/修改视频")
     @PostMapping(path = "/video")
-    public ResponseVO <Object> videoUpload(@RequestHeader(name = "token") String token,
+    public ResponseVO <Object> videoUpload(@RequestHeader(name = "token") @NotEmpty String token,
                                            @RequestBody @Valid @NotNull VideoUploadDTO videoUploadDTO)
     {
         TokenUserInfo tokenUserInfo = getLoginState(token);
-        List <VideoFileUploadVO> uploadIdList = videoUploadDTO.getVideoFileUploadList();
+        List <VideoFileUploadDTO> uploadIdList = videoUploadDTO.getVideoFileUploadList();
         if (uploadIdList == null || uploadIdList.isEmpty())
         {
             throw new BusinessException(ResponseCode.SERVER_ERROR); // 文件为什么是空的！
@@ -98,7 +99,9 @@ public class CreativeCenterController
     /**
      * 查询用户上传视频
      *
-     * @param status    视频状态
+     * @param status    视频状态：<br/>
+     *                  -1：进行中（包括：0：转码中、1：转码失败、2：转码成功，未审核）<br/>
+     *                  3：已通过、4：未通过
      * @param pageNo    页号
      * @param pageSize  页大小
      * @param nameFuzzy 名称（模糊搜索）
@@ -106,11 +109,13 @@ public class CreativeCenterController
      */
     @Operation(summary = "获取视频列表")
     @GetMapping(path = "/video/list")
-    public ResponseVO <List <VideoInfoUploadJoinDTO>> loadVideoList(@RequestHeader(name = "token") String token,
-                                                                    @RequestParam(name = "status") Short status,
-                                                                    @RequestParam(name = "pageNo") Integer pageNo,
-                                                                    @RequestParam(name = "pageSize") Integer pageSize,
-                                                                    @RequestParam(name = "nameFuzzy") String nameFuzzy)
+    public ResponseVO <List <VideoInfoUploadJoinDTO>> loadVideoList(@RequestHeader(name = "token") @NotEmpty String token,
+                                                                    @RequestParam(name = "status", required = false) Short status,
+                                                                    @RequestParam(name = "pageNo") @Min(1) Integer pageNo,
+                                                                    @RequestParam(name = "pageSize") @Max(10) @Min(1)
+                                                                    Integer pageSize,
+                                                                    @RequestParam(name = "nameFuzzy", required = false)
+                                                                    String nameFuzzy)
     {
         TokenUserInfo tokenUserInfo = getLoginState(token);
         List <VideoInfoUploadJoinDTO> result = creativeCenterService.loadVideoList(tokenUserInfo,
@@ -124,14 +129,151 @@ public class CreativeCenterController
     /**
      * 获取不同状态视频的数量
      *
+     * @param nameFuzzy 模糊视频名称
      * @return 三种状态视频的数量
      */
+    @Operation(summary = "获取视频数量")
     @GetMapping(path = "/video/count")
-    public ResponseVO <VideoStatusCountVO> getVideoStatusCount(@RequestHeader(name = "token") String token)
+    public ResponseVO <VideoStatusCountVO> getVideoStatusCount(@RequestHeader(name = "token") String token,
+                                                               @RequestParam(name = "nameFuzzy", required = false)
+                                                               String nameFuzzy)
     {
         TokenUserInfo tokenUserInfo = getLoginState(token);
-        VideoStatusCountVO videoStatusCount = creativeCenterService.getVideoStatusCount(tokenUserInfo);
+        VideoStatusCountVO videoStatusCount = creativeCenterService.getVideoStatusCount(tokenUserInfo, nameFuzzy);
         return ResponseVO.success(videoStatusCount);
+    }
+
+    @Operation(summary = "获取视频上传文件信息",
+               description = "获取指定视频文件的所有上传文件的简单信息，包括文件名、文件索引、持续时间、文件大小、上传ID")
+    @GetMapping(path = "/file/{videoId}")
+    public ResponseVO <List <VideoInfoFileUploadVO>> loadVideoFileUpload(@RequestHeader(name = "token") @NotEmpty String token,
+                                                                         @PathVariable(name = "videoId") @NotNull Long videoId)
+    {
+        TokenUserInfo loginState = getLoginState(token);
+
+        Long userId = loginState.getUserInfo().getUserId();
+        if (userId == null)
+        {
+            throw new BusinessException(ResponseCode.NOT_LOGIN);
+        }
+        return ResponseVO.success(creativeCenterService.loadVideoFileUpload(videoId, userId));
+    }
+
+    @Operation(summary = "更改视频互动权限")
+    @PostMapping("/video/interaction/{videoId}")
+    public ResponseVO <Object> setInteraction(@RequestHeader(name = "token") @NotEmpty String token,
+                                              @PathVariable(name = "videoId") @NotNull Long videoId,
+                                              @RequestParam(name = "interaction") String interaction)
+    {
+        TokenUserInfo loginState = getLoginState(token);
+        creativeCenterService.setInteraction(loginState.getUserInfo().getUserId(), videoId, interaction);
+        return ResponseVO.success(null);
+    }
+
+    @Operation(summary = "用户删除视频")
+    @DeleteMapping(path = "/video/{videoId}")
+    public ResponseVO <Object> deleteVideo(@RequestHeader(name = "token") @NotEmpty String token,
+                                           @PathVariable(name = "videoId") @NotNull Long videoId,
+                                           @RequestParam(name = "detail") @NotEmpty String detail)
+    {
+        TokenUserInfo loginState = getLoginState(token);
+        Long userId = loginState.getUserInfo().getUserId();
+        if (userId == null)
+        {
+            throw new BusinessException(ResponseCode.NOT_LOGIN);
+        }
+        creativeCenterService.deleteVideo(userId, videoId, detail);
+        return ResponseVO.success(null);
+    }
+
+    @Operation(summary = "获取评论管理信息数量")
+    @GetMapping(path = "/comment/count")
+    public ResponseVO <Long> getCommentManagementInfoCount(@RequestHeader(name = "token") @NotEmpty String token,
+                                                           @RequestParam(name = "videoId", required = false) Long videoId,
+                                                           @RequestParam(name = "nameFuzzy", required = false) String nameFuzzy)
+    {
+        TokenUserInfo loginState = getLoginState(token);
+        Long userId = loginState.getUserInfo().getUserId();
+        if (userId == null)
+        {
+            throw new BusinessException(ResponseCode.NOT_LOGIN);
+        }
+        return ResponseVO.success(creativeCenterService.getCommentManagementInfoCount(userId, videoId, nameFuzzy));
+    }
+
+    @Operation(summary = "获取评论管理信息")
+    @GetMapping(path = "/comment/{pageNo}/{pageSize}")
+    public ResponseVO <List <CommentManagementVO>> getCommentManagementInfo(@RequestHeader(name = "token") @NotEmpty String token,
+                                                                            @RequestParam(name = "videoId", required = false)
+                                                                            Long videoId,
+                                                                            @PathVariable(name = "pageNo") @NotNull @Min(1)
+                                                                            Integer pageNo,
+                                                                            @PathVariable(name = "pageSize") @Min(1) @Max(10)
+                                                                            @NotNull Integer pageSize,
+                                                                            @RequestParam(name = "nameFuzzy", required = false)
+                                                                            String nameFuzzy)
+    {
+        TokenUserInfo loginState = getLoginState(token);
+        Long userId = loginState.getUserInfo().getUserId();
+        if (userId == null)
+        {
+            throw new BusinessException(ResponseCode.NOT_LOGIN);
+        }
+        return ResponseVO.success(creativeCenterService.getCommentManagementInfo(userId, videoId, nameFuzzy, pageNo, pageSize));
+    }
+
+    @Operation(summary = "获取弹幕管理信息数量")
+    @GetMapping(path = "/danmaku")
+    public ResponseVO <Long> getDanmakuManagementInfoCount(@RequestHeader(name = "token") @NotEmpty String token,
+                                                           @RequestParam(name = "videoId", required = false) Long videoId,
+                                                           @RequestParam(name = "fileIndex", required = false) Integer fileIndex,
+                                                           @RequestParam(name = "nameFuzzy", required = false) String nameFuzzy)
+    {
+        TokenUserInfo loginState = getLoginState(token);
+        Long userId = loginState.getUserInfo().getUserId();
+        if (userId == null)
+        {
+            throw new BusinessException(ResponseCode.NOT_LOGIN);
+        }
+        // 如果视频都没有指定，就更别提分P了
+        if (videoId == null)
+        {
+            fileIndex = null;
+        }
+        return ResponseVO.success(creativeCenterService.getDanmakuManagementInfoCount(userId, videoId, fileIndex, nameFuzzy));
+    }
+
+    @Operation(summary = "获取弹幕管理信息")
+    @GetMapping(path = "/danmaku/{pageNo}/{pageSize}")
+    public ResponseVO <List <DanmakuManagementVO>> getDanmakuManagementInfo(@RequestHeader(name = "token") @NotEmpty String token,
+                                                                            @RequestParam(name = "videoId", required = false)
+                                                                            Long videoId,
+                                                                            @RequestParam(name = "fileIndex", required = false)
+                                                                            Integer fileIndex,
+                                                                            @RequestParam(name = "nameFuzzy", required = false)
+                                                                            String nameFuzzy,
+                                                                            @PathVariable(name = "pageNo") @NotNull @Min(1)
+                                                                            Integer pageNo,
+                                                                            @PathVariable(name = "pageSize") @Min(1) @Max(10)
+                                                                            @NotNull Integer pageSize)
+    {
+        TokenUserInfo loginState = getLoginState(token);
+        Long userId = loginState.getUserInfo().getUserId();
+        if (userId == null)
+        {
+            throw new BusinessException(ResponseCode.NOT_LOGIN);
+        }
+        // 如果视频都没有指定，就更别提分P了
+        if (videoId == null)
+        {
+            fileIndex = null;
+        }
+        return ResponseVO.success(creativeCenterService.getDanmakuManagementInfo(userId,
+                                                                                 videoId,
+                                                                                 fileIndex,
+                                                                                 nameFuzzy,
+                                                                                 pageNo,
+                                                                                 pageSize));
     }
 
     /**

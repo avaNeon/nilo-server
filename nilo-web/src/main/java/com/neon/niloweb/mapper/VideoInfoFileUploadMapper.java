@@ -13,10 +13,11 @@ public interface VideoInfoFileUploadMapper<T, P> extends BaseMapper <T, P>
     /**
      * <h4>根据fileId批量删除在fileIdList指定的fileId</h4><hr/>
      * 注意，这里也必须要需要用户id防止其它用户删除其它的视频提交
+     *
      * @param fileIdList 一组fileId列表，制定了要删除的文件对象
      * @return 被删除的记录行数
      */
-    Integer deleteBatchByFileId(@Param("fileIdList") List <Long> fileIdList,@Param("userId") Long userId);
+    Integer deleteBatchByFileId(@Param("fileIdList") List <Long> fileIdList, @Param("userId") Long userId);
 
     /**
      * 根据FileId更新
@@ -35,6 +36,13 @@ public interface VideoInfoFileUploadMapper<T, P> extends BaseMapper <T, P>
      */
     T selectByFileId(@Param("fileId") Long fileId);
 
+    /**
+     * 根据videoId获取对象
+     *
+     * @param videoId 视频ID
+     */
+    List <T> selectByVideoId(@Param("videoId") Long videoId);
+
 
     /**
      * 根据UploadIdAndUserId更新
@@ -52,6 +60,5 @@ public interface VideoInfoFileUploadMapper<T, P> extends BaseMapper <T, P>
      * 根据UploadIdAndUserId获取对象
      */
     T selectByUploadIdAndUserId(@Param("uploadId") Long uploadId, @Param("userId") Long userId);
-
 
 }

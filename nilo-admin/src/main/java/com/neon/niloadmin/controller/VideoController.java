@@ -52,4 +52,17 @@ public class VideoController
         return ResponseVO.success(null);
     }
 
+    /**
+     * 恢复被删除的视频
+     *
+     * @param videoId 视频ID
+     */
+    @Operation(summary = "恢复被删除的视频")
+    @PutMapping(path = "/{videoId}")
+    public ResponseVO <Object> recoverVideo(@PathVariable(name = "videoId") @NotNull Long videoId)
+    {
+        videoService.recoverVideo(videoId);
+        return ResponseVO.success(null);
+    }
+
 }

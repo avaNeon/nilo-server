@@ -24,6 +24,30 @@
         <result column="display_moment" property="displayMoment"/>
     </resultMap>
 
+    <resultMap id="management_vo_result_map" type="com.neon.nilocommon.entity.vo.DanmakuManagementVO">
+        <!--弹幕ID【对外展示】-->
+        <result column="danmaku_id" property="danmakuId"/>
+        <!--视频ID-->
+        <result column="video_id" property="videoId"/>
+        <!--视频文件ID-->
+        <result column="file_index" property="fileIndex"/>
+        <!--用户ID-->
+        <result column="user_id" property="userId"/>
+        <!--发布时间-->
+        <result column="post_time" property="postTime"/>
+        <!--内容-->
+        <result column="content" property="content"/>
+        <!--展示位置-->
+        <result column="position" property="position"/>
+        <!--颜色(HEX+不透明度)-->
+        <result column="color" property="color"/>
+        <!--展示时刻（单位：毫秒）-->
+        <result column="display_moment" property="displayMoment"/>
+        <!--用户名-->
+        <result column="nick_name" property="nickName"/>
+        <!--视频名称-->
+        <result column="video_name" property="videoName"/>
+    </resultMap>
 
     <!-- 通用查询结果列-->
     <sql id="base_column_list">
@@ -407,5 +431,61 @@
         select
         <include refid="base_column_list"/>
         from video_danmaku v where danmaku_id=#{danmakuId}
+    </select>
+
+    <select id="selectDanmakuManagementVOCount" resultType="java.lang.Long">
+        SELECT COUNT(1)
+        FROM video_danmaku vd
+        LEFT JOIN video_info v ON vd.video_id = v.video_id
+        LEFT JOIN video_info_file vf ON vd.file_id = vf.file_id
+        LEFT JOIN user_info u ON vd.user_id = u.user_id
+        <where>
+            <if test="userId != null">
+                AND v.user_id = #{userId}
+            </if>
+            <if test="videoId != null">
+                AND vd.video_id = #{videoId}
+            </if>
+            <if test="fileIndex != null">
+                AND vf.file_index = #{fileIndex}
+            </if>
+            <if test="nameFuzzy != null and nameFuzzy != ''">
+                AND v.video_name LIKE CONCAT('%',#{nameFuzzy},'%')
+            </if>
+        </where>
+    </select>
+
+    <select id="selectDanmakuManagementVO" resultMap="management_vo_result_map">
+        SELECT vd.danmaku_id,
+        vd.video_id,
+        vf.file_index,
+        vd.user_id,
+        vd.post_time,
+        vd.content,
+        vd.position,
+        vd.color,
+        vd.display_moment,
+        u.nick_name,
+        v.video_name
+        FROM video_danmaku vd
+        LEFT JOIN video_info v ON vd.video_id = v.video_id
+        LEFT JOIN video_info_file vf ON vd.file_id = vf.file_id
+        LEFT JOIN user_info u ON vd.user_id = u.user_id
+        <where>
+            <if test="userId != null">
+                AND v.user_id = #{userId}
+            </if>
+            <if test="videoId != null">
+                AND vd.video_id = #{videoId}
+            </if>
+            <if test="fileIndex != null">
+                AND vf.file_index = #{fileIndex}
+            </if>
+            <if test="nameFuzzy != null and nameFuzzy != ''">
+                AND v.video_name LIKE CONCAT('%',#{nameFuzzy},'%')
+            </if>
+        </where>
+        ORDER BY vd.post_time DESC
+        LIMIT #{start},#{pageSize}
     </select>
 </mapper>

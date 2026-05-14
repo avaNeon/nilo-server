@@ -45,7 +45,7 @@ public class VideoDanmakuService
     /**
      * 发布弹幕
      *
-     * @param userId       用户ID
+     * @param userId     用户ID
      * @param danmakuDTO 弹幕DTO
      */
     @Transactional(rollbackFor = Exception.class)
@@ -137,6 +137,29 @@ public class VideoDanmakuService
                                                               BeanUtils.copyProperties(danmaku, danmakuVO);
                                                               return danmakuVO;
                                                           }).toList();
+    }
+
+    /**
+     * 删除弹幕
+     *
+     * @param userId    用户ID
+     * @param danmakuId 弹幕ID
+     */
+    public void deleteDanmaku(long userId, long danmakuId)
+    {
+        VideoDanmaku videoDanmaku = videoDanmakuMapper.selectByDanmakuId(danmakuId);
+        // 不能删除不存在的弹幕
+        if (videoDanmaku == null)
+        {
+            throw new BusinessException(ResponseCode.NOT_FOUND);
+        }
+        VideoInfo videoInfo = videoInfoMapper.selectByVideoId(videoDanmaku.getVideoId());
+        // 只能删除 自己的弹幕 或者 自己视频下的弹幕
+        if (videoDanmaku.getUserId() != userId && videoInfo.getUserId() != userId)
+        {
+            throw new BusinessException(ResponseCode.NOT_FOUND);
+        }
+        videoDanmakuMapper.deleteByDanmakuId(danmakuId);
     }
 
     /**

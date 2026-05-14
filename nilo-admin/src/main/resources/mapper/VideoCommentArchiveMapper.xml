@@ -1,0 +1,561 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neon.niloadmin.mapper.VideoCommentArchiveMapper">
+
+	<!--实体映射-->
+	<resultMap id="base_result_map" type="com.neon.nilocommon.entity.po.VideoCommentArchive">
+		<!--评论ID【对外展示】-->
+		<result column="comment_id" property="commentId"  />
+		<!--父级评论ID（为0表示顶层评论）-->
+		<result column="parent_comment_id" property="parentCommentId"  />
+		<!--视频ID-->
+		<result column="video_id" property="videoId"  />
+		<!--视频用户ID-->
+		<result column="video_user_id" property="videoUserId"  />
+		<!--回复内容-->
+		<result column="content" property="content"  />
+		<!--图片路径-->
+		<result column="img_paths" property="imgPaths"  />
+		<!--用户ID-->
+		<result column="user_id" property="userId"  />
+		<!--回复人ID-->
+		<result column="reply_user_id" property="replyUserId"  />
+		<!--0:未置顶 1:置顶-->
+		<result column="top_type" property="topType"  />
+		<!--发布时间-->
+		<result column="post_time" property="postTime"  />
+		<!--点赞数量-->
+		<result column="upvote_count" property="upvoteCount"  />
+		<!--点踩数量-->
+		<result column="downvote_count" property="downvoteCount"  />
+		<!--（下一层）回复数量-->
+		<result column="reply_count" property="replyCount"  />
+		<!--删除标记（0：未删除，1：已删除）-->
+		<result column="deleted" property="deleted"  />
+	</resultMap>
+
+
+	<!-- 通用查询结果列-->
+	<sql id="base_column_list">
+		 v.comment_id,v.parent_comment_id,v.video_id,v.video_user_id,v.content,
+		 v.img_paths,v.user_id,v.reply_user_id,v.top_type,v.post_time,
+		 v.upvote_count,v.downvote_count,v.reply_count,v.deleted
+	</sql>
+
+	<sql id="base_condition_filed">
+			<if test="query.commentId != null">
+				 and  v.comment_id = #{query.commentId}
+			</if>
+			<if test="query.parentCommentId != null">
+				 and  v.parent_comment_id = #{query.parentCommentId}
+			</if>
+			<if test="query.videoId != null">
+				 and  v.video_id = #{query.videoId}
+			</if>
+			<if test="query.videoUserId != null">
+				 and  v.video_user_id = #{query.videoUserId}
+			</if>
+			<if test="query.content != null and query.content!=''">
+				 and  v.content = #{query.content}
+			</if>
+			<if test="query.imgPaths != null and query.imgPaths!=''">
+				 and  v.img_paths = #{query.imgPaths}
+			</if>
+			<if test="query.userId != null">
+				 and  v.user_id = #{query.userId}
+			</if>
+			<if test="query.replyUserId != null">
+				 and  v.reply_user_id = #{query.replyUserId}
+			</if>
+			<if test="query.topType != null">
+				 and  v.top_type = #{query.topType}
+			</if>
+			<if test="query.postTime != null and query.postTime!=''">
+				 <![CDATA[ and  v.post_time=str_to_date(#{query.postTime}, '%Y-%m-%d') ]]>
+			</if>
+			<if test="query.upvoteCount != null">
+				 and  v.upvote_count = #{query.upvoteCount}
+			</if>
+			<if test="query.downvoteCount != null">
+				 and  v.downvote_count = #{query.downvoteCount}
+			</if>
+			<if test="query.replyCount != null">
+				 and  v.reply_count = #{query.replyCount}
+			</if>
+			<if test="query.deleted != null">
+				 and  v.deleted = #{query.deleted}
+			</if>
+	</sql>
+
+	<!-- 通用查询条件列-->
+	<sql id="query_condition">
+	 <where>
+			<include refid="base_condition_filed" />
+			<if test="query.contentFuzzy!= null  and query.contentFuzzy!=''">
+				 and  v.content like concat('%', #{query.contentFuzzy}, '%')
+			</if>
+			<if test="query.imgPathsFuzzy!= null  and query.imgPathsFuzzy!=''">
+				 and  v.img_paths like concat('%', #{query.imgPathsFuzzy}, '%')
+			</if>
+			<if test="query.postTimeStart!= null and query.postTimeStart!=''">
+				 <![CDATA[ and  v.post_time>=str_to_date(#{query.postTimeStart}, '%Y-%m-%d') ]]>
+			</if>
+			<if test="query.postTimeEnd!= null and query.postTimeEnd!=''">
+				 <![CDATA[ and  v.post_time< date_sub(str_to_date(#{query.postTimeEnd},'%Y-%m-%d'),interval -1 day) ]]>
+			</if>
+	 </where>
+	</sql>
+
+	<!-- 查询集合-->
+	<select id="selectList" resultMap="base_result_map" >
+		 SELECT <include refid="base_column_list" /> FROM video_comment_archive v <include refid="query_condition" />
+		 <if test="query.orderBy!=null">
+			 order by ${query.orderBy}
+		 </if>
+		 <if test="query.pageCalculator!=null">
+			 limit #{query.pageCalculator.start},#{query.pageCalculator.end}
+		 </if>
+	</select>
+
+	<!-- 查询数量-->
+	<select id="selectCount" resultType="java.lang.Integer" >
+		 SELECT count(1) FROM video_comment_archive v <include refid="query_condition" />
+	</select>
+
+	<!-- 插入 （匹配有值的字段）-->
+	<insert id="insert" parameterType="com.neon.nilocommon.entity.po.VideoCommentArchive">
+		 INSERT INTO video_comment_archive
+		 <trim prefix="(" suffix=")" suffixOverrides="," >
+			<if test="bean.commentId != null">
+				 comment_id,
+			</if>
+			<if test="bean.parentCommentId != null">
+				 parent_comment_id,
+			</if>
+			<if test="bean.videoId != null">
+				 video_id,
+			</if>
+			<if test="bean.videoUserId != null">
+				 video_user_id,
+			</if>
+			<if test="bean.content != null">
+				 content,
+			</if>
+			<if test="bean.imgPaths != null">
+				 img_paths,
+			</if>
+			<if test="bean.userId != null">
+				 user_id,
+			</if>
+			<if test="bean.replyUserId != null">
+				 reply_user_id,
+			</if>
+			<if test="bean.topType != null">
+				 top_type,
+			</if>
+			<if test="bean.postTime != null">
+				 post_time,
+			</if>
+			<if test="bean.upvoteCount != null">
+				 upvote_count,
+			</if>
+			<if test="bean.downvoteCount != null">
+				 downvote_count,
+			</if>
+			<if test="bean.replyCount != null">
+				 reply_count,
+			</if>
+			<if test="bean.deleted != null">
+				 deleted,
+			</if>
+		 </trim>
+		 <trim prefix="values (" suffix=")" suffixOverrides="," >
+			<if test="bean.commentId!=null">
+				 #{bean.commentId},
+			</if>
+			<if test="bean.parentCommentId!=null">
+				 #{bean.parentCommentId},
+			</if>
+			<if test="bean.videoId!=null">
+				 #{bean.videoId},
+			</if>
+			<if test="bean.videoUserId!=null">
+				 #{bean.videoUserId},
+			</if>
+			<if test="bean.content!=null">
+				 #{bean.content},
+			</if>
+			<if test="bean.imgPaths!=null">
+				 #{bean.imgPaths},
+			</if>
+			<if test="bean.userId!=null">
+				 #{bean.userId},
+			</if>
+			<if test="bean.replyUserId!=null">
+				 #{bean.replyUserId},
+			</if>
+			<if test="bean.topType!=null">
+				 #{bean.topType},
+			</if>
+			<if test="bean.postTime!=null">
+				 #{bean.postTime},
+			</if>
+			<if test="bean.upvoteCount!=null">
+				 #{bean.upvoteCount},
+			</if>
+			<if test="bean.downvoteCount!=null">
+				 #{bean.downvoteCount},
+			</if>
+			<if test="bean.replyCount!=null">
+				 #{bean.replyCount},
+			</if>
+			<if test="bean.deleted!=null">
+				 #{bean.deleted},
+			</if>
+		 </trim>
+	</insert>
+
+	<!-- 插入或者更新 （匹配有值的字段）-->
+	<insert id="insertOrUpdate" parameterType="com.neon.nilocommon.entity.po.VideoCommentArchive">
+		 INSERT INTO video_comment_archive
+		 <trim prefix="(" suffix=")" suffixOverrides=",">
+			<if test="bean.commentId != null">
+				 comment_id,
+			</if>
+			<if test="bean.parentCommentId != null">
+				 parent_comment_id,
+			</if>
+			<if test="bean.videoId != null">
+				 video_id,
+			</if>
+			<if test="bean.videoUserId != null">
+				 video_user_id,
+			</if>
+			<if test="bean.content != null">
+				 content,
+			</if>
+			<if test="bean.imgPaths != null">
+				 img_paths,
+			</if>
+			<if test="bean.userId != null">
+				 user_id,
+			</if>
+			<if test="bean.replyUserId != null">
+				 reply_user_id,
+			</if>
+			<if test="bean.topType != null">
+				 top_type,
+			</if>
+			<if test="bean.postTime != null">
+				 post_time,
+			</if>
+			<if test="bean.upvoteCount != null">
+				 upvote_count,
+			</if>
+			<if test="bean.downvoteCount != null">
+				 downvote_count,
+			</if>
+			<if test="bean.replyCount != null">
+				 reply_count,
+			</if>
+			<if test="bean.deleted != null">
+				 deleted,
+			</if>
+		 </trim>
+		 <trim prefix="values (" suffix=")" suffixOverrides=",">
+			<if test="bean.commentId!=null">
+				 #{bean.commentId},
+			</if>
+			<if test="bean.parentCommentId!=null">
+				 #{bean.parentCommentId},
+			</if>
+			<if test="bean.videoId!=null">
+				 #{bean.videoId},
+			</if>
+			<if test="bean.videoUserId!=null">
+				 #{bean.videoUserId},
+			</if>
+			<if test="bean.content!=null">
+				 #{bean.content},
+			</if>
+			<if test="bean.imgPaths!=null">
+				 #{bean.imgPaths},
+			</if>
+			<if test="bean.userId!=null">
+				 #{bean.userId},
+			</if>
+			<if test="bean.replyUserId!=null">
+				 #{bean.replyUserId},
+			</if>
+			<if test="bean.topType!=null">
+				 #{bean.topType},
+			</if>
+			<if test="bean.postTime!=null">
+				 #{bean.postTime},
+			</if>
+			<if test="bean.upvoteCount!=null">
+				 #{bean.upvoteCount},
+			</if>
+			<if test="bean.downvoteCount!=null">
+				 #{bean.downvoteCount},
+			</if>
+			<if test="bean.replyCount!=null">
+				 #{bean.replyCount},
+			</if>
+			<if test="bean.deleted!=null">
+				 #{bean.deleted},
+			</if>
+		 </trim>
+		 on DUPLICATE key update 
+		 <trim prefix="" suffix="" suffixOverrides=",">
+			<if test="bean.commentId!=null">
+				 comment_id = VALUES(comment_id),
+			</if>
+			<if test="bean.parentCommentId!=null">
+				 parent_comment_id = VALUES(parent_comment_id),
+			</if>
+			<if test="bean.videoId!=null">
+				 video_id = VALUES(video_id),
+			</if>
+			<if test="bean.videoUserId!=null">
+				 video_user_id = VALUES(video_user_id),
+			</if>
+			<if test="bean.content!=null">
+				 content = VALUES(content),
+			</if>
+			<if test="bean.imgPaths!=null">
+				 img_paths = VALUES(img_paths),
+			</if>
+			<if test="bean.userId!=null">
+				 user_id = VALUES(user_id),
+			</if>
+			<if test="bean.replyUserId!=null">
+				 reply_user_id = VALUES(reply_user_id),
+			</if>
+			<if test="bean.topType!=null">
+				 top_type = VALUES(top_type),
+			</if>
+			<if test="bean.postTime!=null">
+				 post_time = VALUES(post_time),
+			</if>
+			<if test="bean.upvoteCount!=null">
+				 upvote_count = VALUES(upvote_count),
+			</if>
+			<if test="bean.downvoteCount!=null">
+				 downvote_count = VALUES(downvote_count),
+			</if>
+			<if test="bean.replyCount!=null">
+				 reply_count = VALUES(reply_count),
+			</if>
+			<if test="bean.deleted!=null">
+				 deleted = VALUES(deleted),
+			</if>
+		 </trim>
+	</insert>
+
+	<!-- 添加 （批量插入）-->
+	<insert id="insertBatch" parameterType="com.neon.nilocommon.entity.po.VideoCommentArchive">
+		 INSERT INTO video_comment_archive(
+			 comment_id,
+			 parent_comment_id,
+			 video_id,
+			 video_user_id,
+			 content,
+			 img_paths,
+			 user_id,
+			 reply_user_id,
+			 top_type,
+			 post_time,
+			 upvote_count,
+			 downvote_count,
+			 reply_count,
+			 deleted
+		 )values
+		 <foreach collection="list" item="item" separator=",">
+			 (
+				 #{item.commentId},
+				 #{item.parentCommentId},
+				 #{item.videoId},
+				 #{item.videoUserId},
+				 #{item.content},
+				 #{item.imgPaths},
+				 #{item.userId},
+				 #{item.replyUserId},
+				 #{item.topType},
+				 #{item.postTime},
+				 #{item.upvoteCount},
+				 #{item.downvoteCount},
+				 #{item.replyCount},
+				 #{item.deleted}
+			 )
+		 </foreach>
+	</insert>
+
+	<!-- 批量新增修改 （批量插入）-->
+	<insert id="insertOrUpdateBatch" parameterType="com.neon.nilocommon.entity.po.VideoCommentArchive">
+		 INSERT INTO video_comment_archive(
+			 comment_id,
+			 parent_comment_id,
+			 video_id,
+			 video_user_id,
+			 content,
+			 img_paths,
+			 user_id,
+			 reply_user_id,
+			 top_type,
+			 post_time,
+			 upvote_count,
+			 downvote_count,
+			 reply_count,
+			 deleted
+		 )values
+		 <foreach collection="list" item="item" separator=",">
+			 (
+				 #{item.commentId},
+				 #{item.parentCommentId},
+				 #{item.videoId},
+				 #{item.videoUserId},
+				 #{item.content},
+				 #{item.imgPaths},
+				 #{item.userId},
+				 #{item.replyUserId},
+				 #{item.topType},
+				 #{item.postTime},
+				 #{item.upvoteCount},
+				 #{item.downvoteCount},
+				 #{item.replyCount},
+				 #{item.deleted}
+			 )
+		 </foreach>
+			on DUPLICATE key update 
+			comment_id = VALUES(comment_id),
+			parent_comment_id = VALUES(parent_comment_id),
+			video_id = VALUES(video_id),
+			video_user_id = VALUES(video_user_id),
+			content = VALUES(content),
+			img_paths = VALUES(img_paths),
+			user_id = VALUES(user_id),
+			reply_user_id = VALUES(reply_user_id),
+			top_type = VALUES(top_type),
+			post_time = VALUES(post_time),
+			upvote_count = VALUES(upvote_count),
+			downvote_count = VALUES(downvote_count),
+			reply_count = VALUES(reply_count),
+			deleted = VALUES(deleted)
+	</insert>
+
+	<!--多条件修改-->
+	<update id="updateByParam" parameterType="com.neon.nilocommon.entity.query.VideoCommentArchiveQuery">
+		 UPDATE video_comment_archive v
+ 		 <set> 
+			<if test="bean.commentId != null">
+				 comment_id = #{bean.commentId},
+			</if>
+			<if test="bean.parentCommentId != null">
+				 parent_comment_id = #{bean.parentCommentId},
+			</if>
+			<if test="bean.videoId != null">
+				 video_id = #{bean.videoId},
+			</if>
+			<if test="bean.videoUserId != null">
+				 video_user_id = #{bean.videoUserId},
+			</if>
+			<if test="bean.content != null">
+				 content = #{bean.content},
+			</if>
+			<if test="bean.imgPaths != null">
+				 img_paths = #{bean.imgPaths},
+			</if>
+			<if test="bean.userId != null">
+				 user_id = #{bean.userId},
+			</if>
+			<if test="bean.replyUserId != null">
+				 reply_user_id = #{bean.replyUserId},
+			</if>
+			<if test="bean.topType != null">
+				 top_type = #{bean.topType},
+			</if>
+			<if test="bean.postTime != null">
+				 post_time = #{bean.postTime},
+			</if>
+			<if test="bean.upvoteCount != null">
+				 upvote_count = #{bean.upvoteCount},
+			</if>
+			<if test="bean.downvoteCount != null">
+				 downvote_count = #{bean.downvoteCount},
+			</if>
+			<if test="bean.replyCount != null">
+				 reply_count = #{bean.replyCount},
+			</if>
+			<if test="bean.deleted != null">
+				 deleted = #{bean.deleted},
+			</if>
+ 		 </set>
+ 		 <include refid="query_condition" />
+	</update>
+
+	<!--多条件删除-->
+	<delete id="deleteByParam">
+		 delete v from video_comment_archive v
+ 		 <include refid="query_condition" />
+	</delete>
+
+	<!-- 根据CommentId修改-->
+	<update id="updateByCommentId" parameterType="com.neon.nilocommon.entity.po.VideoCommentArchive">
+		 UPDATE video_comment_archive
+ 		 <set> 
+			<if test="bean.parentCommentId != null">
+				 parent_comment_id = #{bean.parentCommentId},
+			</if>
+			<if test="bean.videoId != null">
+				 video_id = #{bean.videoId},
+			</if>
+			<if test="bean.videoUserId != null">
+				 video_user_id = #{bean.videoUserId},
+			</if>
+			<if test="bean.content != null">
+				 content = #{bean.content},
+			</if>
+			<if test="bean.imgPaths != null">
+				 img_paths = #{bean.imgPaths},
+			</if>
+			<if test="bean.userId != null">
+				 user_id = #{bean.userId},
+			</if>
+			<if test="bean.replyUserId != null">
+				 reply_user_id = #{bean.replyUserId},
+			</if>
+			<if test="bean.topType != null">
+				 top_type = #{bean.topType},
+			</if>
+			<if test="bean.postTime != null">
+				 post_time = #{bean.postTime},
+			</if>
+			<if test="bean.upvoteCount != null">
+				 upvote_count = #{bean.upvoteCount},
+			</if>
+			<if test="bean.downvoteCount != null">
+				 downvote_count = #{bean.downvoteCount},
+			</if>
+			<if test="bean.replyCount != null">
+				 reply_count = #{bean.replyCount},
+			</if>
+			<if test="bean.deleted != null">
+				 deleted = #{bean.deleted},
+			</if>
+ 		 </set>
+ 		 where comment_id=#{commentId}
+	</update>
+
+	<!-- 根据CommentId删除-->
+	<delete id="deleteByCommentId">
+		delete from video_comment_archive where comment_id=#{commentId}
+	</delete>
+
+	<!-- 根据PrimaryKey获取对象-->
+	<select id="selectByCommentId" resultMap="base_result_map" >
+		select <include refid="base_column_list" /> from video_comment_archive v where comment_id=#{commentId}
+	</select>
+
+</mapper>

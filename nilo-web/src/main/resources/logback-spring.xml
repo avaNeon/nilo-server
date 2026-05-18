@@ -8,13 +8,13 @@
     <conversionRule conversionWord="wEx"
                     converterClass="org.springframework.boot.logging.logback.ExtendedWhitespaceThrowableProxyConverter"/>
 
-    <springProperty scope="context" name="log.path" source="project.folder"/>
+    <springProperty scope="context" name="log.path" source="project.rootFilePath"/>
     <springProperty scope="context" name="log.root.level" source="log.root.level"/>
     <springProperty scope="context" name="appname" source="spring.application.name"/>
     <property name="LOG_FOLDER" value="logs"/>
 
     <!-- 控制台：彩色日志 -->
-    <appender name="stdot" class="ch.qos.logback.core.ConsoleAppender">
+    <appender name="stdout" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
             <pattern>
                 %d{yyyy-MM-dd HH:mm:ss,GMT+8} %clr([%p]) %clr([%c]){cyan} [%M][%L] -> %m%n
@@ -51,7 +51,7 @@
     <logger name="org.springframework.data.redis" level="info"/>
 
     <root level="${log.root.level}">
-        <appender-ref ref="stdot"/>
+        <appender-ref ref="stdout"/>
         <appender-ref ref="file"/>
     </root>
 

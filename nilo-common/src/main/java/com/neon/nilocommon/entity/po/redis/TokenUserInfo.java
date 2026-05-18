@@ -1,7 +1,7 @@
-package com.neon.nilocommon.entity.dto;
+package com.neon.nilocommon.entity.po.redis;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.neon.nilocommon.entity.vo.BriefUserInfoVO;
+import com.neon.nilocommon.entity.vo.userInfo.BriefUserInfoVO;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -20,11 +20,4 @@ public class TokenUserInfo
     private Long expireTime;
 
     private String token;
-
-    // 下面三个数字在关注、投币时会发生改变，我们需要根据情况更新这个值
-    private Integer followerCount;
-
-    private Integer followingCount;
-
-    private Integer currentCoin;
 }

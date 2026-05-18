@@ -1,4 +1,4 @@
-package com.neon.nilocommon.entity.dto;
+package com.neon.nilocommon.entity.po.redis;
 
 import lombok.Getter;
 import lombok.Setter;

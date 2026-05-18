@@ -1,0 +1,417 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neon.niloweb.mapper.VideoSeriesInfoMapper">
+    <!--实体映射-->
+    <resultMap id="base_result_map" type="com.neon.nilocommon.entity.po.VideoSeriesInfo">
+        <!--合集ID-->
+        <result column="series_id" property="seriesId"/>
+        <!--用户ID-->
+        <result column="user_id" property="userId"/>
+        <!--合集名称-->
+        <result column="series_name" property="seriesName"/>
+        <!--合集描述-->
+        <result column="series_description" property="seriesDescription"/>
+        <!--排序序号-->
+        <result column="sort_index" property="sortIndex"/>
+        <!--更新时间-->
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <!--VO实体映射-->
+    <resultMap id="vo_result_map" type="com.neon.nilocommon.entity.vo.videoSeriesInfo.VideoSeriesInfoVO">
+        <!--合集ID-->
+        <result column="series_id" property="seriesId"/>
+        <!--用户ID-->
+        <result column="user_id" property="userId"/>
+        <!--合集名称-->
+        <result column="series_name" property="seriesName"/>
+        <!--合集描述-->
+        <result column="series_description" property="seriesDescription"/>
+        <!--排序序号-->
+        <result column="sort_index" property="sortIndex"/>
+        <!--更新时间-->
+        <result column="update_time" property="updateTime"/>
+        <!--视频封面-->
+        <result column="video_cover" property="videoCover"/>
+    </resultMap>
+
+    <!--带有视频列表的VO实体映射-->
+    <resultMap id="with_video_vo_result_map"
+               type="com.neon.nilocommon.entity.vo.videoSeriesInfo.VideoSeriesWithVideosVO">
+        <!--合集ID-->
+        <result column="series_id" property="seriesId"/>
+        <!--用户ID-->
+        <result column="user_id" property="userId"/>
+        <!--合集名称-->
+        <result column="series_name" property="seriesName"/>
+        <!--合集描述-->
+        <result column="series_description" property="seriesDescription"/>
+        <!--排序序号-->
+        <result column="sort_index" property="sortIndex"/>
+        <!--更新时间-->
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <!-- 通用查询结果列-->
+    <sql id="base_column_list">
+        v.series_id,v.user_id,v.series_name,v.series_description,v.sort_index,
+		 v.update_time
+    </sql>
+
+    <!-- VO查询结果列-->
+    <sql id="vo_column_list">
+        vsi.series_id,vsi.user_id,vsi.series_name,vsi.series_description,vsi.sort_index,
+		 vsi.update_time, v.video_cover
+    </sql>
+
+    <sql id="base_condition_filed">
+        <if test="query.seriesId != null">
+            and v.series_id = #{query.seriesId}
+        </if>
+        <if test="query.userId != null">
+            and v.user_id = #{query.userId}
+        </if>
+        <if test="query.seriesName != null and query.seriesName!=''">
+            and v.series_name = #{query.seriesName}
+        </if>
+        <if test="query.seriesDescription != null and query.seriesDescription!=''">
+            and v.series_description = #{query.seriesDescription}
+        </if>
+        <if test="query.sortIndex != null">
+            and v.sort_index = #{query.sortIndex}
+        </if>
+        <if test="query.updateTime != null and query.updateTime!=''">
+            <![CDATA[ and  v.update_time=str_to_date(#{query.updateTime}, '%Y-%m-%d') ]]>
+        </if>
+    </sql>
+
+    <!-- 通用查询条件列-->
+    <sql id="query_condition">
+        <where>
+            <include refid="base_condition_filed"/>
+            <if test="query.seriesNameFuzzy!= null  and query.seriesNameFuzzy!=''">
+                and v.series_name like concat('%', #{query.seriesNameFuzzy}, '%')
+            </if>
+            <if test="query.seriesDescriptionFuzzy!= null  and query.seriesDescriptionFuzzy!=''">
+                and v.series_description like concat('%', #{query.seriesDescriptionFuzzy}, '%')
+            </if>
+            <if test="query.updateTimeStart!= null and query.updateTimeStart!=''">
+                <![CDATA[ and  v.update_time>=str_to_date(#{query.updateTimeStart}, '%Y-%m-%d') ]]>
+            </if>
+            <if test="query.updateTimeEnd!= null and query.updateTimeEnd!=''">
+                <![CDATA[ and  v.update_time< date_sub(str_to_date(#{query.updateTimeEnd},'%Y-%m-%d'),interval -1 day) ]]>
+            </if>
+        </where>
+    </sql>
+
+    <!-- 查询集合-->
+    <select id="selectList" resultMap="base_result_map">
+        SELECT
+        <include refid="base_column_list"/>
+        FROM video_series_info v
+        <include refid="query_condition"/>
+        <if test="query.orderBy!=null">
+            order by ${query.orderBy}
+        </if>
+        <if test="query.pageCalculator!=null">
+            limit #{query.pageCalculator.start},#{query.pageCalculator.size}
+        </if>
+    </select>
+
+    <!-- 查询数量-->
+    <select id="selectCount" resultType="java.lang.Integer">
+        SELECT count(1) FROM video_series_info v
+        <include refid="query_condition"/>
+    </select>
+
+    <!-- 插入 （匹配有值的字段）-->
+    <insert id="insert" parameterType="com.neon.nilocommon.entity.po.VideoSeriesInfo">
+        INSERT INTO video_series_info
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="bean.seriesId != null">
+                series_id,
+            </if>
+            <if test="bean.userId != null">
+                user_id,
+            </if>
+            <if test="bean.seriesName != null">
+                series_name,
+            </if>
+            <if test="bean.seriesDescription != null">
+                series_description,
+            </if>
+            <if test="bean.sortIndex != null">
+                sort_index,
+            </if>
+            <if test="bean.updateTime != null">
+                update_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="bean.seriesId!=null">
+                #{bean.seriesId},
+            </if>
+            <if test="bean.userId!=null">
+                #{bean.userId},
+            </if>
+            <if test="bean.seriesName!=null">
+                #{bean.seriesName},
+            </if>
+            <if test="bean.seriesDescription!=null">
+                #{bean.seriesDescription},
+            </if>
+            <if test="bean.sortIndex!=null">
+                #{bean.sortIndex},
+            </if>
+            <if test="bean.updateTime!=null">
+                #{bean.updateTime},
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 插入或者更新 （匹配有值的字段）-->
+    <insert id="insertOrUpdate" parameterType="com.neon.nilocommon.entity.po.VideoSeriesInfo">
+        INSERT INTO video_series_info
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="bean.seriesId != null">
+                series_id,
+            </if>
+            <if test="bean.userId != null">
+                user_id,
+            </if>
+            <if test="bean.seriesName != null">
+                series_name,
+            </if>
+            <if test="bean.seriesDescription != null">
+                series_description,
+            </if>
+            <if test="bean.sortIndex != null">
+                sort_index,
+            </if>
+            <if test="bean.updateTime != null">
+                update_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="bean.seriesId!=null">
+                #{bean.seriesId},
+            </if>
+            <if test="bean.userId!=null">
+                #{bean.userId},
+            </if>
+            <if test="bean.seriesName!=null">
+                #{bean.seriesName},
+            </if>
+            <if test="bean.seriesDescription!=null">
+                #{bean.seriesDescription},
+            </if>
+            <if test="bean.sortIndex!=null">
+                #{bean.sortIndex},
+            </if>
+            <if test="bean.updateTime!=null">
+                #{bean.updateTime},
+            </if>
+        </trim>
+        on DUPLICATE key update
+        <trim prefix="" suffix="" suffixOverrides=",">
+            <if test="bean.seriesId!=null">
+                series_id = VALUES(series_id),
+            </if>
+            <if test="bean.userId!=null">
+                user_id = VALUES(user_id),
+            </if>
+            <if test="bean.seriesName!=null">
+                series_name = VALUES(series_name),
+            </if>
+            <if test="bean.seriesDescription!=null">
+                series_description = VALUES(series_description),
+            </if>
+            <if test="bean.sortIndex!=null">
+                sort_index = VALUES(sort_index),
+            </if>
+            <if test="bean.updateTime!=null">
+                update_time = VALUES(update_time),
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 添加 （批量插入）-->
+    <insert id="insertBatch" parameterType="com.neon.nilocommon.entity.po.VideoSeriesInfo">
+        INSERT INTO video_series_info(
+        series_id,
+        user_id,
+        series_name,
+        series_description,
+        sort_index,
+        update_time
+        )values
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.seriesId},
+            #{item.userId},
+            #{item.seriesName},
+            #{item.seriesDescription},
+            #{item.sortIndex},
+            #{item.updateTime}
+            )
+        </foreach>
+    </insert>
+
+    <!-- 批量新增修改 （批量插入）-->
+    <insert id="insertOrUpdateBatch" parameterType="com.neon.nilocommon.entity.po.VideoSeriesInfo">
+        INSERT INTO video_series_info(
+        series_id,
+        user_id,
+        series_name,
+        series_description,
+        sort_index,
+        update_time
+        )values
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.seriesId},
+            #{item.userId},
+            #{item.seriesName},
+            #{item.seriesDescription},
+            #{item.sortIndex},
+            #{item.updateTime}
+            )
+        </foreach>
+        on DUPLICATE key update
+        series_id = VALUES(series_id),
+        user_id = VALUES(user_id),
+        series_name = VALUES(series_name),
+        series_description = VALUES(series_description),
+        sort_index = VALUES(sort_index),
+        update_time = VALUES(update_time)
+    </insert>
+
+    <!--多条件修改-->
+    <update id="updateByParam" parameterType="com.neon.nilocommon.entity.query.VideoSeriesInfoQuery">
+        UPDATE video_series_info v
+        <set>
+            <if test="bean.seriesId != null">
+                series_id = #{bean.seriesId},
+            </if>
+            <if test="bean.userId != null">
+                user_id = #{bean.userId},
+            </if>
+            <if test="bean.seriesName != null">
+                series_name = #{bean.seriesName},
+            </if>
+            <if test="bean.seriesDescription != null">
+                series_description = #{bean.seriesDescription},
+            </if>
+            <if test="bean.sortIndex != null">
+                sort_index = #{bean.sortIndex},
+            </if>
+            <if test="bean.updateTime != null">
+                update_time = #{bean.updateTime},
+            </if>
+        </set>
+        <include refid="query_condition"/>
+    </update>
+
+    <!--多条件删除-->
+    <delete id="deleteByParam">
+        delete v from video_series_info v
+        <include refid="query_condition"/>
+    </delete>
+
+    <!-- 根据SeriesId修改-->
+    <update id="updateBySeriesId" parameterType="com.neon.nilocommon.entity.po.VideoSeriesInfo">
+        UPDATE video_series_info
+        <set>
+            <if test="bean.userId != null">
+                user_id = #{bean.userId},
+            </if>
+            <if test="bean.seriesName != null">
+                series_name = #{bean.seriesName},
+            </if>
+            <if test="bean.seriesDescription != null">
+                series_description = #{bean.seriesDescription},
+            </if>
+            <if test="bean.sortIndex != null">
+                sort_index = #{bean.sortIndex},
+            </if>
+            <if test="bean.updateTime != null">
+                update_time = #{bean.updateTime},
+            </if>
+        </set>
+        where series_id=#{seriesId}
+    </update>
+
+    <!-- 根据SeriesId删除-->
+    <delete id="deleteBySeriesId">
+        delete
+        from video_series_info
+        where series_id = #{seriesId}
+    </delete>
+
+    <!-- 根据PrimaryKey获取对象-->
+    <select id="selectBySeriesId" resultMap="base_result_map">
+        select
+        <include refid="base_column_list"/>
+        from video_series_info v where series_id=#{seriesId}
+    </select>
+
+    <select id="selectMaxSortIndexByUserId" resultType="java.lang.Integer">
+        SELECT IFNULL(MAX(sort_index), 0)
+        FROM video_series_info
+        WHERE user_id = #{userId}
+    </select>
+
+    <select id="selectVideoSeriesInfoVoWithCoverByUserId" resultMap="vo_result_map">
+        SELECT
+        <include refid="vo_column_list"/>
+        FROM video_series_info vsi LEFT JOIN (
+        SELECT vsv.video_id, ROW_NUMBER() OVER (
+        PARTITION BY vsv.series_id
+        ORDER BY vsv.sort_index
+        ) AS rn
+        FROM video_series_video vsv
+        ) first_vsv
+        ON vsi.series_id = first_vsv.series_id AND first_vsv.rn = 1 LEFT JOIN
+        video_info v ON first_vsv.video_id = v.video_id
+        WHERE vsi.user_id = #{userId}
+        ORDER BY vsi.sort_index
+        LIMIT #{start},#{pageSize}
+    </select>
+
+    <delete id="deleteByUserIdAndSeriesId">
+        DELETE
+        FROM video_series_info
+        WHERE user_id = #{userId}
+          AND series_id = #{seriesId}
+    </delete>
+
+    <update id="resort">
+        <foreach collection="videoSeriesInfoList" item="videoSeriesInfo" separator="," open="(" close=")">
+            UPDATE video_series_info
+            SET sort_index = #{videoSeriesInfo.sortIndex}
+            WHERE user_id = #{userId} AND series_id = #{videoSeriesInfo.seriesId}
+        </foreach>
+    </update>
+
+    <select id="selectCountByUserIdAndSeriesIdList" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM video_series_info
+        WHERE user_id = #{userId} AND series_id IN
+        <foreach collection="seriesIdList" item="seriesId" separator="," open="(" close=")">
+            #{seriesId}
+        </foreach>
+    </select>
+
+    <select id="selectVideoSeriesListByUserId"
+            resultMap="base_result_map">
+        SELECT
+        <include refid="base_column_list"/>
+        FROM video_series_info v
+        WHERE v.user_id = #{userId}
+        ORDER BY sort_index
+        <if test="pageSize">
+            LIMIT 0,#{pageSize}
+        </if>
+    </select>
+</mapper>

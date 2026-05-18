@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neon.niloweb.mapper.VideoSeriesVideoMapper">
+    <!--实体映射-->
+    <resultMap id="base_result_map" type="com.neon.nilocommon.entity.po.VideoSeriesVideo">
+        <!--合集ID-->
+        <result column="series_id" property="seriesId"/>
+        <!--视频ID-->
+        <result column="video_id" property="videoId"/>
+        <!--用户ID-->
+        <result column="user_id" property="userId"/>
+        <!--排序序号-->
+        <result column="sort_index" property="sortIndex"/>
+    </resultMap>
+
+
+    <!-- 通用查询结果列-->
+    <sql id="base_column_list">
+        v.series_id,v.video_id,v.user_id,v.sort_index
+    </sql>
+
+    <sql id="base_condition_filed">
+        <if test="query.seriesId != null">
+            and v.series_id = #{query.seriesId}
+        </if>
+        <if test="query.videoId != null">
+            and v.video_id = #{query.videoId}
+        </if>
+        <if test="query.userId != null">
+            and v.user_id = #{query.userId}
+        </if>
+        <if test="query.sortIndex != null">
+            and v.sort_index = #{query.sortIndex}
+        </if>
+    </sql>
+
+    <!-- 通用查询条件列-->
+    <sql id="query_condition">
+        <where>
+            <include refid="base_condition_filed"/>
+        </where>
+    </sql>
+
+    <!-- 查询集合-->
+    <select id="selectList" resultMap="base_result_map">
+        SELECT
+        <include refid="base_column_list"/>
+        FROM video_series_video v
+        <include refid="query_condition"/>
+        <if test="query.orderBy!=null">
+            order by ${query.orderBy}
+        </if>
+        <if test="query.pageCalculator!=null">
+            limit #{query.pageCalculator.start},#{query.pageCalculator.size}
+        </if>
+    </select>
+
+    <!-- 查询数量-->
+    <select id="selectCount" resultType="java.lang.Integer">
+        SELECT count(1) FROM video_series_video v
+        <include refid="query_condition"/>
+    </select>
+
+    <!-- 插入 （匹配有值的字段）-->
+    <insert id="insert" parameterType="com.neon.nilocommon.entity.po.VideoSeriesVideo">
+        INSERT INTO video_series_video
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="bean.seriesId != null">
+                series_id,
+            </if>
+            <if test="bean.videoId != null">
+                video_id,
+            </if>
+            <if test="bean.userId != null">
+                user_id,
+            </if>
+            <if test="bean.sortIndex != null">
+                sort_index,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="bean.seriesId!=null">
+                #{bean.seriesId},
+            </if>
+            <if test="bean.videoId!=null">
+                #{bean.videoId},
+            </if>
+            <if test="bean.userId!=null">
+                #{bean.userId},
+            </if>
+            <if test="bean.sortIndex!=null">
+                #{bean.sortIndex},
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 插入或者更新 （匹配有值的字段）-->
+    <insert id="insertOrUpdate" parameterType="com.neon.nilocommon.entity.po.VideoSeriesVideo">
+        INSERT INTO video_series_video
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="bean.seriesId != null">
+                series_id,
+            </if>
+            <if test="bean.videoId != null">
+                video_id,
+            </if>
+            <if test="bean.userId != null">
+                user_id,
+            </if>
+            <if test="bean.sortIndex != null">
+                sort_index,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="bean.seriesId!=null">
+                #{bean.seriesId},
+            </if>
+            <if test="bean.videoId!=null">
+                #{bean.videoId},
+            </if>
+            <if test="bean.userId!=null">
+                #{bean.userId},
+            </if>
+            <if test="bean.sortIndex!=null">
+                #{bean.sortIndex},
+            </if>
+        </trim>
+        on DUPLICATE key update
+        <trim prefix="" suffix="" suffixOverrides=",">
+            <if test="bean.seriesId!=null">
+                series_id = VALUES(series_id),
+            </if>
+            <if test="bean.videoId!=null">
+                video_id = VALUES(video_id),
+            </if>
+            <if test="bean.userId!=null">
+                user_id = VALUES(user_id),
+            </if>
+            <if test="bean.sortIndex!=null">
+                sort_index = VALUES(sort_index),
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 添加 （批量插入）-->
+    <insert id="insertBatch" parameterType="com.neon.nilocommon.entity.po.VideoSeriesVideo">
+        INSERT INTO video_series_video(
+        series_id,
+        video_id,
+        user_id,
+        sort_index
+        )values
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.seriesId},
+            #{item.videoId},
+            #{item.userId},
+            #{item.sortIndex}
+            )
+        </foreach>
+    </insert>
+
+    <!-- 批量新增修改 （批量插入）-->
+    <insert id="insertOrUpdateBatch" parameterType="com.neon.nilocommon.entity.po.VideoSeriesVideo">
+        INSERT INTO video_series_video(
+        series_id,
+        video_id,
+        user_id,
+        sort_index
+        )values
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.seriesId},
+            #{item.videoId},
+            #{item.userId},
+            #{item.sortIndex}
+            )
+        </foreach>
+        on DUPLICATE key update
+        series_id = VALUES(series_id),
+        video_id = VALUES(video_id),
+        user_id = VALUES(user_id),
+        sort_index = VALUES(sort_index)
+    </insert>
+
+    <!--多条件修改-->
+    <update id="updateByParam" parameterType="com.neon.nilocommon.entity.query.VideoSeriesVideoQuery">
+        UPDATE video_series_video v
+        <set>
+            <if test="bean.seriesId != null">
+                series_id = #{bean.seriesId},
+            </if>
+            <if test="bean.videoId != null">
+                video_id = #{bean.videoId},
+            </if>
+            <if test="bean.userId != null">
+                user_id = #{bean.userId},
+            </if>
+            <if test="bean.sortIndex != null">
+                sort_index = #{bean.sortIndex},
+            </if>
+        </set>
+        <include refid="query_condition"/>
+    </update>
+
+    <!--多条件删除-->
+    <delete id="deleteByParam">
+        delete v from video_series_video v
+        <include refid="query_condition"/>
+    </delete>
+
+    <!-- 根据SeriesIdAndVideoId修改-->
+    <update id="updateBySeriesIdAndVideoId" parameterType="com.neon.nilocommon.entity.po.VideoSeriesVideo">
+        UPDATE video_series_video
+        <set>
+            <if test="bean.userId != null">
+                user_id = #{bean.userId},
+            </if>
+            <if test="bean.sortIndex != null">
+                sort_index = #{bean.sortIndex},
+            </if>
+        </set>
+        where series_id=#{seriesId} and video_id=#{videoId}
+    </update>
+
+    <!-- 根据SeriesIdAndVideoId删除-->
+    <delete id="deleteBySeriesIdAndVideoId">
+        delete
+        from video_series_video
+        where series_id = #{seriesId}
+          and video_id = #{videoId}
+    </delete>
+
+    <!-- 根据PrimaryKey获取对象-->
+    <select id="selectBySeriesIdAndVideoId" resultMap="base_result_map">
+        select
+        <include refid="base_column_list"/>
+        from video_series_video v where series_id=#{seriesId} and video_id=#{videoId}
+    </select>
+
+    <update id="resort">
+        <foreach collection="videoSeriesVideoList" item="videoSeriesVideo" separator=";">
+            UPDATE video_series_video
+            SET sort_index = #{videoSeriesVideo.sortType}
+            WHERE series_id = #{seriesId} AND video_id = #{videoSeriesVideo.videoId}
+        </foreach>
+    </update>
+
+    <select id="selectMaxSortIndex" resultType="java.lang.Integer">
+        SELECT IFNULL(MAX(sort_index), 0)
+        FROM video_series_video
+        WHERE series_id = #{seriesId}
+    </select>
+
+    <delete id="deleteByUserIdAndSeriesId">
+        DELETE
+        FROM video_series_video
+        WHERE user_id = #{userId}
+          AND series_id = #{seriesId}
+    </delete>
+</mapper>

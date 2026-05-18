@@ -18,7 +18,9 @@ public enum ResponseCode
     BANNED_USER(1004, "账户已禁用"),
     NOT_LOGIN(1005, "未登录"),
     TIME_OUT(1006, "请求超时"),
-    NO_PERMISSION(1007, "没有权限");
+    NO_PERMISSION(1007, "没有权限"),
+    INSUFFICIENT_COIN(1008, "硬币不足"),
+    EXPIRE_LOGIN(1009, "登录信息已过期");
 
     private final Integer code;
 

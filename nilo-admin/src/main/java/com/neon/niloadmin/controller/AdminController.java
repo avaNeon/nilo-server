@@ -6,7 +6,7 @@ import com.neon.niloadmin.service.AdminService;
 import com.neon.nilocommon.captcha.RedisCaptcha;
 import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.dto.LoginAdminDTO;
-import com.neon.nilocommon.entity.dto.TokenAdmin;
+import com.neon.nilocommon.entity.po.redis.TokenAdmin;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.exception.BusinessException;

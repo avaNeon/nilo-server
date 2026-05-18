@@ -3,7 +3,7 @@ package com.neon.niloadmin.service;
 import cn.hutool.core.bean.BeanUtil;
 import com.neon.niloadmin.config.AdminConfig;
 import com.neon.niloadmin.repository.redis.AdminRedisRepository;
-import com.neon.nilocommon.entity.dto.TokenAdmin;
+import com.neon.nilocommon.entity.po.redis.TokenAdmin;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.po.Admin;
 import com.neon.nilocommon.exception.BusinessException;

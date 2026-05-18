@@ -1,7 +1,7 @@
 package com.neon.niloadmin.repository.redis;
 
 import com.neon.nilocommon.entity.constants.RedisKey;
-import com.neon.nilocommon.entity.dto.TokenAdmin;
+import com.neon.nilocommon.entity.po.redis.TokenAdmin;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Repository;

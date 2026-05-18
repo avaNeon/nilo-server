@@ -1,6 +1,14 @@
 package com.neon.niloweb.controller;
 
-import com.neon.nilocommon.entity.vo.*;
+import com.neon.nilocommon.entity.constants.RedisKey;
+import com.neon.nilocommon.entity.enums.ResponseCode;
+import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
+import com.neon.nilocommon.entity.vo.PaginationResponseVO;
+import com.neon.nilocommon.entity.vo.ResponseVO;
+import com.neon.nilocommon.entity.vo.VideoInfoFileVO;
+import com.neon.nilocommon.entity.vo.videoInfo.BriefVideoInfoVO;
+import com.neon.nilocommon.entity.vo.videoInfo.VideoInfoVO;
+import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.service.VideoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -58,9 +66,20 @@ public class VideoController
      */
     @Operation(summary = "查询视频详细信息", description = "查询视频详细信息，包括用户信息、创建时间、分类信息、标签、简介等")
     @GetMapping(path = "/video/{videoId}")
-    public ResponseVO <VideoInfoVO> loadVideoInfo(@PathVariable(name = "videoId") @NotNull Long videoId)
+    public ResponseVO <VideoInfoVO> loadVideoInfo(@RequestHeader(name = "token", required = false) String token,
+                                                  @PathVariable(name = "videoId") @NotNull Long videoId)
     {
-        return ResponseVO.success(videoService.loadVideoInfo(videoId));
+        Long userId = null;
+        if (token != null && !token.isEmpty())
+        {
+            TokenUserInfo tokenUserInfo = (TokenUserInfo) redisTemplate.opsForValue().get(RedisKey.WEB_TOKEN_PREFIX + token);
+            if (tokenUserInfo == null)
+            {
+                throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
+            }
+            userId = tokenUserInfo.getUserInfo().getUserId();
+        }
+        return ResponseVO.success(videoService.loadVideoInfo(userId, videoId));
     }
 
     @Operation(summary = "获取所有分P文件信息", description = "获取所有分P文件的简单信息，只包括文件名、文件索引、持续时间")

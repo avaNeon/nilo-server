@@ -2,21 +2,15 @@ package com.neon.niloweb.service;
 
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.videoInfo.RecommendType;
-import com.neon.nilocommon.entity.po.CategoryInfo;
-import com.neon.nilocommon.entity.po.UserInfo;
-import com.neon.nilocommon.entity.po.VideoInfo;
-import com.neon.nilocommon.entity.po.VideoInfoFile;
+import com.neon.nilocommon.entity.po.*;
 import com.neon.nilocommon.entity.query.*;
-import com.neon.nilocommon.entity.vo.BriefVideoInfoVO;
 import com.neon.nilocommon.entity.vo.PaginationResponseVO;
 import com.neon.nilocommon.entity.vo.VideoInfoFileVO;
-import com.neon.nilocommon.entity.vo.VideoInfoVO;
+import com.neon.nilocommon.entity.vo.videoInfo.BriefVideoInfoVO;
+import com.neon.nilocommon.entity.vo.videoInfo.VideoInfoVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.config.WebConfig;
-import com.neon.niloweb.mapper.CategoryInfoMapper;
-import com.neon.niloweb.mapper.UserInfoMapper;
-import com.neon.niloweb.mapper.VideoInfoFileMapper;
-import com.neon.niloweb.mapper.VideoInfoMapper;
+import com.neon.niloweb.mapper.*;
 import com.neon.niloweb.repository.redis.CategoryRedisRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,9 +36,11 @@ public class VideoService
 
     private final UserInfoMapper <UserInfo, UserInfoQuery> userInfoMapper;
 
-    private final CategoryRedisRepository categoryRedisRepository;
-
     private final CategoryInfoMapper <CategoryInfo, CategoryInfoQuery> categoryInfoMapper;
+
+    private final FollowInfoMapper <FollowInfo, FollowInfoQuery> followInfoMapper;
+
+    private final CategoryRedisRepository categoryRedisRepository;
 
     private final WebConfig webConfig;
 
@@ -128,16 +124,32 @@ public class VideoService
     /**
      * 获取视频详细信息
      *
+     * @param userId
      * @param videoId 视频ID
      * @return 视频VO
      */
-    public VideoInfoVO loadVideoInfo(long videoId)
+    public VideoInfoVO loadVideoInfo(Long userId, long videoId)
     {
         VideoInfoVO videoInfoVO = videoInfoMapper.selectVoByVideoId(videoId);
         if (videoInfoVO == null)
         {
             throw new BusinessException(ResponseCode.NOT_FOUND);
         }
+        Long videoUserId = videoInfoVO.getUserInfo().getUserId();
+        if (userId != null)
+        {
+            // 校验 userId 是否存在
+            UserInfo userInfo = userInfoMapper.selectByUserId(userId);
+            if (userInfo == null)
+            {
+                throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
+            }
+
+            // 查找关注信息
+            FollowInfo followInfo = followInfoMapper.selectByFollowerUserIdAndFollowingUserId(userId, videoUserId);
+            videoInfoVO.getUserInfo().setHasFollowed(followInfo != null);
+        }
+        videoInfoVO.getUserInfo().setFollowerCount(followInfoMapper.selectFollowerCount(videoUserId));
         // 将分类ID转换为分类编码（利用缓存，避免暴露内部ID）
         if (videoInfoVO.getCategoryId() != null)
         {
@@ -155,7 +167,6 @@ public class VideoService
                 videoInfoVO.setPCategoryNumber(pCategory.getCategoryNumber());
             }
         }
-        //todo 获取用户行为：点赞、投币、收藏
         return videoInfoVO;
     }
 

@@ -1,17 +1,13 @@
 package com.neon.niloweb.controller;
 
-import com.neon.nilocommon.entity.constants.RedisKey;
-import com.neon.nilocommon.entity.dto.TokenUserInfo;
-import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.entity.vo.UserCommentActionVO;
-import com.neon.nilocommon.exception.BusinessException;
+import com.neon.nilocommon.loginState.LoginState;
 import com.neon.niloweb.service.UserCommentActionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,7 +18,7 @@ import java.util.List;
 @RestController
 public class UserCommentActionController
 {
-    private final RedisTemplate <String, Object> redisTemplate;
+    private final LoginState loginState;
 
     private final UserCommentActionService userCommentActionService;
 
@@ -33,8 +29,8 @@ public class UserCommentActionController
                                              @RequestParam(name = "commentId") @NotNull Long commentId,
                                              @RequestParam(name = "actionType") @NotNull Integer actionType)
     {
-        TokenUserInfo loginState = getLoginState(token);
-        userCommentActionService.commentAction(loginState.getUserInfo().getUserId(), videoId, commentId, actionType);
+        long userId = loginState.getLoginUserId(token);
+        userCommentActionService.commentAction(userId, videoId, commentId, actionType);
         return ResponseVO.success(null);
     }
 
@@ -43,21 +39,7 @@ public class UserCommentActionController
     public ResponseVO <List <UserCommentActionVO>> getCommentAction(@RequestHeader(name = "token") String token,
                                                                     @RequestParam(name = "commentId") @NotNull Long commentId)
     {
-        TokenUserInfo loginState = getLoginState(token);
-        return ResponseVO.success(userCommentActionService.getCommentAction(loginState.getUserInfo().getUserId(), commentId));
-    }
-
-    /**
-     * 检查登录状态【暂时的策略】
-     *
-     * @param token 用户登录信息token
-     * @return 在Redis保存的TokenUserInfo对象（一定会返回一个非null的值，否则会抛出<b>未登录</b>的异常）
-     */
-    private TokenUserInfo getLoginState(String token)
-    {
-        TokenUserInfo tokenUserInfo = (TokenUserInfo) redisTemplate.opsForValue().get(RedisKey.WEB_TOKEN_PREFIX + token);
-        // 如果还没登录，就抛出“未登录”的业务异常
-        if (tokenUserInfo == null) throw new BusinessException(ResponseCode.NOT_LOGIN);
-        else return tokenUserInfo;
+        long userId = loginState.getLoginUserId(token);
+        return ResponseVO.success(userCommentActionService.getCommentAction(userId, commentId));
     }
 }

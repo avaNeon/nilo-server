@@ -41,7 +41,7 @@
           - 登录且有操作记录 → currentUserAction 非 null，Service 层据此设置 isUpvoted/isDownvoted
           - 登录但无操作记录（LEFT JOIN 未命中）或未登录 → currentUserAction 为 null
     -->
-    <resultMap id="vo_result_map" type="com.neon.nilocommon.entity.vo.VideoCommentVO">
+    <resultMap id="vo_result_map" type="com.neon.nilocommon.entity.vo.comment.VideoCommentVO">
         <result column="comment_id" property="commentId"/>
         <result column="parent_comment_id" property="parentCommentId"/>
         <result column="content" property="content"/>

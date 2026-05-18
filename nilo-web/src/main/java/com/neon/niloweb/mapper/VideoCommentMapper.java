@@ -1,7 +1,7 @@
 package com.neon.niloweb.mapper;
 
-import com.neon.nilocommon.entity.vo.CommentManagementVO;
-import com.neon.nilocommon.entity.vo.VideoCommentVO;
+import com.neon.nilocommon.entity.vo.comment.CommentManagementVO;
+import com.neon.nilocommon.entity.vo.comment.VideoCommentVO;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;

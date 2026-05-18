@@ -24,7 +24,7 @@
         <result column="display_moment" property="displayMoment"/>
     </resultMap>
 
-    <resultMap id="management_vo_result_map" type="com.neon.nilocommon.entity.vo.DanmakuManagementVO">
+    <resultMap id="management_vo_result_map" type="com.neon.nilocommon.entity.vo.danmaku.DanmakuManagementVO">
         <!--弹幕ID【对外展示】-->
         <result column="danmaku_id" property="danmakuId"/>
         <!--视频ID-->

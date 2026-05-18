@@ -1,6 +1,6 @@
 package com.neon.niloweb.mapper;
 
-import com.neon.nilocommon.entity.vo.DanmakuManagementVO;
+import com.neon.nilocommon.entity.vo.danmaku.DanmakuManagementVO;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;

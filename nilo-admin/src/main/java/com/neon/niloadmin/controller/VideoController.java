@@ -2,6 +2,7 @@ package com.neon.niloadmin.controller;
 
 import com.neon.niloadmin.service.VideoService;
 import com.neon.nilocommon.entity.dto.VideoInfoUploadAdminJoinDTO;
+import com.neon.nilocommon.entity.dto.VideoInfoUploadAdminQueryDTO;
 import com.neon.nilocommon.entity.query.VideoInfoUploadQuery;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -10,7 +11,7 @@ import io.swagger.v3.oas.annotations.Parameters;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
-import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.beans.BeanUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,9 +33,16 @@ public class VideoController
      * @return 查询结果（视频列表）
      */
     @Operation(summary = "获取视频列表")
-    @GetMapping(path = "/list")
-    public ResponseVO <List <VideoInfoUploadAdminJoinDTO>> loadVideoList(@ParameterObject VideoInfoUploadQuery infoUploadQuery)
+    @PostMapping(path = "/list")
+    public ResponseVO <List <VideoInfoUploadAdminJoinDTO>> loadVideoList(
+            @RequestBody @Validated VideoInfoUploadAdminQueryDTO infoUploadQueryDTO)
     {
+        VideoInfoUploadQuery infoUploadQuery = new VideoInfoUploadQuery();
+        BeanUtils.copyProperties(infoUploadQueryDTO, infoUploadQuery);
+        if (infoUploadQuery.getPageSize() == null)
+        {
+            infoUploadQuery.setPageSize(10);
+        }
         List <VideoInfoUploadAdminJoinDTO> result = videoService.loadVideoList(infoUploadQuery);
         return ResponseVO.success(result);
     }

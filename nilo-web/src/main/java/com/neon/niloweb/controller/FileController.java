@@ -1,11 +1,11 @@
 package com.neon.niloweb.controller;
 
 
-import com.neon.nilocommon.entity.constants.RedisKey;
-import com.neon.nilocommon.entity.dto.TokenUserInfo;
+import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.nilocommon.loginState.LoginState;
 import com.neon.niloweb.service.FileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -13,7 +13,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -26,7 +25,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class FileController
 {
     private final FileService fileService;
-    private final RedisTemplate <String, Object> redisTemplate;
+    private final LoginState loginState;
 
     /**
      * 上传图片，可以选择是否生成缩略图
@@ -72,7 +71,7 @@ public class FileController
     public ResponseVO <Long> preUploadVideo(@NotNull @RequestParam(name = "chunkSize") Integer chunkSize,
                                             @RequestHeader(name = "token") String token)
     {
-        TokenUserInfo tokenUserInfo = getLoginState(token);
+        TokenUserInfo tokenUserInfo = loginState.getLoginState(token);
         Long uploadId = fileService.preUploadVideo(chunkSize, tokenUserInfo);
         return ResponseVO.success(uploadId);
     }
@@ -89,8 +88,7 @@ public class FileController
                                            @RequestParam(name = "uploadId") @NotNull Long uploadId,
                                            @RequestHeader(name = "token") String token)
     {
-        TokenUserInfo tokenUserInfo = getLoginState(token);
-        long userId = tokenUserInfo.getUserInfo().getUserId();
+        long userId = loginState.getLoginUserId(token);
         fileService.uploadVideo(chunkFile, chunkIndex, userId, uploadId);
         return ResponseVO.success(null);
     }
@@ -107,8 +105,7 @@ public class FileController
     public ResponseVO <Object> deleteVideo(@RequestParam(name = "uploadId") @NotNull Long uploadId,
                                            @RequestHeader(name = "token") String token)
     {
-        TokenUserInfo loginState = getLoginState(token);
-        Long userId = loginState.getUserInfo().getUserId();
+        long userId = loginState.getLoginUserId(token);
         fileService.deleteVideo(uploadId, userId);
         return ResponseVO.success(null);
     }
@@ -143,17 +140,4 @@ public class FileController
         fileService.downloadVideoSegmentTs(videoId, index, resolution, segment, response);
     }
 
-    /**
-     * 检查登录状态【暂时的策略】
-     *
-     * @param token 用户登录信息token
-     * @return 在Redis保存的TokenUserInfo对象（一定会返回一个非null的值，否则会抛出<b>未登录</b>的异常）
-     */
-    private TokenUserInfo getLoginState(String token)
-    {
-        TokenUserInfo tokenUserInfo = (TokenUserInfo) redisTemplate.opsForValue().get(RedisKey.WEB_TOKEN_PREFIX + token);
-        // 如果还没登录，就抛出“未登录”的业务异常
-        if (tokenUserInfo == null) throw new BusinessException(ResponseCode.NOT_LOGIN);
-        else return tokenUserInfo;
-    }
 }

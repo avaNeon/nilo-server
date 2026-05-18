@@ -5,7 +5,7 @@ import cn.hutool.core.lang.Snowflake;
 import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.constants.DatePattern;
 import com.neon.nilocommon.entity.constants.VideoResolution;
-import com.neon.nilocommon.entity.dto.TokenUserInfo;
+import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
 import com.neon.nilocommon.entity.dto.UploadedVideoFileDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.po.VideoInfoFile;

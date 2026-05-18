@@ -11,8 +11,8 @@ import com.neon.nilocommon.entity.query.PageCalculator;
 import com.neon.nilocommon.entity.query.VideoDanmakuQuery;
 import com.neon.nilocommon.entity.query.VideoInfoFileQuery;
 import com.neon.nilocommon.entity.query.VideoInfoQuery;
-import com.neon.nilocommon.entity.vo.DanmakuVO;
 import com.neon.nilocommon.entity.vo.PaginationResponseVO;
+import com.neon.nilocommon.entity.vo.danmaku.DanmakuVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.mapper.VideoDanmakuMapper;
 import com.neon.niloweb.mapper.VideoInfoFileMapper;
@@ -145,6 +145,7 @@ public class VideoDanmakuService
      * @param userId    用户ID
      * @param danmakuId 弹幕ID
      */
+    @Transactional(rollbackFor = Exception.class)
     public void deleteDanmaku(long userId, long danmakuId)
     {
         VideoDanmaku videoDanmaku = videoDanmakuMapper.selectByDanmakuId(danmakuId);
@@ -160,6 +161,7 @@ public class VideoDanmakuService
             throw new BusinessException(ResponseCode.NOT_FOUND);
         }
         videoDanmakuMapper.deleteByDanmakuId(danmakuId);
+        videoInfoMapper.decreaseByField(videoDanmaku.getVideoId(), "danmaku_count", 1);
     }
 
     /**

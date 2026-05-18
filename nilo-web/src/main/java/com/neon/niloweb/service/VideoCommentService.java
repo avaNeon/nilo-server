@@ -14,7 +14,7 @@ import com.neon.nilocommon.entity.po.VideoInfo;
 import com.neon.nilocommon.entity.query.PageCalculator;
 import com.neon.nilocommon.entity.query.VideoCommentQuery;
 import com.neon.nilocommon.entity.query.VideoInfoQuery;
-import com.neon.nilocommon.entity.vo.VideoCommentVO;
+import com.neon.nilocommon.entity.vo.comment.VideoCommentVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.FileUtil;
 import com.neon.nilocommon.util.StringUtil;

@@ -2,12 +2,13 @@ package com.neon.niloweb.controller;
 
 import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.constants.RedisKey;
-import com.neon.nilocommon.entity.dto.TokenUserInfo;
+import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.videoComment.CommentOrderType;
 import com.neon.nilocommon.entity.vo.ResponseVO;
-import com.neon.nilocommon.entity.vo.VideoCommentVO;
+import com.neon.nilocommon.entity.vo.comment.VideoCommentVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.nilocommon.loginState.LoginState;
 import com.neon.nilocommon.util.EnumFieldChecker;
 import com.neon.nilocommon.util.FileUtil;
 import com.neon.niloweb.config.WebConfig;
@@ -33,6 +34,8 @@ public class VideoCommentController
 
     private final RedisTemplate <String, Object> redisTemplate;
 
+    private final LoginState loginState;
+
     private final VideoCommentService videoCommentService;
 
     @Operation(summary = "发布视频评论", description = "发布视频评论接口，登录状态通过token传递")
@@ -43,7 +46,7 @@ public class VideoCommentController
                                          @RequestParam(name = "imgPaths", required = false) @Size(max = 150) String imgPaths,
                                          @RequestParam(name = "repliedCommentId", required = false) Long repliedCommentId)
     {
-        TokenUserInfo loginState = getLoginState(token);
+        long userId = loginState.getLoginUserId(token);
         String tmpRootPath = Paths.get(webConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME, Constants.TMP_FOLDER_NAME)
                                   .toString();
         boolean imgValid = imgPaths != null && !imgPaths.isBlank();
@@ -64,7 +67,7 @@ public class VideoCommentController
             throw new BusinessException(ResponseCode.WRONG_ARGUMENTS);
         }
 
-        return ResponseVO.success(videoCommentService.postComment(loginState.getUserInfo().getUserId(),
+        return ResponseVO.success(videoCommentService.postComment(userId,
                                                                   videoId,
                                                                   content,
                                                                   imgPaths,
@@ -106,8 +109,8 @@ public class VideoCommentController
     public ResponseVO <Object> deleteComment(@RequestHeader(name = "token") String token,
                                              @RequestParam(name = "commentId") @NotNull Long commentId)
     {
-        TokenUserInfo loginState = getLoginState(token);
-        videoCommentService.deleteComment(loginState.getUserInfo().getUserId(), commentId);
+        long userId = loginState.getLoginUserId(token);
+        videoCommentService.deleteComment(userId, commentId);
         return ResponseVO.success(null);
     }
 
@@ -123,8 +126,8 @@ public class VideoCommentController
     public ResponseVO <Object> topComment(@RequestHeader(name = "token") String token,
                                           @RequestParam(name = "commentId") @NotNull Long commentId)
     {
-        TokenUserInfo loginState = getLoginState(token);
-        videoCommentService.topComment(loginState.getUserInfo().getUserId(), commentId);
+        long userId = loginState.getLoginUserId(token);
+        videoCommentService.topComment(userId, commentId);
         return ResponseVO.success(null);
     }
 
@@ -133,22 +136,8 @@ public class VideoCommentController
     public ResponseVO <Object> cancelTopComment(@RequestHeader(name = "token") String token,
                                                 @RequestParam(name = "commentId") @NotNull Long commentId)
     {
-        TokenUserInfo loginState = getLoginState(token);
-        videoCommentService.cancelTopComment(loginState.getUserInfo().getUserId(), commentId);
+        long userId = loginState.getLoginUserId(token);
+        videoCommentService.cancelTopComment(userId, commentId);
         return ResponseVO.success(null);
-    }
-
-    /**
-     * 检查登录状态【暂时的策略】
-     *
-     * @param token 用户登录信息token
-     * @return 在Redis保存的TokenUserInfo对象（一定会返回一个非null的值，否则会抛出<b>未登录</b>的异常）
-     */
-    private TokenUserInfo getLoginState(String token)
-    {
-        TokenUserInfo tokenUserInfo = (TokenUserInfo) redisTemplate.opsForValue().get(RedisKey.WEB_TOKEN_PREFIX + token);
-        // 如果还没登录，就抛出“未登录”的业务异常
-        if (tokenUserInfo == null) throw new BusinessException(ResponseCode.NOT_LOGIN);
-        else return tokenUserInfo;
     }
 }

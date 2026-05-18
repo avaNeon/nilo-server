@@ -1,14 +1,19 @@
 package com.neon.niloweb.controller;
 
-import com.neon.nilocommon.entity.constants.RedisKey;
-import com.neon.nilocommon.entity.dto.TokenUserInfo;
 import com.neon.nilocommon.entity.dto.VideoInfoUploadJoinDTO;
 import com.neon.nilocommon.entity.dto.VideoUploadDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.po.CategoryInfo;
 import com.neon.nilocommon.entity.po.VideoInfoFileUpload;
-import com.neon.nilocommon.entity.vo.*;
+import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
+import com.neon.nilocommon.entity.vo.ResponseVO;
+import com.neon.nilocommon.entity.vo.VideoFileUploadDTO;
+import com.neon.nilocommon.entity.vo.VideoInfoFileUploadVO;
+import com.neon.nilocommon.entity.vo.VideoStatusCountVO;
+import com.neon.nilocommon.entity.vo.comment.CommentManagementVO;
+import com.neon.nilocommon.entity.vo.danmaku.DanmakuManagementVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.nilocommon.loginState.LoginState;
 import com.neon.niloweb.repository.redis.CategoryRedisRepository;
 import com.neon.niloweb.service.CreativeCenterService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,7 +24,6 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,14 +36,15 @@ import java.util.List;
 @RestController
 public class CreativeCenterController
 {
-    private final RedisTemplate <String, Object> redisTemplate;
-
     private final CreativeCenterService creativeCenterService;
 
     private final CategoryRedisRepository categoryRedisRepository;
 
+    private final LoginState loginState;
+
     /**
-     * 上传/修改视频
+     * 上传/修改视频<hr/>
+     * 上传的视频文件只包含uploadId和fileName
      *
      * @param token          验证用户身份
      * @param videoUploadDTO 视频上传信息DTO
@@ -49,7 +54,7 @@ public class CreativeCenterController
     public ResponseVO <Object> videoUpload(@RequestHeader(name = "token") @NotEmpty String token,
                                            @RequestBody @Valid @NotNull VideoUploadDTO videoUploadDTO)
     {
-        TokenUserInfo tokenUserInfo = getLoginState(token);
+        TokenUserInfo tokenUserInfo = loginState.getLoginState(token);
         List <VideoFileUploadDTO> uploadIdList = videoUploadDTO.getVideoFileUploadList();
         if (uploadIdList == null || uploadIdList.isEmpty())
         {
@@ -117,7 +122,7 @@ public class CreativeCenterController
                                                                     @RequestParam(name = "nameFuzzy", required = false)
                                                                     String nameFuzzy)
     {
-        TokenUserInfo tokenUserInfo = getLoginState(token);
+        TokenUserInfo tokenUserInfo = loginState.getLoginState(token);
         List <VideoInfoUploadJoinDTO> result = creativeCenterService.loadVideoList(tokenUserInfo,
                                                                                    status,
                                                                                    pageNo,
@@ -138,7 +143,7 @@ public class CreativeCenterController
                                                                @RequestParam(name = "nameFuzzy", required = false)
                                                                String nameFuzzy)
     {
-        TokenUserInfo tokenUserInfo = getLoginState(token);
+        TokenUserInfo tokenUserInfo = loginState.getLoginState(token);
         VideoStatusCountVO videoStatusCount = creativeCenterService.getVideoStatusCount(tokenUserInfo, nameFuzzy);
         return ResponseVO.success(videoStatusCount);
     }
@@ -149,13 +154,7 @@ public class CreativeCenterController
     public ResponseVO <List <VideoInfoFileUploadVO>> loadVideoFileUpload(@RequestHeader(name = "token") @NotEmpty String token,
                                                                          @PathVariable(name = "videoId") @NotNull Long videoId)
     {
-        TokenUserInfo loginState = getLoginState(token);
-
-        Long userId = loginState.getUserInfo().getUserId();
-        if (userId == null)
-        {
-            throw new BusinessException(ResponseCode.NOT_LOGIN);
-        }
+        long userId = loginState.getLoginUserId(token);
         return ResponseVO.success(creativeCenterService.loadVideoFileUpload(videoId, userId));
     }
 
@@ -165,8 +164,8 @@ public class CreativeCenterController
                                               @PathVariable(name = "videoId") @NotNull Long videoId,
                                               @RequestParam(name = "interaction") String interaction)
     {
-        TokenUserInfo loginState = getLoginState(token);
-        creativeCenterService.setInteraction(loginState.getUserInfo().getUserId(), videoId, interaction);
+        long userId = loginState.getLoginUserId(token);
+        creativeCenterService.setInteraction(userId, videoId, interaction);
         return ResponseVO.success(null);
     }
 
@@ -176,12 +175,7 @@ public class CreativeCenterController
                                            @PathVariable(name = "videoId") @NotNull Long videoId,
                                            @RequestParam(name = "detail") @NotEmpty String detail)
     {
-        TokenUserInfo loginState = getLoginState(token);
-        Long userId = loginState.getUserInfo().getUserId();
-        if (userId == null)
-        {
-            throw new BusinessException(ResponseCode.NOT_LOGIN);
-        }
+        long userId = loginState.getLoginUserId(token);
         creativeCenterService.deleteVideo(userId, videoId, detail);
         return ResponseVO.success(null);
     }
@@ -192,12 +186,7 @@ public class CreativeCenterController
                                                            @RequestParam(name = "videoId", required = false) Long videoId,
                                                            @RequestParam(name = "nameFuzzy", required = false) String nameFuzzy)
     {
-        TokenUserInfo loginState = getLoginState(token);
-        Long userId = loginState.getUserInfo().getUserId();
-        if (userId == null)
-        {
-            throw new BusinessException(ResponseCode.NOT_LOGIN);
-        }
+        long userId = loginState.getLoginUserId(token);
         return ResponseVO.success(creativeCenterService.getCommentManagementInfoCount(userId, videoId, nameFuzzy));
     }
 
@@ -213,12 +202,7 @@ public class CreativeCenterController
                                                                             @RequestParam(name = "nameFuzzy", required = false)
                                                                             String nameFuzzy)
     {
-        TokenUserInfo loginState = getLoginState(token);
-        Long userId = loginState.getUserInfo().getUserId();
-        if (userId == null)
-        {
-            throw new BusinessException(ResponseCode.NOT_LOGIN);
-        }
+        long userId = loginState.getLoginUserId(token);
         return ResponseVO.success(creativeCenterService.getCommentManagementInfo(userId, videoId, nameFuzzy, pageNo, pageSize));
     }
 
@@ -229,12 +213,7 @@ public class CreativeCenterController
                                                            @RequestParam(name = "fileIndex", required = false) Integer fileIndex,
                                                            @RequestParam(name = "nameFuzzy", required = false) String nameFuzzy)
     {
-        TokenUserInfo loginState = getLoginState(token);
-        Long userId = loginState.getUserInfo().getUserId();
-        if (userId == null)
-        {
-            throw new BusinessException(ResponseCode.NOT_LOGIN);
-        }
+        long userId = loginState.getLoginUserId(token);
         // 如果视频都没有指定，就更别提分P了
         if (videoId == null)
         {
@@ -257,12 +236,7 @@ public class CreativeCenterController
                                                                             @PathVariable(name = "pageSize") @Min(1) @Max(10)
                                                                             @NotNull Integer pageSize)
     {
-        TokenUserInfo loginState = getLoginState(token);
-        Long userId = loginState.getUserInfo().getUserId();
-        if (userId == null)
-        {
-            throw new BusinessException(ResponseCode.NOT_LOGIN);
-        }
+        long userId = loginState.getLoginUserId(token);
         // 如果视频都没有指定，就更别提分P了
         if (videoId == null)
         {
@@ -276,17 +250,4 @@ public class CreativeCenterController
                                                                                  pageSize));
     }
 
-    /**
-     * 检查登录状态【暂时的策略】
-     *
-     * @param token 用户登录信息token
-     * @return 在Redis保存的TokenUserInfo对象（一定会返回一个非null的值，否则会抛出<b>未登录</b>的异常）
-     */
-    private TokenUserInfo getLoginState(String token)
-    {
-        TokenUserInfo tokenUserInfo = (TokenUserInfo) redisTemplate.opsForValue().get(RedisKey.WEB_TOKEN_PREFIX + token);
-        // 如果还没登录，就抛出“未登录”的业务异常
-        if (tokenUserInfo == null) throw new BusinessException(ResponseCode.NOT_LOGIN);
-        else return tokenUserInfo;
-    }
 }

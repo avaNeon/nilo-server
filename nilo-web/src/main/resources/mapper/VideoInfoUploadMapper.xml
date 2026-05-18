@@ -2,7 +2,6 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.neon.niloweb.mapper.VideoInfoUploadMapper">
-
     <!--实体映射-->
     <resultMap id="base_result_map" type="com.neon.nilocommon.entity.po.VideoInfoUpload">
         <!--视频ID-->
@@ -90,7 +89,6 @@
         v.video_id,v.video_cover,v.video_name,v.user_id,v.create_time,
 		 v.last_update_time,v.p_category_id,v.category_id,v.status,v.post_type,
 		 v.origin_info,v.tags,v.introduction,v.interaction,v.duration
-
     </sql>
 
     <sql id="base_condition_filed">
@@ -178,7 +176,7 @@
             <if test="query.exclusiveStatusList!=null">
                 and v.status not in
                 <foreach collection="query.exclusiveStatusList" item="status" separator="," open="(" close=")">
-                #{status}
+                    #{status}
                 </foreach>
             </if>
         </where>
@@ -667,7 +665,8 @@
         SELECT
         <include refid="base_column_list"/>
         <trim prefix=",">
-            t.play_count, t.like_count, t.danmaku_count, t.comment_count, t.coin_count, t.collect_count,t.recommend_type,
+            t.play_count, t.like_count, t.danmaku_count, t.comment_count, t.coin_count,
+            t.collect_count,t.recommend_type,
             pc.category_number as parent_category_number, c.category_number as category_number
         </trim>
         FROM video_info_upload v
@@ -689,5 +688,4 @@
         <include refid="base_column_list"/>
         from video_info_upload v where video_id=#{videoId}
     </select>
-
 </mapper>

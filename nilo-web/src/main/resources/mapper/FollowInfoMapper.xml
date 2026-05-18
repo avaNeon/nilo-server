@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neon.niloweb.mapper.FollowInfoMapper">
+    <!--实体映射-->
+    <resultMap id="base_result_map" type="com.neon.nilocommon.entity.po.FollowInfo">
+        <!--关注者用户ID-->
+        <result column="follower_user_id" property="followerUserId"/>
+        <!--被关注人用户ID-->
+        <result column="following_user_id" property="followingUserId"/>
+        <!---->
+        <result column="follow_time" property="followTime"/>
+    </resultMap>
+
+
+    <!-- 通用查询结果列-->
+    <sql id="base_column_list">
+        f.follower_user_id,f.following_user_id,f.follow_time
+    </sql>
+
+    <sql id="base_condition_filed">
+        <if test="query.followerUserId != null">
+            and f.follower_user_id = #{query.followerUserId}
+        </if>
+        <if test="query.followingUserId != null">
+            and f.following_user_id = #{query.followingUserId}
+        </if>
+        <if test="query.followTime != null and query.followTime!=''">
+            <![CDATA[ and  f.follow_time=str_to_date(#{query.followTime}, '%Y-%m-%d') ]]>
+        </if>
+    </sql>
+
+    <!-- 通用查询条件列-->
+    <sql id="query_condition">
+        <where>
+            <include refid="base_condition_filed"/>
+            <if test="query.followTimeStart!= null and query.followTimeStart!=''">
+                <![CDATA[ and  f.follow_time>=str_to_date(#{query.followTimeStart}, '%Y-%m-%d') ]]>
+            </if>
+            <if test="query.followTimeEnd!= null and query.followTimeEnd!=''">
+                <![CDATA[ and  f.follow_time< date_sub(str_to_date(#{query.followTimeEnd},'%Y-%m-%d'),interval -1 day) ]]>
+            </if>
+        </where>
+    </sql>
+
+    <!-- 查询集合-->
+    <select id="selectList" resultMap="base_result_map">
+        SELECT
+        <include refid="base_column_list"/>
+        FROM follow_info f
+        <include refid="query_condition"/>
+        <if test="query.orderBy!=null">
+            order by ${query.orderBy}
+        </if>
+        <if test="query.pageCalculator!=null">
+            limit #{query.pageCalculator.start},#{query.pageCalculator.size}
+        </if>
+    </select>
+
+    <!-- 查询数量-->
+    <select id="selectCount" resultType="java.lang.Integer">
+        SELECT count(1) FROM follow_info f
+        <include refid="query_condition"/>
+    </select>
+
+    <!-- 插入 （匹配有值的字段）-->
+    <insert id="insert" parameterType="com.neon.nilocommon.entity.po.FollowInfo">
+        INSERT INTO follow_info
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="bean.followerUserId != null">
+                follower_user_id,
+            </if>
+            <if test="bean.followingUserId != null">
+                following_user_id,
+            </if>
+            <if test="bean.followTime != null">
+                follow_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="bean.followerUserId!=null">
+                #{bean.followerUserId},
+            </if>
+            <if test="bean.followingUserId!=null">
+                #{bean.followingUserId},
+            </if>
+            <if test="bean.followTime!=null">
+                #{bean.followTime},
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 插入或者更新 （匹配有值的字段）-->
+    <insert id="insertOrUpdate" parameterType="com.neon.nilocommon.entity.po.FollowInfo">
+        INSERT INTO follow_info
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="bean.followerUserId != null">
+                follower_user_id,
+            </if>
+            <if test="bean.followingUserId != null">
+                following_user_id,
+            </if>
+            <if test="bean.followTime != null">
+                follow_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="bean.followerUserId!=null">
+                #{bean.followerUserId},
+            </if>
+            <if test="bean.followingUserId!=null">
+                #{bean.followingUserId},
+            </if>
+            <if test="bean.followTime!=null">
+                #{bean.followTime},
+            </if>
+        </trim>
+        on DUPLICATE key update
+        <trim prefix="" suffix="" suffixOverrides=",">
+            <if test="bean.followerUserId!=null">
+                follower_user_id = VALUES(follower_user_id),
+            </if>
+            <if test="bean.followingUserId!=null">
+                following_user_id = VALUES(following_user_id),
+            </if>
+            <if test="bean.followTime!=null">
+                follow_time = VALUES(follow_time),
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 添加 （批量插入）-->
+    <insert id="insertBatch" parameterType="com.neon.nilocommon.entity.po.FollowInfo">
+        INSERT INTO follow_info(
+        follower_user_id,
+        following_user_id,
+        follow_time
+        )values
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.followerUserId},
+            #{item.followingUserId},
+            #{item.followTime}
+            )
+        </foreach>
+    </insert>
+
+    <!-- 批量新增修改 （批量插入）-->
+    <insert id="insertOrUpdateBatch" parameterType="com.neon.nilocommon.entity.po.FollowInfo">
+        INSERT INTO follow_info(
+        follower_user_id,
+        following_user_id,
+        follow_time
+        )values
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.followerUserId},
+            #{item.followingUserId},
+            #{item.followTime}
+            )
+        </foreach>
+        on DUPLICATE key update
+        follower_user_id = VALUES(follower_user_id),
+        following_user_id = VALUES(following_user_id),
+        follow_time = VALUES(follow_time)
+    </insert>
+
+    <!--多条件修改-->
+    <update id="updateByParam" parameterType="com.neon.nilocommon.entity.query.FollowInfoQuery">
+        UPDATE follow_info f
+        <set>
+            <if test="bean.followerUserId != null">
+                follower_user_id = #{bean.followerUserId},
+            </if>
+            <if test="bean.followingUserId != null">
+                following_user_id = #{bean.followingUserId},
+            </if>
+            <if test="bean.followTime != null">
+                follow_time = #{bean.followTime},
+            </if>
+        </set>
+        <include refid="query_condition"/>
+    </update>
+
+    <!--多条件删除-->
+    <delete id="deleteByParam">
+        delete f from follow_info f
+        <include refid="query_condition"/>
+    </delete>
+
+    <!-- 根据FollowerUserIdAndFollowingUserId修改-->
+    <update id="updateByFollowerUserIdAndFollowingUserId" parameterType="com.neon.nilocommon.entity.po.FollowInfo">
+        UPDATE follow_info
+        <set>
+            <if test="bean.followTime != null">
+                follow_time = #{bean.followTime},
+            </if>
+        </set>
+        where follower_user_id=#{followerUserId} and following_user_id=#{followingUserId}
+    </update>
+
+    <!-- 根据FollowerUserIdAndFollowingUserId删除-->
+    <delete id="deleteByFollowerUserIdAndFollowingUserId">
+        delete
+        from follow_info
+        where follower_user_id = #{followerUserId}
+          and following_user_id = #{followingUserId}
+    </delete>
+
+    <!-- 根据PrimaryKey获取对象-->
+    <select id="selectByFollowerUserIdAndFollowingUserId" resultMap="base_result_map">
+        select
+        <include refid="base_column_list"/>
+        from follow_info f where follower_user_id=#{followerUserId} and following_user_id=#{followingUserId}
+    </select>
+
+    <select id="selectFollowerCount" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM follow_info
+        WHERE following_user_id = #{followingUserId}
+    </select>
+
+    <select id="selectFollowingCount" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM follow_info
+        WHERE follower_user_id = #{followerUserId}
+    </select>
+</mapper>

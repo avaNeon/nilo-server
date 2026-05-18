@@ -1,12 +1,14 @@
 package com.neon.niloweb.repository.redis;
 
 import com.neon.nilocommon.entity.constants.RedisKey;
-import com.neon.nilocommon.entity.dto.TokenUserInfo;
 import com.neon.nilocommon.entity.po.UserState;
+import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 @RequiredArgsConstructor
@@ -49,33 +51,46 @@ public class AccountRedisRepository
      * 将用户统计信息保存在redis中<hr/>
      * 统计信息包括经常变化的信息，如粉丝数、关注数、硬币数
      *
-     * @param tokenUserInfo TokenUserInfo
-     * @param expireDays    过期天数
-     */
-    public void saveUserState(TokenUserInfo tokenUserInfo, int expireDays)
-    {
-        Long userId = tokenUserInfo.getUserInfo().getUserId();
-        if (userId == null)
-        {
-            throw new RuntimeException("用户名为空");
-        }
-        UserState userState = new UserState(tokenUserInfo.getFollowerCount(),
-                                            tokenUserInfo.getFollowingCount(),
-                                            tokenUserInfo.getCurrentCoin());
-        redisTemplate.opsForValue().set(RedisKey.USER_STATE_PREFIX + userId, userState, expireDays, TimeUnit.DAYS);
-    }
-
-    /**
-     * 将用户统计信息保存在redis中<hr/>
-     * 统计信息包括经常变化的信息，如粉丝数、关注数、硬币数
-     *
      * @param userId     用户ID
      * @param userState  统计信息
      * @param expireDays 过期天数
      */
-    public void saveUserState(long userId, UserState userState, int expireDays)
+    public void saveUserState(Long userId, UserState userState, int expireDays)
     {
+        if (userId == null)
+        {
+            throw new RuntimeException("用户名为空");
+        }
         redisTemplate.opsForValue().set(RedisKey.USER_STATE_PREFIX + userId, userState, expireDays, TimeUnit.DAYS);
+    }
+
+    /**
+     * 删除用户保存在redis中的统计信息
+     *
+     * @param userId 用户ID
+     */
+    public void deleteUserState(Long userId)
+    {
+        if (userId == null)
+        {
+            throw new RuntimeException("用户名为空");
+        }
+        redisTemplate.delete(RedisKey.USER_STATE_PREFIX + userId);
+    }
+
+    /**
+     * 批量删除用户保存在redis中的统计信息<hr/>
+     * 自动排除为null的元素
+     *
+     * @param userIdList 用户ID列表
+     */
+    public void deleteUserStateBatch(List <Long> userIdList)
+    {
+        if (userIdList == null)
+        {
+            throw new RuntimeException("列表为空");
+        }
+        userIdList.stream().filter(Objects::nonNull).forEach(userId -> redisTemplate.delete(RedisKey.USER_STATE_PREFIX + userId));
     }
 
     /**

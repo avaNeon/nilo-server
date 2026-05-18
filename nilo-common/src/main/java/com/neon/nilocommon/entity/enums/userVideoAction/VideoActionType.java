@@ -7,7 +7,7 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum VideoActionType
 {
-    LIKE(1), SAVE(2), COIN(3);
+    LIKE((short) 1), SAVE((short) 2), COIN((short) 3);
 
-    private final int value;
+    private final short value;
 }

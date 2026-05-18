@@ -1,5 +1,6 @@
 package com.neon.niloweb.mapper;
 
+import com.neon.nilocommon.entity.po.UserVideoAction;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
@@ -9,6 +10,23 @@ import java.util.List;
  */
 public interface UserVideoActionMapper<T, P> extends BaseMapper <T, P>
 {
+    /**
+     * 根据用户ID和操作类型查询记录数量
+     *
+     * @param userId     用户ID
+     * @param actionType 操作类型
+     * @return 记录数量
+     */
+    Integer selectCountByUserIdAndActionType(@Param("userId") Long userId, @Param("actionType") Short actionType);
+
+    /**
+     * 根据用户ID和操作类型查询记录
+     *
+     * @param userId     用户ID
+     * @param actionType 操作类型
+     * @return 记录数量
+     */
+    List <UserVideoAction> selectByUserIdAndActionType(@Param("userId") Long userId, @Param("actionType") Short actionType);
 
     /**
      * 根据ActionId更新

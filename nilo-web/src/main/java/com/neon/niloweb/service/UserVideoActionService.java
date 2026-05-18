@@ -3,7 +3,6 @@ package com.neon.niloweb.service;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.userVideoAction.VideoActionType;
 import com.neon.nilocommon.entity.po.UserInfo;
-import com.neon.nilocommon.entity.po.UserState;
 import com.neon.nilocommon.entity.po.UserVideoAction;
 import com.neon.nilocommon.entity.po.VideoInfo;
 import com.neon.nilocommon.entity.query.UserInfoQuery;
@@ -46,7 +45,7 @@ public class UserVideoActionService
      * @param coinAmount 如果是0，代表不是投币操作
      */
     @Transactional(rollbackFor = Exception.class)
-    public void videoAction(long userId, long videoId, int actionType, short coinAmount)
+    public void videoAction(long userId, long videoId, short actionType, short coinAmount)
     {
         UserVideoAction userVideoAction = new UserVideoAction();
         userVideoAction.setUserId(userId);
@@ -120,11 +119,8 @@ public class UserVideoActionService
                         throw new BusinessException("硬币余额不足");
                     }
                     userInfoMapper.increaseCoin(videoInfo.getUserId(), coinAmount);
-                    // 更新用户统计缓存信息
-                    // 更新本用户
-                    updateUserState(userId);
-                    // 更新视频发布者
-                    updateUserState(videoInfo.getUserId());
+                    // 删除用户统计缓存信息
+                    accountRedisRepository.deleteUserStateBatch(List.of(userId, videoInfo.getUserId()));
                 }
                 // UNKNOWN
                 default -> throw new BusinessException(ResponseCode.UNKNOWN_ERROR);
@@ -163,11 +159,9 @@ public class UserVideoActionService
                         throw new BusinessException("硬币余额不足");
                     }
                     userInfoMapper.increaseCoin(videoInfo.getUserId(), coinAmount);
-                    // 更新用户统计缓存信息
-                    // 更新本用户
-                    updateUserState(userId);
-                    // 更新视频发布者
-                    updateUserState(videoInfo.getUserId());
+
+                    // 删除用户统计缓存信息
+                    accountRedisRepository.deleteUserStateBatch(List.of(userId, videoInfo.getUserId()));
                 }
             }
             // 点赞、收藏
@@ -221,18 +215,5 @@ public class UserVideoActionService
                                                         return userVideoActionVO;
                                                     }).toList();
         }
-    }
-
-    /**
-     * 更新redis缓存中的统计信息
-     *
-     * @param userId 用户ID
-     */
-    private void updateUserState(long userId)
-    {
-        UserInfo userInfo = userInfoMapper.selectByUserId(userId);
-        // 更新硬币数到缓存中
-        // todo 保存关注数、粉丝数
-        accountRedisRepository.saveUserState(userId, new UserState(0, 0, userInfo.getCurrentCoin()), expireDays);
     }
 }

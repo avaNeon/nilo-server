@@ -74,7 +74,7 @@
             order by ${query.orderBy}
         </if>
         <if test="query.pageCalculator!=null">
-            limit #{query.pageCalculator.start},#{query.pageCalculator.end}
+            limit #{query.pageCalculator.start},#{query.pageCalculator.size}
         </if>
     </select>
 
@@ -365,5 +365,20 @@
         select
         <include refid="base_column_list"/>
         from user_video_action u where video_id=#{videoId} and user_id=#{userId}
+    </select>
+
+    <select id="selectCountByUserIdAndActionType" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM user_video_action
+        WHERE user_id = #{userId}
+          and action_type = #{actionType}
+    </select>
+
+    <select id="selectByUserIdAndActionType" resultMap="base_result_map">
+        SELECT
+        <include refid="base_column_list"/>
+        FROM user_video_action u
+        WHERE user_id = #{userId}
+        and action_type = #{actionType}
     </select>
 </mapper>

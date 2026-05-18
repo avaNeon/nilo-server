@@ -34,7 +34,7 @@ public class UserVideoAction
     /**
      * 1:视频点赞 2:视频收藏 3:视频投币
      */
-    private Integer actionType;
+    private Short actionType;
 
     /**
      * 投币数量

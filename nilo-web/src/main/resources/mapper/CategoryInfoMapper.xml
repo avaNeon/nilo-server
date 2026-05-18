@@ -2,7 +2,6 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.neon.niloweb.mapper.CategoryInfoMapper">
-
     <!--实体映射-->
     <resultMap id="base_result_map" type="com.neon.nilocommon.entity.po.CategoryInfo">
         <!--自增分类ID-->
@@ -445,5 +444,4 @@
         <include refid="base_column_list"/>
         from category_info c where category_number=#{categoryNumber}
     </select>
-
 </mapper>

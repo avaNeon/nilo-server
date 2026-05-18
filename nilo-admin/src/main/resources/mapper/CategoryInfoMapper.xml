@@ -81,7 +81,7 @@
 
     <!--  获取指定分类在父分类中的最大sort  -->
     <select id="selectMaxSort" resultType="java.lang.Integer">
-        SELECT max(sort)
+        SELECT IFNULL(max(sort), 0)
         FROM category_info
         WHERE p_category_id = #{parentId};
     </select>

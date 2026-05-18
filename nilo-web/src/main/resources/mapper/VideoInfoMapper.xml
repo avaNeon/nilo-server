@@ -2,7 +2,6 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.neon.niloweb.mapper.VideoInfoMapper">
-
     <!--实体映射-->
     <resultMap id="base_result_map" type="com.neon.nilocommon.entity.po.VideoInfo">
         <!--视频ID-->
@@ -52,7 +51,7 @@
     </resultMap>
 
     <!--briefVideoInfoVO实体映射-->
-    <resultMap id="brief_vo_result_map" type="com.neon.nilocommon.entity.vo.BriefVideoInfoVO">
+    <resultMap id="brief_vo_result_map" type="com.neon.nilocommon.entity.vo.videoInfo.BriefVideoInfoVO">
         <!--视频ID-->
         <result column="video_id" property="videoId"/>
         <!--视频封面-->
@@ -73,18 +72,17 @@
         <result column="category_id" property="categoryId"/>
 
         <!-- 嵌套对象映射 -->
-        <association property="briefUserInfo" javaType="com.neon.nilocommon.entity.vo.BriefUserInfoVO">
+        <association property="briefUserInfo" javaType="com.neon.nilocommon.entity.vo.userInfo.BriefUserInfoVO">
             <id column="user_id" property="userId"/>
             <!--昵称-->
             <result column="nick_name" property="nickName"/>
             <!--头像-->
             <result column="avatar" property="avatar"/>
         </association>
-
     </resultMap>
 
     <!--videoInfoVO实体映射-->
-    <resultMap id="vo_result_map" type="com.neon.nilocommon.entity.vo.VideoInfoVO">
+    <resultMap id="vo_result_map" type="com.neon.nilocommon.entity.vo.videoInfo.VideoInfoVO">
         <!--视频ID-->
         <result column="video_id" property="videoId"/>
         <!--视频封面-->
@@ -125,7 +123,7 @@
         <result column="collect_count" property="collectCount"/>
 
         <!-- 嵌套对象映射 -->
-        <association property="userInfo" javaType="com.neon.nilocommon.entity.vo.UserInfoVO">
+        <association property="userInfo" javaType="com.neon.nilocommon.entity.vo.userInfo.UserInfoVO">
             <id column="user_id" property="userId"/>
             <!--昵称-->
             <result column="nick_name" property="nickName"/>
@@ -146,7 +144,6 @@
             <!--主题-->
             <result column="theme" property="theme"/>
         </association>
-
     </resultMap>
 
 
@@ -174,6 +171,11 @@
 		 v.tags,v.introduction,v.interaction,v.duration,v.play_count,
 		 v.like_count,v.danmaku_count,v.comment_count,v.coin_count,v.collect_count,
          u.user_id,u.nick_name,u.avatar,u.gender,u.birthday,u.school,u.personal_introduction,u.status,u.notice_info,u.current_coin,u.theme
+    </sql>
+
+    <sql id="video_series_column_list">
+        v.video_id,v.video_cover,v.video_name,v.duration,v.play_count,
+		 v.danmaku_count,v.last_play_time
     </sql>
 
     <sql id="base_condition_filed">
@@ -291,7 +293,6 @@
             <if test="query.lastPlayTimeEnd!= null and query.lastPlayTimeEnd!=''">
                 <![CDATA[ and  v.last_play_time< #{query.lastPlayTimeEnd} ]]>
             </if>
-
         </where>
     </sql>
 
@@ -975,6 +976,17 @@
             limit #{query.pageCalculator.start},#{query.pageCalculator.size}
         </if>
     </select>
+
+    <select id="selectBriefVoListByVideoIdBatch" resultMap="brief_vo_result_map">
+        SELECT
+        <include refid="brief_vo_column_list"/>
+        FROM video_info v left join user_info u on v.user_id=u.user_id
+        WHERE video_id IN
+        <foreach collection="videoIdList" item="videoId" open="(" close=")" separator=",">
+            #{videoId}
+        </foreach>
+    </select>
+
     <!--  通过videoId查询VideoInfoVO  -->
     <select id="selectVoByVideoId" resultMap="vo_result_map">
         SELECT
@@ -988,6 +1000,19 @@
         UPDATE video_info
         <set>
             ${field} = ${field} + ${increment}
+            <if test="field == 'play_count'">
+                ,last_play_time = now()
+            </if>
+        </set>
+        <where>
+            video_id = #{videoId}
+        </where>
+    </update>
+
+    <update id="decreaseByField">
+        UPDATE video_info
+        <set>
+            ${field} = ${field} - ${decrement}
             <if test="field == 'play_count'">
                 ,last_play_time = now()
             </if>
@@ -1046,4 +1071,61 @@
             video_id = #{videoId}
         </where>
     </update>
+
+    <select id="selectCountByUserIdAndVideoIdList" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM video_info
+        WHERE user_id = #{userId} AND video_id IN
+        <foreach collection="videoIdList" item="videoId" open="(" close=")" separator=",">
+            #{videoId}
+        </foreach>
+    </select>
+
+    <select id="selectCountVideoInfoByUserIdExcludingSeriesId" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM video_info v
+                 LEFT JOIN video_series_video vsv ON v.video_id = vsv.video_id
+        WHERE v.user_id = #{userId}
+          AND vsv.series_id != #{seriesId}
+        ORDER BY v.last_update_time DESC
+    </select>
+
+    <select id="selectVideoInfoByUserIdExcludingSeriesId" resultMap="base_result_map">
+        SELECT
+        <include refid="base_column_list"/>
+        FROM video_info v LEFT JOIN video_series_video vsv ON v.video_id = vsv.video_id
+        WHERE v.user_id = #{userId} AND vsv.series_id != #{seriesId}
+        ORDER BY v.last_update_time DESC
+        LIMIT #{start},#{pageSize}
+    </select>
+
+    <select id="selectVideoInfoBySeriesId" resultMap="base_result_map">
+        SELECT
+        <include refid="base_column_list"/>
+        FROM video_series_video vsv LEFT JOIN video_info v ON vsv.video_id = v. video_id
+        WHERE vsv.series_id = #{seriesId}
+        ORDER BY vsv.sort_index
+        LIMIT #{start},#{pageSize}
+    </select>
+
+    <select id="selectVideoInfoBySeriesIdBatch" resultType="com.neon.nilocommon.entity.vo.VideoSeriesVideoVO">
+        SELECT
+        <include refid="video_series_column_list"/>,vsv.series_id
+        FROM (
+        SELECT series_id, video_id, ROW_NUMBER() OVER (
+        PARTITION BY series_id
+        ORDER BY sort_index, video_id
+        ) AS rn
+        FROM video_series_video
+        WHERE series_id IN
+        <foreach collection="seriesIdList" item="seriesId" separator="," open="(" close=")">
+            #{seriesId}
+        </foreach>
+        ) vsv
+        JOIN video_info v ON vsv.video_id = v.video_id
+        <if test="pageSize!=null">
+            WHERE vsv.rn &lt;= #{pageSize}
+        </if>
+        ORDER BY vsv.series_id,vsv.rn
+    </select>
 </mapper>

@@ -2,7 +2,7 @@ package com.neon.niloweb.config;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
 /**
@@ -11,35 +11,46 @@ import org.springframework.context.annotation.Configuration;
 @Getter
 @Setter
 @Configuration
+@ConfigurationProperties(prefix = "project")
 public class WebConfig
 {
     /**
      * 【必填】项目文件夹根目录
      */
-    @Value("${project.folder}")
     private String rootFilePath;
 
     /**
      * 查询视频分页大小
      */
-    @Value("${project.pageSize:20}")
-    private int pageSize;
+    private int pageSize = 20;
+
+    /**
+     * 用户主页合集展示条数
+     */
+    private int userHomeSeriesDisplaySize = 10;
+
+    /**
+     * 用户主页合集视频展示条数
+     */
+    private int userHomeSeriesVideoDisplaySize = 5;
 
     /**
      * 查询评论分页大小
      */
-    @Value("${project.commentPageSize:10}")
-    private int commentPageSize;
+    private int commentPageSize = 10;
 
     /**
      * 子评论分页大小（超出则由前端显示"查看更多回复"）
      */
-    @Value("${project.childrenCommentPageSize:5}")
-    private int childrenCommentPageSize;
+    private int childrenCommentPageSize = 5;
 
     /**
      * 默认查询评论深度
      */
-    @Value("${project.commentSelectDepth:3}")
-    private int commentSelectDepth;
+    private int commentSelectDepth = 3;
+
+    /**
+     * 用户信息过期时间，单位：天
+     */
+    private int userInfoExpireDays = 7;
 }

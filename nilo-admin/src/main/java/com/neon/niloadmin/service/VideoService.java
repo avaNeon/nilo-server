@@ -15,6 +15,7 @@ import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.FileUtil;
 import com.neon.nilocommon.util.StringUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,13 +24,13 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Supplier;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class VideoService
 {
 
     private final UserInfoMapper <UserInfo, UserInfoQuery> userInfoMapper;
-
 
     // --- upload ---
 
@@ -66,6 +67,8 @@ public class VideoService
     private final UserVideoActionArchiveMapper <UserVideoActionArchive, UserVideoActionArchiveQuery> userVideoActionArchiveMapper;
 
     // --- other ---
+
+    private final VideoInfoDocService videoInfoDocService;
 
     private final MqRepository mqRepository;
 
@@ -164,20 +167,52 @@ public class VideoService
         // 删除不需要的视频（所有fileId不存在于新出现的文件中的视频文件）
         List <Long> remainFileIdList = infoFileList.stream().map(VideoInfoFile::getFileId).toList();
         String rootFilePath = Path.of(adminConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME).normalize().toString();
-        List <String> deletePathList = oldFileList.stream()
-                                                  .filter(oldFile -> !remainFileIdList.contains(oldFile.getFileId())) // 不在新文件列表中的文件
-                                                  .map(VideoInfoFile::getFilePath)
-                                                  .filter(filePath -> filePath != null && !filePath.isBlank())
-                                                  .map(filePath -> Path.of(rootFilePath, filePath).normalize().toString())
-                                                  .filter(absPath -> StringUtil.isValidPath(absPath, rootFilePath))
-                                                  .filter(absPath -> FileUtil.fileExists(absPath))
-                                                  .distinct()
-                                                  .toList();
-        if (!deletePathList.isEmpty())
+        List <VideoInfoFile> deleteFileList = oldFileList.stream()
+                                                         .filter(oldFile -> !remainFileIdList.contains(oldFile.getFileId())) // 不在新文件列表中的文件
+                                                         .toList();
+        List <String> deletePathList = deleteFileList.stream()
+                                                     .map(VideoInfoFile::getFilePath)
+                                                     .filter(filePath -> filePath != null && !filePath.isBlank())
+                                                     .map(filePath -> Path.of(rootFilePath, filePath).normalize().toString())
+                                                     .filter(absPath -> StringUtil.isValidPath(absPath, rootFilePath))
+                                                     .filter(FileUtil::fileExists)
+                                                     .distinct()
+                                                     .toList();
+
+        // 删除旧的视频文件的弹幕
+        Integer deletedDanmakuCount = videoDanmakuMapper.deleteByFileIdBatch(deleteFileList.stream()
+                                                                                           .map(VideoInfoFile::getFileId)
+                                                                                           .toList());
+        // 更新videoInfo信息，因为我们删除了旧视频文件的弹幕
+        videoInfoMapper.decreaseByField(videoId, "danmaku_count", deletedDanmakuCount);
+
+        // 将记录保存到ES中
+        videoInfoDocService.saveVideoInfoDoc(videoInfo);
+
+        // 将需要删除的文件放在MQ队列中
+        try
         {
-            mqRepository.addPathList2DeleteQueue(deletePathList);
+            if (!deletePathList.isEmpty())
+            {
+                mqRepository.addPathList2DeleteQueue(deletePathList);
+            }
         }
-        //todo 保存信息到ES中
+        // 放入MQ失败，回滚ES记录
+        catch (Exception e)
+        {
+            try
+            {
+                videoInfoDocService.deleteVideoInfoDoc(videoId);
+                throw e;
+            }
+            // 删除失败逻辑
+            catch (Exception exceptionCausedByDeleteFailed)
+            {
+                log.error("失效的ES记录，ID={}，videoInfo={}", videoId, videoInfo);
+                throw exceptionCausedByDeleteFailed;
+            }
+        }
+
     }
 
     /**

@@ -2,7 +2,6 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.neon.niloadmin.mapper.VideoInfoMapper">
-
     <!--实体映射-->
     <resultMap id="base_result_map" type="com.neon.nilocommon.entity.po.VideoInfo">
         <!--视频ID-->
@@ -840,4 +839,29 @@
         from video_info v where video_id=#{videoId}
     </select>
 
+    <update id="increaseByField">
+        UPDATE video_info
+        <set>
+            ${field} = ${field} + ${increment}
+            <if test="field == 'play_count'">
+                ,last_play_time = now()
+            </if>
+        </set>
+        <where>
+            video_id = #{videoId}
+        </where>
+    </update>
+
+    <update id="decreaseByField">
+        UPDATE video_info
+        <set>
+            ${field} = ${field} - ${decrement}
+            <if test="field == 'play_count'">
+                ,last_play_time = now()
+            </if>
+        </set>
+        <where>
+            video_id = #{videoId}
+        </where>
+    </update>
 </mapper>

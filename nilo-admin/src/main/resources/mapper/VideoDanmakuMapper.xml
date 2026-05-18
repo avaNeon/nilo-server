@@ -408,4 +408,12 @@
         <include refid="base_column_list"/>
         from video_danmaku v where danmaku_id=#{danmakuId}
     </select>
+
+    <delete id="deleteByFileIdBatch">
+        DELETE FROM video_danmaku
+        WHERE file_id IN
+        <foreach collection="fileIdList" item="fileId" separator="," open="(" close=")">
+            #{fileId}
+        </foreach>
+    </delete>
 </mapper>

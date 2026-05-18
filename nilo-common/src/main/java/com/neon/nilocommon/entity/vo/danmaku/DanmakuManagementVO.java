@@ -1,25 +1,40 @@
-package com.neon.nilocommon.entity.vo;
+package com.neon.nilocommon.entity.vo.danmaku;
 
-import lombok.Getter;
-import lombok.Setter;
-import lombok.ToString;
+import lombok.*;
 
 import java.time.LocalDateTime;
 
 @Getter
 @Setter
 @ToString
-public class DanmakuVO
+@AllArgsConstructor
+@NoArgsConstructor
+public class DanmakuManagementVO
 {
     /**
-     * 弹幕ID【对外展示】
+     * 弹幕ID
      */
     private Long danmakuId;
+
+    /**
+     * 视频ID
+     */
+    private Long videoId;
+
+    /**
+     * 视频文件序号
+     */
+    private Integer fileIndex;
 
     /**
      * 用户ID
      */
     private Long userId;
+
+    /**
+     * 发布时间
+     */
+    private LocalDateTime postTime;
 
     /**
      * 内容
@@ -42,7 +57,12 @@ public class DanmakuVO
     private Integer displayMoment;
 
     /**
-     * 发布时间
+     * 用户名
      */
-    private LocalDateTime postTime;
+    private String nickName;
+
+    /**
+     * 视频名称
+     */
+    private String videoName;
 }

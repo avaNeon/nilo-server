@@ -1,6 +1,7 @@
-package com.neon.nilocommon.entity.vo;
+package com.neon.nilocommon.entity.vo.videoInfo;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.neon.nilocommon.entity.vo.userInfo.UserInfoVO;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;

@@ -1,4 +1,4 @@
-package com.neon.nilocommon.entity.vo;
+package com.neon.nilocommon.entity.vo.videoInfo;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
  */
 @Getter
 @Setter
-public abstract class BasicVideoInfo
+public class BasicVideoInfo
 {
     /**
      * 视频ID

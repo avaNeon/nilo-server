@@ -1,4 +1,4 @@
-package com.neon.nilocommon.entity.vo;
+package com.neon.nilocommon.entity.vo.comment;
 
 import lombok.*;
 

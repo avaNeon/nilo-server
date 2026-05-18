@@ -1,4 +1,4 @@
-package com.neon.nilocommon.entity.vo;
+package com.neon.nilocommon.entity.vo.userInfo;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -31,4 +31,8 @@ public class UserInfoVO
     private String noticeInfo;
 
     private Integer theme;
+
+    private Integer followerCount;
+
+    private Boolean hasFollowed;
 }

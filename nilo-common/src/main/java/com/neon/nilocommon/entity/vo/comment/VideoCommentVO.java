@@ -1,4 +1,4 @@
-package com.neon.nilocommon.entity.vo;
+package com.neon.nilocommon.entity.vo.comment;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.neon.nilocommon.entity.po.UserCommentAction;

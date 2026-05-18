@@ -43,5 +43,5 @@ public class UserInfo
 
     private Integer currentCoin;
 
-    private Integer theme;
+    private Short theme;
 }

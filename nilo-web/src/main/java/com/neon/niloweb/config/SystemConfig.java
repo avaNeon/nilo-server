@@ -1,12 +1,11 @@
 package com.neon.niloweb.config;
 
+import jakarta.validation.constraints.Min;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.validation.annotation.Validated;
-
-import jakarta.validation.constraints.Min;
 
 /**
  * 系统配置
@@ -78,5 +77,11 @@ public class SystemConfig
      */
     @Min(1)
     private Integer maxBitRate = 60;
+
+    /**
+     * 修改昵称硬币花费
+     */
+    @Min(1)
+    private Short modifyNickNameCost = 1;
 
 }

@@ -1,12 +1,23 @@
 package com.neon.nilocommon.entity.enums.userInfo;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+
+
+@Getter
+@AllArgsConstructor
 public enum UserTheme
 {
-    FIRST(1), SECOND(2), THIRD(3), FOURTH(4), FIFTH(5), SIXTH(6), SEVENTH(7), EIGHTH(8);
-    public final int number;
+    FIRST((short) 1),
+    SECOND((short) 2),
+    THIRD((short) 3),
+    FOURTH((short) 4),
+    FIFTH((short) 5),
+    SIXTH((short) 6),
+    SEVENTH((short) 7),
+    EIGHTH((short) 8),
+    NINTH((short) 9),
+    TENTH((short) 10);
 
-    UserTheme(int number)
-    {
-        this.number = number;
-    }
+    public final short value;
 }

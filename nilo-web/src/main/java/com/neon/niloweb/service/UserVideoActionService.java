@@ -14,20 +14,24 @@ import com.neon.nilocommon.util.EnumFieldChecker;
 import com.neon.niloweb.mapper.UserInfoMapper;
 import com.neon.niloweb.mapper.UserVideoActionMapper;
 import com.neon.niloweb.mapper.VideoInfoMapper;
+import com.neon.niloweb.repository.elasticsearch.VideoInfoDocRepository;
 import com.neon.niloweb.repository.redis.AccountRedisRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class UserVideoActionService
 {
-    private static final int expireDays = 7;
-
     private final UserInfoMapper <UserInfo, UserInfoQuery> userInfoMapper;
 
     private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
@@ -35,6 +39,10 @@ public class UserVideoActionService
     private final UserVideoActionMapper <UserVideoAction, UserVideoActionQuery> userVideoActionMapper;
 
     private final AccountRedisRepository accountRedisRepository;
+
+    private final VideoInfoDocRepository videoInfoDocRepository;
+
+    private final UserMessageService userMessageService;
 
     /**
      * 视频操作记录
@@ -60,10 +68,15 @@ public class UserVideoActionService
         userVideoAction.setVideoUserId(videoInfo.getUserId());
 
         // 校验操作类型合法性
-        if (!EnumFieldChecker.containsFieldValue(VideoActionType.class, "value", actionType))
+        Optional <VideoActionType> actionTypeEnumOptional = EnumFieldChecker.findByFieldValue(VideoActionType.class,
+                                                                                              "value",
+                                                                                              actionType);
+        if (Objects.isNull(actionTypeEnumOptional) || actionTypeEnumOptional.isEmpty())
         {
             throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
         }
+        VideoActionType actionTypeEnum = actionTypeEnumOptional.get();
+
         userVideoAction.setActionType(actionType);
 
         // 校验投币合法性
@@ -101,16 +114,52 @@ public class UserVideoActionService
             userVideoAction.setActionTime(LocalDateTime.now());
             userVideoActionMapper.insert(userVideoAction);
 
-            // todo 更新ES
-            switch (actionType)
+            switch (actionTypeEnum)
             {
                 // LIKE
-                case 1 -> videoInfoMapper.increaseLikeCount(videoId);
-                // SAVE
+                case LIKE ->
+                {
+                    // 更新视频点赞数
+                    videoInfoMapper.increaseLikeCount(videoId);
+
+                    // 向用户异步发送消息
+                    CompletableFuture <Void> likeMessageCompletableFuture = userMessageService.recordVideoActionMessage(videoInfo,
+                                                                                                                        userId,
+                                                                                                                        VideoActionType.LIKE);
+
+                    CompletableFuture.allOf(likeMessageCompletableFuture).exceptionally(e ->
+                                                                                        {
+                                                                                            log.warn("异步发送给视频点赞消息时产生异常：{}",
+                                                                                                     e.toString());
+                                                                                            return null;
+                                                                                        });
+                }
+                // COLLECT
                 // todo添加到收藏夹操作
-                case 2 -> videoInfoMapper.increaseCollectCount(videoId);
+                case COLLECT ->
+                {
+                    /* 更新mysql */
+                    // 更新收藏数
+                    videoInfoMapper.increaseCollectCount(videoId);
+
+                    /* 更新ES */
+                    videoInfoDocRepository.increaseCollectCountByVideoId(videoId, 1);
+
+                    // 向用户异步发送消息
+                    CompletableFuture <Void> collectMessageCompletableFuture = userMessageService.recordVideoActionMessage(
+                            videoInfo,
+                            userId,
+                            VideoActionType.COLLECT);
+
+                    CompletableFuture.allOf(collectMessageCompletableFuture).exceptionally(e ->
+                                                                                           {
+                                                                                               log.warn("异步发送给视频收藏消息时产生异常：{}",
+                                                                                                        e.toString());
+                                                                                               return null;
+                                                                                           });
+                }
                 // COIN
-                case 3 ->
+                case COIN ->
                 {
                     videoInfoMapper.increaseCoinCount(videoId, coinAmount);
                     Integer updatedLine = userInfoMapper.decreaseCoin(userId, coinAmount);
@@ -118,8 +167,9 @@ public class UserVideoActionService
                     {
                         throw new BusinessException("硬币余额不足");
                     }
+                    // 更新mysql
                     userInfoMapper.increaseCoin(videoInfo.getUserId(), coinAmount);
-                    // 删除用户统计缓存信息
+                    // 删除redis中用户统计缓存信息
                     accountRedisRepository.deleteUserStateBatch(List.of(userId, videoInfo.getUserId()));
                 }
                 // UNKNOWN
@@ -168,17 +218,24 @@ public class UserVideoActionService
             else
             {
                 // 点赞、收藏过了，就删除
+
                 // 更新user_video_action
                 userVideoActionMapper.deleteByActionId(dbUserVideoAction.getActionId());
+
                 // 更新video_info
-                // todo 更新ES收藏、点赞
                 switch (actionType)
                 {
                     // CANCEL THE LIKE
                     case 1 -> videoInfoMapper.decreaseLikeCount(videoId);
-                    // CANCEL THE SAVE
+                    // CANCEL THE COLLECT
                     // todo 添加到收藏夹
-                    case 2 -> videoInfoMapper.decreaseCollectCount(videoId);
+                    case 2 ->
+                    {
+                        // 更新mysql
+                        videoInfoMapper.decreaseCollectCount(videoId);
+                        // 更新ES
+                        videoInfoDocRepository.decreaseCollectCountByVideoId(videoId, 1);
+                    }
                     // CANCEL THE REQUEST!!!
                     default -> throw new BusinessException(ResponseCode.UNKNOWN_ERROR);
                 }

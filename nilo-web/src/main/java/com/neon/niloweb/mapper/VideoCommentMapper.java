@@ -2,6 +2,7 @@ package com.neon.niloweb.mapper;
 
 import com.neon.nilocommon.entity.vo.comment.CommentManagementVO;
 import com.neon.nilocommon.entity.vo.comment.VideoCommentVO;
+import com.neon.nilocommon.util.PageCalculator;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
@@ -52,6 +53,22 @@ public interface VideoCommentMapper<T, P> extends BaseMapper <T, P>
                                                @Param("userId") Long userId);
 
     /**
+     * 与{@link VideoCommentMapper} 的 selectListVO 方法基本一致，但是同时查询置顶评论和非置顶评论<hr/>
+     * 默认顶层评论排在前面
+     *
+     * @param videoId        视频ID
+     * @param orderBy        排序顺序（postTime正序/倒序、upvote_post倒序性能好）
+     * @param pageCalculator 分页器
+     * @param userId         用户ID（可选）
+     * @return 视频列表
+     */
+    List <VideoCommentVO> selectListAllTopKindsVO(@Param("parentCommentId") Long parentCommentId,
+                                                  @Param("videoId") Long videoId,
+                                                  @Param("orderBy") String orderBy,
+                                                  @Param("pageCalculator") PageCalculator pageCalculator,
+                                                  @Param("userId") Long userId);
+
+    /**
      * 分页查询评论列表 VO，等价于 selectList 但额外 JOIN user_info 获取评论者信息，
      * 并可选 LEFT JOIN user_comment_action 获取当前用户操作记录，结果直接映射到 {@link VideoCommentVO}。
      *
@@ -96,8 +113,8 @@ public interface VideoCommentMapper<T, P> extends BaseMapper <T, P>
      * @return 评论信息列表
      */
     List <CommentManagementVO> selectCommentManagementVO(@Param("userId") Long userId,
-                                                          @Param("videoId") Long videoId,
-                                                          @Param("nameFuzzy") String nameFuzzy,
-                                                          @Param("start") Integer start,
-                                                          @Param("pageSize") Integer pageSize);
+                                                         @Param("videoId") Long videoId,
+                                                         @Param("nameFuzzy") String nameFuzzy,
+                                                         @Param("start") Integer start,
+                                                         @Param("pageSize") Integer pageSize);
 }

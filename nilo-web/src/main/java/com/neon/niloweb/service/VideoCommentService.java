@@ -11,37 +11,52 @@ import com.neon.nilocommon.entity.enums.videoInfo.InteractionType;
 import com.neon.nilocommon.entity.po.UserCommentAction;
 import com.neon.nilocommon.entity.po.VideoComment;
 import com.neon.nilocommon.entity.po.VideoInfo;
-import com.neon.nilocommon.entity.query.PageCalculator;
 import com.neon.nilocommon.entity.query.VideoCommentQuery;
 import com.neon.nilocommon.entity.query.VideoInfoQuery;
 import com.neon.nilocommon.entity.vo.comment.VideoCommentVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.FileUtil;
+import com.neon.nilocommon.util.PageCalculator;
 import com.neon.nilocommon.util.StringUtil;
 import com.neon.niloweb.config.WebConfig;
 import com.neon.niloweb.mapper.VideoCommentMapper;
 import com.neon.niloweb.mapper.VideoInfoMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class VideoCommentService
 {
+    /* Service */
+
+    private final UserMessageService userMessageService;
+
+    /* Repository */
+
     private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
 
     private final VideoCommentMapper <VideoComment, VideoCommentQuery> videoCommentMapper;
 
+    /* Other */
+
     private final Snowflake snowflake;
 
     private final WebConfig webConfig;
+    /**
+     * 最大置顶评论条数
+     */
+    private static final int MOST_TOP_COMMENT_COUNT = 5;
 
     /**
      * 发布视频评论
@@ -51,7 +66,7 @@ public class VideoCommentService
      * @param content         内容
      * @param imgPaths        图片路径
      * @param parentCommentId 父级评论ID，如果自己就是顶级评论，则为0
-     * @return
+     * @return 评论ID
      */
     @Transactional(rollbackFor = Exception.class)
     public Long postComment(long userId, long videoId, String content, String imgPaths, long parentCommentId)
@@ -68,10 +83,12 @@ public class VideoCommentService
 
         VideoComment videoComment = new VideoComment();
 
+        VideoComment parentComment = null;
+
         // 校验父级评论是否合法
         if (parentCommentId != 0)
         {
-            VideoComment parentComment = getVideoComment(parentCommentId, videoId);
+            parentComment = getVideoComment(parentCommentId, videoId);
             if (parentComment.getDeleted() != DeleteType.UNDELETED.getValue())
             {
                 throw new BusinessException("禁止发布评论");
@@ -95,15 +112,18 @@ public class VideoCommentService
         Long commentId = snowflake.nextId();
         videoComment.setCommentId(commentId);
 
-        // 校验完成，插入数据
+        /* 校验完成，插入数据 */
         // video_comment
         videoCommentMapper.insert(videoComment);
+
         // 如果是回复某条评论，父评论的直接子评论计数 +1
         if (parentCommentId != 0)
         {
+            // 父评论子评论数+1
             videoCommentMapper.increaseReplyCount(parentCommentId);
         }
-        // video_info
+
+        // 视频的评论数+1
         videoInfoMapper.increaseByField(videoId, "comment_count", 1);
 
         // 最后把图片移动到COVER中
@@ -118,14 +138,44 @@ public class VideoCommentService
                 FileUtil.verifyAndMoveCover(webConfig.getRootFilePath(), thumbnailImgPathStr);
             }
         }
-        // todo 以后可以在这里通知被回复者
+
+        if (parentCommentId != 0)
+        {
+            // 异步向父评论发布用户发送通知
+            CompletableFuture <Void> replyCommentMessage = userMessageService.recordCommentMessage(videoComment.getReplyUserId(),
+                                                                                                   userId,
+                                                                                                   videoId,
+                                                                                                   content,
+                                                                                                   parentComment.getContent());
+
+            CompletableFuture.allOf(replyCommentMessage).exceptionally(e ->
+                                                                       {
+                                                                           log.warn("异步发送给用户评论被回复消息时产生异常：{}",
+                                                                                    e.toString());
+                                                                           return null;
+                                                                       });
+        }
+
+        // 异步向视频发布者发送新评论通知
+        CompletableFuture <Void> videoCommentMessage = userMessageService.recordCommentMessage(videoInfo.getUserId(),
+                                                                                               userId,
+                                                                                               videoId,
+                                                                                               content,
+                                                                                               null);
+
+        CompletableFuture.allOf(videoCommentMessage).exceptionally(e ->
+                                                                   {
+                                                                       log.warn("异步发送视频出现新评论消息时产生异常：{}",
+                                                                                e.toString());
+                                                                       return null;
+                                                                   });
 
         return commentId;
     }
 
     /**
      * 获取评论列表<hr/>
-     * 获取3层评论，分页大小为10条记录
+     * 获取3层评论，分页大小为6条记录
      *
      * @param userId          当前登录用户ID（null 表示未登录）
      * @param videoId         视频ID
@@ -152,11 +202,11 @@ public class VideoCommentService
         List <VideoCommentVO> commentList;
         if (orderType.equals(CommentOrderType.EARLIEST.getValue()))
         {
-            commentList = getVideoCommentListBatch(userId, videoId, parentCommentId, pageNo, "post_time", depth);
+            commentList = getVideoCommentListBatch(userId, videoId, parentCommentId, pageNo, "v.post_time", depth);
         }
         else if (orderType.equals(CommentOrderType.LATEST.getValue()))
         {
-            commentList = getVideoCommentListBatch(userId, videoId, parentCommentId, pageNo, "post_time DESC", depth);
+            commentList = getVideoCommentListBatch(userId, videoId, parentCommentId, pageNo, "v.post_time DESC", depth);
         }
         else if (orderType.equals(CommentOrderType.POPULAR.getValue()))
         {
@@ -164,7 +214,7 @@ public class VideoCommentService
                                                    videoId,
                                                    parentCommentId,
                                                    pageNo,
-                                                   "upvote_count DESC, post_time DESC",
+                                                   "v.upvote_count DESC, v.post_time DESC",
                                                    depth);
         }
         else
@@ -243,6 +293,18 @@ public class VideoCommentService
         {
             throw new BusinessException(ResponseCode.WRONG_ARGUMENTS);
         }
+
+        // 限制视频指定条数，不能置顶超过5条评论
+        VideoCommentQuery query = new VideoCommentQuery();
+        query.setVideoId(dbComment.getVideoId());
+        query.setParentCommentId(0L);
+        query.setTopType(CommentTopType.TOP.getValue());
+        Integer count = videoCommentMapper.selectCount(query);
+        if (count >= MOST_TOP_COMMENT_COUNT)
+        {
+            throw new BusinessException("置顶评论条数达到上限");
+        }
+
         // 如果已经置顶就不必操作
         if (dbComment.getTopType() != CommentTopType.TOP.getValue())
         {
@@ -269,6 +331,7 @@ public class VideoCommentService
         {
             throw new BusinessException(ResponseCode.WRONG_ARGUMENTS);
         }
+
         // 如果已经是非置顶状态就不必操作
         if (dbComment.getTopType() != CommentTopType.NOT_TOP.getValue())
         {
@@ -316,31 +379,30 @@ public class VideoCommentService
     }
 
     /**
-     * 分层批量查询评论（批量查询）<hr/>
-     * <b>旧方案（递归，每节点单独查）：</b> 最多 2 × (1 + N + N² + ... + N^depth) 条 SQL<br/>
-     * 以 depth=3, pageSize=10 为例：最多 <b>2222条</b> SQL<br/>
-     * <b>新方案（分层批量 IN + JOIN）：</b> 每层只需 1 条 IN 查询（含 JOIN），第一层视情况最多 3 条<br/>
+     * <b>分层批量查询评论（批量查询）</b><hr/>
      * <p>
-     * <b>置顶分页规则（仅 parentCommentId=0 的顶层场景适用）：</b><br/>
-     * 置顶评论（top_type=1）在整个评论流中始终排在最前面，普通评论（top_type=0）紧随其后，
-     * 共同参与分页。设 pinnedCount 为置顶总条数，pageSize 为页大小：
-     * <ul>
-     *   <li>第 K 页置顶条数：{@code max(0, min(pageSize, pinnedCount - (K-1)*pageSize))}</li>
-     *   <li>第 K 页普通条数：{@code pageSize - 置顶条数}</li>
-     *   <li>第 K 页普通偏移：{@code max(0, (K-1)*pageSize - pinnedCount)}</li>
-     * </ul>
-     * 由此使置顶查询和普通查询各走独立索引，ORDER BY 中彻底去掉低区分度的 top_type 列。<br/>
-     * 非顶层场景（parentCommentId≠0）不存在置顶，直接标准分页。
+     * <b>旧方案（递归，每节点单独查）：<br/>
+     * </b> 最多 1 + N + N² + ... + N^layer 条 SQL<br/>
+     * 以 layer=4, pageSize=10 为例：最多 <b>1111条</b> SQL<br/>
      * </p>
+     * <p>
+     * <b>新方案（分层批量 IN + JOIN）：<br/>
+     * </b> 每层只需 1 条 IN 查询（含 JOIN），第一层视情况最多 3 条<br/>
+     * </p>
+     * <p>
+     * <em>置顶评论的特殊对待已经删除，因为现在限制最多置顶5条评论</em>
+     * </p>
+     * <p>
      * 每条 SQL 内部通过 JOIN user_info 和可选 LEFT JOIN user_comment_action（索引覆盖）
      * 一次性取得评论者信息与当前用户操作记录，彻底消除应用层 N+1 查询。
+     * </p>
      *
      * @param userId          当前登录用户 ID（null 表示未登录）
      * @param videoId         视频 ID
      * @param parentCommentId 起始父评论 ID（0 = 顶层；非 0 = 某条评论的子树）
      * @param pageNo          页号（仅对第一层有效）
      * @param orderCommand    第一层普通评论的排序 SQL 片段（不含 top_type）
-     * @param depth           查询层数（包括第一层）
+     * @param layer           查询层数（包括第一层）
      * @return 已组装好层级结构的第一层 VO 列表
      */
     private List <VideoCommentVO> getVideoCommentListBatch(Long userId,
@@ -348,118 +410,90 @@ public class VideoCommentService
                                                            long parentCommentId,
                                                            int pageNo,
                                                            String orderCommand,
-                                                           int depth)
+                                                           int layer)
     {
-        final int pageSize = webConfig.getCommentPageSize();
-        final int limit = webConfig.getChildrenCommentPageSize();
-        final List <VideoCommentVO> rootComments;
 
+        final int childPageSize = webConfig.getChildrenCommentPageSize();
+
+        // 查询评论
+        final int pageSize;
+        final int pageIndex;
+        List <VideoCommentVO> rootCommentList;
+
+        // 如果是顶级评论
         if (parentCommentId == 0)
         {
-            // ========== 顶层评论：需要处理置顶/普通混合分页 ==========
-
-            // 1. 查置顶总条数（用于计算本页各槽位）
-            VideoCommentQuery pinnedCountQuery = new VideoCommentQuery();
-            pinnedCountQuery.setParentCommentId(0L);
-            pinnedCountQuery.setVideoId(videoId);
-            pinnedCountQuery.setTopType(1);
-            int pinnedCount = videoCommentMapper.selectCount(pinnedCountQuery);
-
-            // 2. 计算本页置顶/普通各应占多少条，以及普通评论的 SQL 起始偏移
-            int pinnedOffset = (pageNo - 1) * pageSize;
-            int pinnedOnPage = Math.max(0, Math.min(pageSize, pinnedCount - pinnedOffset));
-            int regularOnPage = pageSize - pinnedOnPage;
-            int regularOffset = Math.max(0, pinnedOffset - pinnedCount);
-
-            // 3. 取本页置顶评论（直接用 LIMIT offset, size，无需 count）
-            List <VideoCommentVO> pinned = new ArrayList <>();
-            if (pinnedOnPage > 0)
-            {
-                VideoCommentQuery pq = new VideoCommentQuery();
-                pq.setParentCommentId(0L);
-                pq.setVideoId(videoId);
-                pq.setTopType(1);
-                pq.setOrderBy("post_time DESC"); // 置顶评论顺序从新到旧
-                pq.setPageCalculator(new PageCalculator(pinnedOffset, pinnedOnPage));
-                List <VideoCommentVO> result = videoCommentMapper.selectListVO(pq, userId);
-                if (result != null) pinned = result;
-            }
-
-            // 4. 取本页普通评论（直接用 LIMIT offset, size，无需 count）
-            List <VideoCommentVO> regular = new ArrayList <>();
-            if (regularOnPage > 0)
-            {
-                VideoCommentQuery rq = new VideoCommentQuery();
-                rq.setParentCommentId(0L);
-                rq.setVideoId(videoId);
-                rq.setTopType(0);
-                rq.setOrderBy(orderCommand);
-                rq.setPageCalculator(new PageCalculator(regularOffset, regularOnPage));
-                List <VideoCommentVO> result = videoCommentMapper.selectListVO(rq, userId);
-                if (result != null) regular = result;
-            }
-
-            // 5. 合并：置顶在前，普通在后
-            List <VideoCommentVO> merged = new ArrayList <>(pinned);
-            merged.addAll(regular);
-            rootComments = merged;
+            pageSize = webConfig.getCommentPageSize();
         }
+        // 如果是子评论（子评论的有自己的页大小）
         else
         {
-            // ========== 非顶层评论：无置顶，和子评论一样的分页大小 ==========
-            VideoCommentQuery query = new VideoCommentQuery();
-            query.setParentCommentId(parentCommentId);
-            query.setVideoId(videoId);
-            query.setOrderBy(orderCommand);
-            Integer count = videoCommentMapper.selectCount(query);
-            query.setPageCalculator(new PageCalculator(pageNo, count, limit));
-            List <VideoCommentVO> result = videoCommentMapper.selectListVO(query, userId);
-            rootComments = (result != null) ? result : new ArrayList <>();
+            pageSize = webConfig.getChildrenCommentPageSize();
         }
 
-        if (rootComments.isEmpty())
+        pageIndex = (pageNo - 1) * pageSize;
+
+        rootCommentList = videoCommentMapper.selectListAllTopKindsVO(parentCommentId,
+                                                                     videoId,
+                                                                     orderCommand,
+                                                                     new PageCalculator(pageIndex, pageSize),
+                                                                     userId);
+
+        // 如果前面的查询结果都是空，那么返回空列表
+        if (rootCommentList == null || rootCommentList.isEmpty())
         {
             return new ArrayList <>();
         }
-        // 将deleted的评论内容置空
+
+        // 否则，将deleted的评论内容置空
         else
         {
-            rootComments.forEach(rootComment ->
-                                 {
-                                     if (rootComment.getDeleted() != DeleteType.UNDELETED.getValue())
-                                     {
-                                         rootComment.setContent("");
-                                         rootComment.setImgPaths("");
-                                     }
-                                 });
+            rootCommentList.forEach(rootComment ->
+                                    {
+                                        if (rootComment.getDeleted() != DeleteType.UNDELETED.getValue())
+                                        {
+                                            rootComment.setContent("");
+                                            rootComment.setImgPaths("");
+                                        }
+                                    });
         }
-
 
         // 建立 commentId → VO 映射，便于通过 parentCommentId 查找父 VO 并挂载子评论
-        Map <Long, VideoCommentVO> voMap = new HashMap <>();
-        for (VideoCommentVO vo : rootComments)
+        Map <Long, VideoCommentVO> voMap = rootCommentList.stream().collect(Collectors.toMap(VideoCommentVO::getCommentId, vo ->
         {
-            vo.setHasMoreChildren(vo.getReplyCount() != null && vo.getReplyCount() > limit);
+            // 设置评论是否展示“显示更多评论”
+            vo.setHasMoreChildren(vo.getReplyCount() != null && vo.getReplyCount() > childPageSize);
+
+            // 根据用户操作显示“已点赞”、“已点踩”
             applyUserAction(vo);
-            voMap.put(vo.getCommentId(), vo);
-        }
+
+            return vo;
+        }));
 
         // 当前层的所有 comment_id，作为下一层 IN 查询的条件
         List <Long> currentParentIdList = new ArrayList <>(voMap.keySet());
 
-        // ===== depth-1 次 SQL 查询：每层只需 1 条 IN 查询（含 JOIN）=====
-        for (int d = 1 ; d < depth ; d++)
+        // ===== layer-1 次 SQL 查询：每层只需 1 条 IN 查询（含 JOIN）=====
+        for (int i = 1 ; i < layer ; i++)
         {
+            // 如果上一层没有评论，结束
             if (currentParentIdList.isEmpty())
             {
                 break;
             }
 
-            List <VideoCommentVO> children = videoCommentMapper.selectByParentIdList(currentParentIdList, videoId, limit, userId);
+            // 查询一层所有评论
+            List <VideoCommentVO> children = videoCommentMapper.selectByParentIdList(currentParentIdList,
+                                                                                     videoId,
+                                                                                     childPageSize,
+                                                                                     userId);
+
+            // 如果子评论没有记录，就不用继续往下一层查找了
             if (children == null || children.isEmpty())
             {
                 break;
             }
+            // 否则，把子评论中的被删除的记录的评论内容删除
             else
             {
                 children.forEach(childComment ->
@@ -472,26 +506,30 @@ public class VideoCommentService
                                  });
             }
 
-            // 按父节点分组
-            Map <Long, List <VideoCommentVO>> childrenByParent = new HashMap <>();
-            for (VideoCommentVO child : children)
-            {
-                // 若已到搜索的最后一层，只要该节点还有子评论就标记为 hasMoreChildren，
-                // 不管数量是否超过 limit（反正下一层不展示了）
-                if (d == depth - 1)
-                {
-                    child.setHasMoreChildren(child.getReplyCount() != null && child.getReplyCount() > 0);
-                }
-                else
-                {
-                    child.setHasMoreChildren(child.getReplyCount() != null && child.getReplyCount() > limit);
-                }
-                applyUserAction(child);
-                childrenByParent.computeIfAbsent(child.getParentCommentId(), k -> new ArrayList <>()).add(child);
-            }
+            // 为了适配 lambda 表达式所写的值
+            final int thisLayer = i;
 
-            // 挂载到父节点
+            // 按父节点分组
+            Map <Long, List <VideoCommentVO>> childrenByParent = children.stream()
+                                                                         .peek(child ->
+                                                                               {
+                                                                                   // 设置是否还有子评论标记
+                                                                                   // 若已到搜索的最后一层，只要该节点还有子评论就标记为 hasMoreChildren，不管数量是否超过 childPageSize
+                                                                                   if (thisLayer == layer - 1)
+                                                                                   {
+                                                                                       child.setHasMoreChildren(child.getReplyCount() != null && child.getReplyCount() > 0);
+                                                                                   }
+                                                                                   else
+                                                                                   {
+                                                                                       child.setHasMoreChildren(child.getReplyCount() != null && child.getReplyCount() > childPageSize);
+                                                                                   }
+                                                                                   applyUserAction(child);
+                                                                               })
+                                                                         .collect(Collectors.groupingBy(VideoCommentVO::getParentCommentId));
+
+            // 下一轮父节点
             List <Long> nextParentIdList = new ArrayList <>();
+
             for (Map.Entry <Long, List <VideoCommentVO>> entry : childrenByParent.entrySet())
             {
                 VideoCommentVO parentVO = voMap.get(entry.getKey());
@@ -500,20 +538,24 @@ public class VideoCommentService
                     continue;
                 }
 
+                // 将子节点挂载到父节点
                 List <VideoCommentVO> childList = entry.getValue();
                 parentVO.setChildCommentList(childList);
 
+                // 将子节点加入到voMap映射中
                 for (VideoCommentVO childVO : childList)
                 {
                     voMap.put(childVO.getCommentId(), childVO);
                     nextParentIdList.add(childVO.getCommentId());
                 }
             }
+
+            // 更新父节点
             currentParentIdList = nextParentIdList;
         }
 
         // 返回顶层 VO 列表（子评论已通过 setChildCommentList 逐层挂载好）
-        return rootComments.stream().map(vc -> voMap.get(vc.getCommentId())).toList();
+        return rootCommentList.stream().map(vc -> voMap.get(vc.getCommentId())).toList();
     }
 
     /**

@@ -634,13 +634,16 @@
         SELECT
         v.comment_id, v.parent_comment_id, v.content, v.img_paths, v.user_id,
         v.top_type, v.post_time, v.upvote_count, v.downvote_count, v.reply_count, v.deleted,
-        ROW_NUMBER() OVER (PARTITION BY v.parent_comment_id ORDER BY v.post_time) AS rn
-        FROM video_comment v
+        ROW_NUMBER() OVER (
+        PARTITION BY v.parent_comment_id
+        ORDER BY v.post_time) AS rn
+        FROM video_comment v FORCE INDEX (idx_video_parent_top_post)
         WHERE v.video_id = #{videoId}
         AND v.parent_comment_id IN
         <foreach collection="parentIdList" item="id" open="(" separator="," close=")">
             #{id}
         </foreach>
+        AND v.top_type = 0
         ) r
         INNER JOIN user_info ui ON ui.user_id = r.user_id
         <if test="userId != null">
@@ -692,6 +695,42 @@
         <if test="query.pageCalculator!=null">
             limit #{query.pageCalculator.start},#{query.pageCalculator.size}
         </if>
+    </select>
+
+    <select id="selectListAllTopKindsVO" resultMap="vo_result_map">
+        SELECT
+        v.comment_id,
+        v.parent_comment_id,
+        v.content,
+        v.img_paths,
+        v.user_id,
+        v.top_type,
+        v.post_time,
+        v.upvote_count,
+        v.downvote_count,
+        v.reply_count,
+        v.deleted,
+        ui.nick_name,
+        ui.avatar
+        <if test="userId != null">
+            , uca.user_id AS uca_user_id
+            , uca.comment_id AS uca_comment_id
+            , uca.action_type AS uca_action_type
+        </if>
+        <if test="userId == null">
+            , NULL AS uca_user_id
+            , NULL AS uca_comment_id
+            , NULL AS uca_action_type
+        </if>
+        FROM video_comment v
+        INNER JOIN user_info ui ON ui.user_id = v.user_id
+        <if test="userId != null">
+            LEFT JOIN user_comment_action uca
+            ON uca.user_id = #{userId} AND uca.comment_id = v.comment_id
+        </if>
+        WHERE v.parent_comment_id = #{parentCommentId} AND v.video_id = #{videoId}
+        ORDER BY v.top_type DESC ,${orderBy}
+        LIMIT #{pageCalculator.start},#{pageCalculator.size}
     </select>
 
     <!-- 发布回复时将父评论的直接子评论数 +1 -->

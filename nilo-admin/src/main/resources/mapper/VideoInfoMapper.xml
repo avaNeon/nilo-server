@@ -864,4 +864,13 @@
             video_id = #{videoId}
         </where>
     </update>
+
+    <select id="selectCountByCategoryIdBatch" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM video_info
+        WHERE category_id IN
+        <foreach collection="categoryIdList" item="categoryId" separator="," open="(" close=")">
+            #{categoryId}
+        </foreach>
+    </select>
 </mapper>

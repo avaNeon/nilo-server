@@ -2,11 +2,19 @@ package com.neon.niloadmin.mapper;
 
 import org.apache.ibatis.annotations.Param;
 
+import java.util.List;
+
 /**
  * 视频信息 数据库操作接口
  */
 public interface VideoInfoMapper<T, P> extends BaseMapper <T, P>
 {
+    /**
+     * 批量查询分类下有多少视频
+     * @param categoryIdList 分类ID列表
+     * @return 视频数量
+     */
+    Integer selectCountByCategoryIdBatch(@Param("categoryIdList") List <Integer> categoryIdList);
 
     /**
      * 将指定字段增加一定的量
@@ -19,8 +27,9 @@ public interface VideoInfoMapper<T, P> extends BaseMapper <T, P>
 
     /**
      * 将指定字段减少一定的量
-     * @param videoId 视频ID
-     * @param filed 字段名
+     *
+     * @param videoId   视频ID
+     * @param filed     字段名
      * @param decrement 减量
      * @return 修改行数
      */
@@ -42,6 +51,4 @@ public interface VideoInfoMapper<T, P> extends BaseMapper <T, P>
      * 根据VideoId获取对象
      */
     T selectByVideoId(@Param("videoId") Long videoId);
-
-
 }

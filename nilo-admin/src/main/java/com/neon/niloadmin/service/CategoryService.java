@@ -2,13 +2,16 @@ package com.neon.niloadmin.service;
 
 
 import com.neon.niloadmin.mapper.CategoryInfoMapper;
+import com.neon.niloadmin.mapper.VideoInfoMapper;
 import com.neon.niloadmin.repository.redis.CategoryRedisRepository;
 import com.neon.nilocommon.entity.enums.PageSize;
 import com.neon.nilocommon.entity.po.CategoryInfo;
+import com.neon.nilocommon.entity.po.VideoInfo;
 import com.neon.nilocommon.entity.query.CategoryInfoQuery;
-import com.neon.nilocommon.entity.query.PageCalculator;
+import com.neon.nilocommon.entity.query.VideoInfoQuery;
 import com.neon.nilocommon.entity.vo.PaginationResponseVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.nilocommon.util.PageCalculator;
 import com.neon.nilocommon.util.RedisQueryUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +34,7 @@ import static com.neon.nilocommon.entity.constants.RedisKey.CATEGORY_UPDATE_LOCK
 @Service
 public class CategoryService
 {
+    private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
 
     private final CategoryInfoMapper <CategoryInfo, CategoryInfoQuery> mapper;
 
@@ -152,6 +156,21 @@ public class CategoryService
      */
     public void deleteCategory(Integer categoryId)
     {
+        // 如果分类下还有视频，不能删除分类
+        checkCache();
+        List <CategoryInfo> categoryInfoList = categoryRedisRepository.getCategoryInfo();
+        List <Integer> categoryIdList = categoryInfoList.stream()
+                                                        .filter(categoryInfo -> categoryInfo.getCategoryId()
+                                                                                            .equals(categoryId) || categoryInfo.getPCategoryId()
+                                                                                                                               .equals(categoryId))
+                                                        .map(CategoryInfo::getCategoryId)
+                                                        .toList();
+        Integer count = videoInfoMapper.selectCountByCategoryIdBatch(categoryIdList);
+        if (count > 0)
+        {
+            throw new BusinessException("现在不能删除，分类下还有视频");
+        }
+
         mapper.deleteByCategoryId(categoryId);
         mapper.deleteByPCategoryId(categoryId);
         categoryRedisRepository.deleteCategoryInfo();

@@ -81,7 +81,6 @@ public class CategoryController
     @DeleteMapping(path = "/category")
     public ResponseVO <Object> deleteCategory(@RequestParam(name = "id") @NotNull Integer id)
     {
-        //TODO 如果分类下有视频，则不能删除分类
         service.deleteCategory(id);
         return ResponseVO.success(null);
     }

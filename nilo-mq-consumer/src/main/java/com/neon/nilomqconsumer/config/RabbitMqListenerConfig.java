@@ -37,12 +37,33 @@ public class RabbitMqListenerConfig
                                         {
                                             log.debug("RabbitMQ Consuming Failed stacktrace", t);
                                         }
-                                        return;
+
+                                        // 最后抛出异常，让Spring管理
+                                        try
+                                        {
+                                            throw t;
+                                        }
+                                        catch (Throwable e)
+                                        {
+                                            throw new RuntimeException(e);
+                                        }
                                     }
+
                                     log.error("RabbitMQ Consuming Failed: error={}", exceptionSummary(root));
+
                                     if (log.isDebugEnabled())
                                     {
                                         log.debug("RabbitMQ Consuming Failed stacktrace", t);
+                                    }
+
+                                    // 最后抛出异常，让Spring管理
+                                    try
+                                    {
+                                        throw t;
+                                    }
+                                    catch (Throwable e)
+                                    {
+                                        throw new RuntimeException(e);
                                     }
                                 });
         return factory;

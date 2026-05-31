@@ -1,8 +1,8 @@
 package com.neon.nilocommon.autoconfigure.serialization;
 
-import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateDeserializer;
-import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
+import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
+import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -19,10 +19,12 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
- * 统一JSON序列化规则<hr/>
- * 其中包括：<br/>
- *  1.当从URL和requestbody传入/发送日期的反序列化/序列化问题
- *  2.JSON序列化时如果没有接受类型的全部属性就报错的问题
+ * <b>统一JSON序列化规则</b><hr/>
+ * <p>其中包括：</p>
+ * <ol>
+ *     <li>当从URL和requestbody传入/发送日期的反序列化/序列化问题</li>
+ *     <li>JSON序列化时如果没有接受类型的全部属性就报错的问题</li>
+ * </ol>
  */
 @RequiredArgsConstructor
 @EnableConfigurationProperties(GlobalSerializationProperties.class)
@@ -51,8 +53,10 @@ public class GlobalSerializationAutoConfiguration implements WebMvcConfigurer
         return builder ->
         {
             //针对于LocalDateTime类的序列化反序列化规则
-            builder.serializerByType(LocalDateTime.class, new LocalDateTimeSerializer(DateTimeFormatter.ofPattern(properties.pattern)));
-            builder.deserializerByType(LocalDateTime.class, new LocalDateDeserializer(DateTimeFormatter.ofPattern(properties.pattern)));
+            builder.serializerByType(LocalDateTime.class,
+                                     new LocalDateTimeSerializer(DateTimeFormatter.ofPattern(properties.pattern)));
+            builder.deserializerByType(LocalDateTime.class,
+                                       new LocalDateTimeDeserializer(DateTimeFormatter.ofPattern(properties.pattern)));
             //将Long统一序列化为字符串，避免前端JS Number精度丢失（如雪花ID）
             builder.serializerByType(Long.class, ToStringSerializer.instance);
             builder.serializerByType(Long.TYPE, ToStringSerializer.instance);

@@ -26,7 +26,7 @@ public class VideoOnlineController
      * @param fileIndex 视频文件序号
      * @param sessionId 会话ID
      */
-    @Operation(summary = "视频在线心跳接口", description = "发送心跳信息，使过期时间延长10秒")
+    @Operation(summary = "视频在线心跳接口", description = "发送心跳信息，使过期时间延长")
     @PostMapping(path = "/heartbeat")
     public ResponseVO <Object> sendHeartbeat(@RequestParam(name = "videoId") @NotNull Long videoId,
                                              @RequestParam(name = "fileIndex") @NotNull Integer fileIndex,

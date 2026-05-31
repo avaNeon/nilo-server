@@ -5,6 +5,10 @@ import com.neon.nilocommon.entity.vo.userInfo.BriefUserInfoVO;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * <b>简略视频信息</b><hr/>
+ * 用于展示视频列表中一条视频记录
+ */
 @Getter
 @Setter
 public class BriefVideoInfoVO extends BasicVideoInfo

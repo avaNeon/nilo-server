@@ -12,6 +12,7 @@ import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.service.VideoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -87,5 +88,21 @@ public class VideoController
     public ResponseVO <List <VideoInfoFileVO>> loadVideoFile(@PathVariable(name = "videoId") @NotNull Long videoId)
     {
         return ResponseVO.success(videoService.loadVideoFile(videoId));
+    }
+
+    @Operation(summary = "加载热门视频列表")
+    @GetMapping(path = "/hot/{pageNo}")
+    public ResponseVO <List <BriefVideoInfoVO>> loadHotVideoInfo(@PathVariable(name = "pageNo") @NotNull @Min(1) Integer pageNo)
+    {
+        return ResponseVO.success(videoService.loadHotVideos(pageNo));
+    }
+
+
+    @Operation(summary = "播放统计")
+    @PostMapping(path = "/{videoId}")
+    public ResponseVO <Object> playCount(@PathVariable("videoId") @NotNull Long videoId)
+    {
+        videoService.playCount(videoId);
+        return ResponseVO.success(null);
     }
 }

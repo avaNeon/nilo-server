@@ -7,24 +7,11 @@ import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import static com.neon.nilocommon.entity.constants.MqInfo.*;
 
 @Configuration
 public class RabbitMqConfig
 {
-    /**
-     * 让RabbitMQ使用JSON序列化
-     */
-    @Bean
-    public MessageConverter jsonMessageConverter()
-    {
-        return new Jackson2JsonMessageConverter();
-    }
-
-
     /* --储存交换机-- */
     @Bean
     public DirectExchange storageExchange()
@@ -37,8 +24,8 @@ public class RabbitMqConfig
     public Queue storageDeleteQueue()
     {
         return QueueBuilder.durable(MqInfo.STORAGE_DELETE_QUEUE).quorum() // 声明为仲裁队列
-                           .deadLetterExchange(MqInfo.DLX_STORAGE_EXCHANGE)        // 绑定死信交换机
-                           .deadLetterRoutingKey(MqInfo.DLQ_STORAGE_DELETE_ROUTING_KEY)   // 绑定死信路由键
+                           .deadLetterExchange(MqInfo.STORAGE_DLX)        // 绑定死信交换机
+                           .deadLetterRoutingKey(MqInfo.STORAGE_DELETE_DLK)   // 绑定死信路由键
                            .build();
     }
 
@@ -53,8 +40,8 @@ public class RabbitMqConfig
     public Queue storageTranscodingQueue()
     {
         return QueueBuilder.durable(MqInfo.STORAGE_TRANSCODING_QUEUE).quorum() // 声明为仲裁队列
-                           .deadLetterExchange(MqInfo.DLX_STORAGE_EXCHANGE)        // 绑定死信交换机
-                           .deadLetterRoutingKey(MqInfo.DLQ_STORAGE_TRANSCODING_ROUTING_KEY)   // 绑定死信路由键
+                           .deadLetterExchange(MqInfo.STORAGE_DLX)        // 绑定死信交换机
+                           .deadLetterRoutingKey(MqInfo.STORAGE_TRANSCODING_DLK)   // 绑定死信路由键
                            .build();
     }
 
@@ -68,28 +55,28 @@ public class RabbitMqConfig
     @Bean
     public DirectExchange dlxStorageExchange()
     {
-        return new DirectExchange(MqInfo.DLX_STORAGE_EXCHANGE);
+        return new DirectExchange(MqInfo.STORAGE_DLX);
     }
 
     /* --[死信]删除队列-- */
     @Bean
     public Queue dlqStorageDeleteQueue()
     {
-        return QueueBuilder.durable(MqInfo.DLQ_STORAGE_DELETE_QUEUE).quorum() // 死信队列也用仲裁队列保证高可用
+        return QueueBuilder.durable(MqInfo.STORAGE_DELETE_DLQ).quorum() // 死信队列也用仲裁队列保证高可用
                            .build();
     }
 
     @Bean
     public Binding bindingStorageDeleteDlq()
     {
-        return BindingBuilder.bind(dlqStorageDeleteQueue()).to(dlxStorageExchange()).with(MqInfo.DLQ_STORAGE_DELETE_ROUTING_KEY);
+        return BindingBuilder.bind(dlqStorageDeleteQueue()).to(dlxStorageExchange()).with(MqInfo.STORAGE_DELETE_DLK);
     }
 
     /* --[死信]转码队列-- */
     @Bean
     public Queue dlqStorageTranscodingQueue()
     {
-        return QueueBuilder.durable(MqInfo.DLQ_STORAGE_TRANSCODING_QUEUE).quorum() // 死信队列也用仲裁队列保证高可用
+        return QueueBuilder.durable(MqInfo.STORAGE_TRANSCODING_DLQ).quorum() // 死信队列也用仲裁队列保证高可用
                            .build();
     }
 
@@ -98,55 +85,80 @@ public class RabbitMqConfig
     {
         return BindingBuilder.bind(dlqStorageTranscodingQueue())
                              .to(dlxStorageExchange())
-                             .with(MqInfo.DLQ_STORAGE_TRANSCODING_ROUTING_KEY);
+                             .with(MqInfo.STORAGE_TRANSCODING_DLK);
     }
 
-    // 1. 声明死信交换机和队列
-    @Bean
-    public DirectExchange dlxVideoHeartbeatExchange()
-    {
-        return new DirectExchange(DLX_VIDEO_HEARTBEAT_EXCHANGE);
-    }
-
-    @Bean
-    public Queue videoHeartbeatDlxQueue()
-    {
-        return new Queue(DLQ_VIDEO_HEARTBEAT_QUEUE, true);
-    }
-
-    @Bean
-    public Binding videoHeartbeatDlxBinding()
-    {
-        return BindingBuilder.bind(videoHeartbeatDlxQueue())
-                             .to(dlxVideoHeartbeatExchange())
-                             .with(DLQ_VIDEO_HEARTBEAT_ROUTING_KEY);
-    }
-
-    // 2. 声明业务交换机
+    /* 心跳交换机 */
     @Bean
     public DirectExchange heartbeatExchange()
     {
         return new DirectExchange(VIDEO_HEARTBEAT_EXCHANGE);
     }
 
-    // 3. 声明业务队列，并绑定死信交换机
+    /* 心跳队列 */
     @Bean
     public Queue heartbeatQueue()
     {
-        Map <String, Object> args = new HashMap <>();
-        // 绑定死信交换机
-        args.put("x-dead-letter-exchange", DLX_VIDEO_HEARTBEAT_EXCHANGE);
-        args.put("x-dead-letter-routing-key", DLQ_VIDEO_HEARTBEAT_ROUTING_KEY);
-        // 消息过期时间 (例如心跳消息超过15秒没被消费，直接丢到死信，因为心跳讲究实时，旧的心跳没用了)
-        args.put("x-message-ttl", 15000);
-        return new Queue(VIDEO_HEARTBEAT_QUEUE, true, false, false, args);
+        return QueueBuilder.durable(VIDEO_HEARTBEAT_QUEUE)
+                           .ttl(15000)
+                           .build();
     }
 
-    // 4. 业务绑定
+    /* 队列-交换机绑定 */
     @Bean
     public Binding heartbeatBinding()
     {
         return BindingBuilder.bind(heartbeatQueue()).to(heartbeatExchange()).with(VIDEO_HEARTBEAT_ROUTING_KEY);
+    }
+
+    /* 统计交换机 */
+    @Bean
+    public DirectExchange statisticsExchange()
+    {
+        return new DirectExchange(STATISTIC_EXCHANGE);
+    }
+
+    /* 统计队列 */
+    @Bean
+    public Queue statisticsQueue()
+    {
+        return QueueBuilder.durable(STATISTIC_QUEUE)
+                           .quorum()
+                           .deadLetterExchange(STATISTIC_DLX)
+                           .deadLetterRoutingKey(STATISTIC_DLK)
+                           .build();
+    }
+
+    /* 统计队列-交换机绑定 */
+    @Bean
+    public Binding statisticsBinding()
+    {
+        return BindingBuilder.bind(statisticsQueue()).to(statisticsExchange()).with(STATISTIC_ROUTING_KEY);
+    }
+
+    /* 统计死信交换机 */
+    @Bean
+    public DirectExchange dlxStatisticsExchange()
+    {
+        return new DirectExchange(STATISTIC_DLX);
+    }
+
+    /* 统计死信队列 */
+    @Bean
+    public Queue dlqStatisticsQueue()
+    {
+        return QueueBuilder.durable(STATISTIC_DLQ)
+                           .quorum()
+                           .build();
+    }
+
+    /* 统计死信队列-死信交换机绑定 */
+    @Bean
+    public Binding statisticsDlqBinding()
+    {
+        return BindingBuilder.bind(dlqStatisticsQueue())
+                             .to(dlxStatisticsExchange())
+                             .with(STATISTIC_DLK);
     }
 
 }

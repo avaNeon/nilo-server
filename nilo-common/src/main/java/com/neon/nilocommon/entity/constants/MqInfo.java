@@ -1,9 +1,9 @@
 package com.neon.nilocommon.entity.constants;
 
 /**
- * MQ相关常量定义<hr/>
- * 主要命名格式：&lt;业务分类&gt;_&lt;功能&gt;_&lt;MQ类型&gt; <br/>
- * 如果是死信还会在前面加上特殊的DL前缀
+ * <b>MQ相关常量定义</b><hr/>
+ * <p>主要命名格式：&lt;业务分类&gt;_&lt;功能&gt;_&lt;MQ类型&gt;</p>
+ * <p>如果是死信还会在前面加上特殊的DL前缀</p>
  */
 public class MqInfo
 {
@@ -16,21 +16,26 @@ public class MqInfo
     public static final String STORAGE_TRANSCODING_QUEUE = "storage.file.transcoding.queue";
     public static final String STORAGE_TRANSCODING_ROUTING_KEY = "file.transcoding";
 
-    public static final String DLX_STORAGE_EXCHANGE = "storage.file.dlx";
+    public static final String STORAGE_DLX = "storage.file.dlx";
     // [死信]文件删除
-    public static final String DLQ_STORAGE_DELETE_QUEUE = "storage.file.delete.dlq";
-    public static final String DLQ_STORAGE_DELETE_ROUTING_KEY = "file.delete.dead";
+    public static final String STORAGE_DELETE_DLQ = "storage.file.delete.dlq";
+    public static final String STORAGE_DELETE_DLK = "file.delete.dead";
     // [死信]视频转码
-    public static final String DLQ_STORAGE_TRANSCODING_QUEUE = "storage.file.transcoding.dlq";
-    public static final String DLQ_STORAGE_TRANSCODING_ROUTING_KEY = "file.transcoding.dead";
+    public static final String STORAGE_TRANSCODING_DLQ = "storage.file.transcoding.dlq";
+    public static final String STORAGE_TRANSCODING_DLK = "file.transcoding.dead";
 
     // ————HEARTBEAT————————————————————————————————————————————————————————
     // 视频在线统计
     public static final String VIDEO_HEARTBEAT_EXCHANGE = "video.heartbeat.direct";
     public static final String VIDEO_HEARTBEAT_QUEUE = "video.heartbeat.queue";
     public static final String VIDEO_HEARTBEAT_ROUTING_KEY = "heartbeat.routing.key";
-    // [死信]视频在线统计
-    public static final String DLX_VIDEO_HEARTBEAT_EXCHANGE = "video.heartbeat.dlx";
-    public static final String DLQ_VIDEO_HEARTBEAT_QUEUE = "video.heartbeat.dlq";
-    public static final String DLQ_VIDEO_HEARTBEAT_ROUTING_KEY = "heartbeat.dlx.routing.key";
+
+    // ————STATISTICS————————————————————————————————————————————————————————
+    public static final String STATISTIC_EXCHANGE = "statistic.direct";
+    public static final String STATISTIC_QUEUE = "statistic.queue";
+    public static final String STATISTIC_ROUTING_KEY = "statistic.routing.key";
+    // dlx
+    public static final String STATISTIC_DLX = "statistic.dlx";
+    public static final String STATISTIC_DLQ = "statistic.dlq";
+    public static final String STATISTIC_DLK = "statistic.dead";
 }

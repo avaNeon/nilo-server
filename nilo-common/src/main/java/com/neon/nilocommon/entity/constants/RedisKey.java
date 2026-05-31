@@ -51,15 +51,47 @@ public class RedisKey
     /**
      * 视频在线统计 —— 心跳连接前缀
      */
-    public static final String VIDEO_HEARTBEAT_PREFIX = REDIS_KEY_PREFIX + "video:heartbeat:";
+    public static final String VIDEO_HEARTBEAT_PREFIX = REDIS_KEY_PREFIX + "{video-online}:heartbeat:";
 
     /**
-     * 视频在线统计 —— 活跃视频列表前缀
+     * 视频在线统计 —— 活跃视频列表的键名
      */
-    public static final String VIDEO_ACTIVE_LIST = REDIS_KEY_PREFIX + "video:active-list";
+    public static final String VIDEO_ACTIVE_LIST = REDIS_KEY_PREFIX + "{video-online}:active-list";
 
     /**
      * 缩略图后缀
      */
     public static final String THUMBNAIL_SUFFIX = "_thumb";
+
+    /**
+     * 热词记录键名
+     */
+    public static final String HOT_KEYWORD_RANKING = REDIS_KEY_PREFIX + "hot-keyword:ranking";
+
+    /**
+     * <b>热门视频排行榜</b><hr/>
+     * <p>这个排行榜中的视频将会展示给用户</p>
+     */
+    public static final String HOT_VIDEO_RANKING = REDIS_KEY_PREFIX + "{play-count}:ranking";
+
+    /**
+     * <b>热门视频时间记录前缀</b><hr/>
+     */
+    public static final String HOT_VIDEO_COUNTING_PREFIX = REDIS_KEY_PREFIX + "{play-count}:counting:";
+
+    /**
+     * <b>热门视频排行榜候选池</b><hr/>
+     * <p>这个候选池用于存储还没达到热门播放量阈值的视频</p>
+     */
+    public static final String COLD_VIDEO_RANKING = REDIS_KEY_PREFIX + "{play-count}:cold-ranking";
+
+    /**
+     * <b>候选池视频时间记录前缀</b><hr/>
+     */
+    public static final String COLD_VIDEO_COUNTING_PREFIX = REDIS_KEY_PREFIX + "{play-count}:cold-counting:";
+
+    /**
+     * <b>视频历史播放记录统计（仅统计近2天）</b><hr/>
+     */
+    public static final String VIDEO_DAILY_PLAY_COUNT_PREFIX = REDIS_KEY_PREFIX + "{play-count}:daily:";
 }

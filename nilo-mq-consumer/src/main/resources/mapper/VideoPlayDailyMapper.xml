@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neon.nilomqconsumer.mapper.VideoPlayDailyMapper">
+    <!--实体映射-->
+    <resultMap id="base_result_map" type="com.neon.nilocommon.entity.po.VideoPlayDaily">
+        <!---->
+        <result column="statistics_date" property="statisticsDate"/>
+        <!---->
+        <result column="video_id" property="videoId"/>
+        <!---->
+        <result column="video_user_id" property="videoUserId"/>
+        <!---->
+        <result column="play_count" property="playCount"/>
+    </resultMap>
+
+
+    <!-- 通用查询结果列-->
+    <sql id="base_column_list">
+        v.statistics_date,v.video_id,v.video_user_id,v.play_count
+    </sql>
+
+    <sql id="base_condition_filed">
+        <if test="query.statisticsDate != null and query.statisticsDate!=''">
+            <![CDATA[ and  v.statistics_date=str_to_date(#{query.statisticsDate}, '%Y-%m-%d') ]]>
+        </if>
+        <if test="query.videoId != null">
+            and v.video_id = #{query.videoId}
+        </if>
+        <if test="query.videoUserId != null">
+            and v.video_user_id = #{query.videoUserId}
+        </if>
+        <if test="query.playCount != null">
+            and v.play_count = #{query.playCount}
+        </if>
+    </sql>
+
+    <!-- 通用查询条件列-->
+    <sql id="query_condition">
+        <where>
+            <include refid="base_condition_filed"/>
+            <if test="query.statisticsDateStart!= null and query.statisticsDateStart!=''">
+                <![CDATA[ and  v.statistics_date>=str_to_date(#{query.statisticsDateStart}, '%Y-%m-%d') ]]>
+            </if>
+            <if test="query.statisticsDateEnd!= null and query.statisticsDateEnd!=''">
+                <![CDATA[ and  v.statistics_date< date_sub(str_to_date(#{query.statisticsDateEnd},'%Y-%m-%d'),interval -1 day) ]]>
+            </if>
+        </where>
+    </sql>
+
+    <!-- 查询集合-->
+    <select id="selectList" resultMap="base_result_map">
+        SELECT
+        <include refid="base_column_list"/>
+        FROM video_play_daily v
+        <include refid="query_condition"/>
+        <if test="query.orderBy!=null">
+            order by ${query.orderBy}
+        </if>
+        <if test="query.pageCalculator!=null">
+            limit #{query.pageCalculator.start},#{query.pageCalculator.size}
+        </if>
+    </select>
+
+    <!-- 查询数量-->
+    <select id="selectCount" resultType="java.lang.Integer">
+        SELECT count(1) FROM video_play_daily v
+        <include refid="query_condition"/>
+    </select>
+
+    <!-- 插入 （匹配有值的字段）-->
+    <insert id="insert" parameterType="com.neon.nilocommon.entity.po.VideoPlayDaily">
+        INSERT INTO video_play_daily
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="bean.statisticsDate != null">
+                statistics_date,
+            </if>
+            <if test="bean.videoId != null">
+                video_id,
+            </if>
+            <if test="bean.videoUserId != null">
+                video_user_id,
+            </if>
+            <if test="bean.playCount != null">
+                play_count,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="bean.statisticsDate!=null">
+                #{bean.statisticsDate},
+            </if>
+            <if test="bean.videoId!=null">
+                #{bean.videoId},
+            </if>
+            <if test="bean.videoUserId!=null">
+                #{bean.videoUserId},
+            </if>
+            <if test="bean.playCount!=null">
+                #{bean.playCount},
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 插入或者更新 （匹配有值的字段）-->
+    <insert id="insertOrUpdate" parameterType="com.neon.nilocommon.entity.po.VideoPlayDaily">
+        INSERT INTO video_play_daily
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="bean.statisticsDate != null">
+                statistics_date,
+            </if>
+            <if test="bean.videoId != null">
+                video_id,
+            </if>
+            <if test="bean.videoUserId != null">
+                video_user_id,
+            </if>
+            <if test="bean.playCount != null">
+                play_count,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="bean.statisticsDate!=null">
+                #{bean.statisticsDate},
+            </if>
+            <if test="bean.videoId!=null">
+                #{bean.videoId},
+            </if>
+            <if test="bean.videoUserId!=null">
+                #{bean.videoUserId},
+            </if>
+            <if test="bean.playCount!=null">
+                #{bean.playCount},
+            </if>
+        </trim>
+        on DUPLICATE key update
+        <trim prefix="" suffix="" suffixOverrides=",">
+            <if test="bean.statisticsDate!=null">
+                statistics_date = VALUES(statistics_date),
+            </if>
+            <if test="bean.videoId!=null">
+                video_id = VALUES(video_id),
+            </if>
+            <if test="bean.videoUserId!=null">
+                video_user_id = VALUES(video_user_id),
+            </if>
+            <if test="bean.playCount!=null">
+                play_count = VALUES(play_count),
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 添加 （批量插入）-->
+    <insert id="insertBatch" parameterType="com.neon.nilocommon.entity.po.VideoPlayDaily">
+        INSERT INTO video_play_daily(
+        statistics_date,
+        video_id,
+        video_user_id,
+        play_count
+        )values
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.statisticsDate},
+            #{item.videoId},
+            #{item.videoUserId},
+            #{item.playCount}
+            )
+        </foreach>
+    </insert>
+
+    <!-- 批量新增修改 （批量插入）-->
+    <insert id="insertOrUpdateBatch" parameterType="com.neon.nilocommon.entity.po.VideoPlayDaily">
+        INSERT INTO video_play_daily(
+        statistics_date,
+        video_id,
+        video_user_id,
+        play_count
+        )values
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.statisticsDate},
+            #{item.videoId},
+            #{item.videoUserId},
+            #{item.playCount}
+            )
+        </foreach>
+        on DUPLICATE key update
+        video_user_id = VALUES(video_user_id),
+        play_count = VALUES(play_count)
+    </insert>
+
+    <!--多条件修改-->
+    <update id="updateByParam" parameterType="com.neon.nilocommon.entity.query.VideoPlayDailyQuery">
+        UPDATE video_play_daily v
+        <set>
+            <if test="bean.statisticsDate != null">
+                statistics_date = #{bean.statisticsDate},
+            </if>
+            <if test="bean.videoId != null">
+                video_id = #{bean.videoId},
+            </if>
+            <if test="bean.videoUserId != null">
+                video_user_id = #{bean.videoUserId},
+            </if>
+            <if test="bean.playCount != null">
+                play_count = #{bean.playCount},
+            </if>
+        </set>
+        <include refid="query_condition"/>
+    </update>
+
+    <!--多条件删除-->
+    <delete id="deleteByParam">
+        delete v from video_play_daily v
+        <include refid="query_condition"/>
+    </delete>
+
+    <!-- 根据StatisticsDateAndVideoId修改-->
+    <update id="updateByStatisticsDateAndVideoId" parameterType="com.neon.nilocommon.entity.po.VideoPlayDaily">
+        UPDATE video_play_daily
+        <set>
+            <if test="bean.videoUserId != null">
+                video_user_id = #{bean.videoUserId},
+            </if>
+            <if test="bean.playCount != null">
+                play_count = #{bean.playCount},
+            </if>
+        </set>
+        where statistics_date=#{statisticsDate} and video_id=#{videoId}
+    </update>
+
+    <!-- 根据StatisticsDateAndVideoId删除-->
+    <delete id="deleteByStatisticsDateAndVideoId">
+        delete
+        from video_play_daily
+        where statistics_date = #{statisticsDate}
+          and video_id = #{videoId}
+    </delete>
+
+    <!-- 根据PrimaryKey获取对象-->
+    <select id="selectByStatisticsDateAndVideoId" resultMap="base_result_map">
+        select
+        <include refid="base_column_list"/>
+        from video_play_daily v where statistics_date=#{statisticsDate} and video_id=#{videoId}
+    </select>
+
+    <delete id="deleteByStatisticsDate">
+        DELETE
+        FROM video_play_daily
+        WHERE statistics_date = #{statisticsDate}
+    </delete>
+</mapper>

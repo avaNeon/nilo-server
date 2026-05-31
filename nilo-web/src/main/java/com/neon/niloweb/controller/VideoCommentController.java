@@ -2,9 +2,9 @@ package com.neon.niloweb.controller;
 
 import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.constants.RedisKey;
-import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.videoComment.CommentOrderType;
+import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.entity.vo.comment.VideoCommentVO;
 import com.neon.nilocommon.exception.BusinessException;

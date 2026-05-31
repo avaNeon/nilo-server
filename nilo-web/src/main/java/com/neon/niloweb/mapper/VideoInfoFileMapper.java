@@ -1,5 +1,6 @@
 package com.neon.niloweb.mapper;
 
+import com.neon.nilocommon.entity.po.VideoInfoFile;
 import com.neon.nilocommon.entity.vo.VideoInfoFileVO;
 import org.apache.ibatis.annotations.Param;
 
@@ -10,6 +11,15 @@ import java.util.List;
  */
 public interface VideoInfoFileMapper<T, P> extends BaseMapper <T, P>
 {
+    /**
+     * 根据videoId获取视频文件VO对象
+     *
+     * @param videoId 视频ID
+     * @return 视频文件VO对象
+     */
+    List <VideoInfoFileVO> selectVoByVideoId(@Param("videoId") Long videoId);
+
+    VideoInfoFile selectByVideoIdAndFileIndex(@Param("videoId") Long videoId, @Param("fileIndex") Integer fileIndex);
 
     /**
      * 根据FileId更新
@@ -27,11 +37,4 @@ public interface VideoInfoFileMapper<T, P> extends BaseMapper <T, P>
      * 根据FileId获取对象
      */
     T selectByFileId(@Param("fileId") Long fileId);
-
-    /**
-     * 根据videoId获取视频文件VO对象
-     * @param videoId 视频ID
-     * @return 视频文件VO对象
-     */
-    List <VideoInfoFileVO> selectVoByVideoID(@Param("videoId") Long videoId);
 }

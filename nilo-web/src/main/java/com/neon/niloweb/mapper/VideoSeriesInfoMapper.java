@@ -61,11 +61,11 @@ public interface VideoSeriesInfoMapper<T, P> extends BaseMapper <T, P>
     /**
      * 根据userId查询VideoSeriesInfo列表
      *
-     * @param userId 用户ID
+     * @param userId   用户ID
      * @param pageSize 限制长度
      * @return VideoSeriesInfo列表
      */
-    List <VideoSeriesInfo> selectVideoSeriesListByUserId(@Param("userId") Long userId,@Param("pageSize") Integer pageSize);
+    List <VideoSeriesInfo> selectVideoSeriesListByUserId(@Param("userId") Long userId, @Param("pageSize") Integer pageSize);
 
     /**
      * 根据SeriesId更新

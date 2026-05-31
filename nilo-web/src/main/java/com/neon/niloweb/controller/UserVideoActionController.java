@@ -34,10 +34,9 @@ public class UserVideoActionController
                                            @RequestParam(name = "coinAmount", required = false) @Min(1) @Max(2) Short coinAmount)
     {
         long userId = loginState.getLoginUserId(token);
-        userVideoActionService.videoAction(userId,
-                                           videoId,
-                                           actionType,
-                                           coinAmount == null ? (short) 0 : coinAmount);
+
+        userVideoActionService.videoAction(userId, videoId, actionType, coinAmount == null ? (short) 0 : coinAmount);
+
         return ResponseVO.success(null);
     }
 

@@ -48,18 +48,23 @@ public class SystemConfig
     private Integer rewardsPreUpload = 5;
 
     /**
-     * 视频在线人数统计，心跳过期时间，单位:ms<hr/>
-     * 默认10s内的数据算作有效数据
+     * 心跳发送至MQ的周期
      */
     @Min(1)
-    private Integer onlineExpireTimeMs = 10_000;
+    private Integer heartbeatSendInterval = 3_000;
+
+    /**
+     * 视频在线人数统计，心跳过期时间，单位:ms<hr/>
+     * 默认30s内的数据算作有效数据
+     */
+    @Min(1)
+    private Integer onlineExpireTimeMs = 30_000;
 
     /**
      * 统计视频在线人数的ZSET的清理周期，单位:ms<hr/>
-     * 默认30s清理一次旧数据
      */
     @Min(1)
-    private Integer onlineCountCleanUpTimeMs = 30_000;
+    private Integer onlineCountCleanUpTimeMs = 15_000;
 
     /**
      * 最大内容时长，单位:min

@@ -1,6 +1,5 @@
 package com.neon.niloweb.mapper;
 
-import com.neon.nilocommon.entity.po.VideoInfo;
 import com.neon.nilocommon.entity.po.VideoSeriesVideo;
 import org.apache.ibatis.annotations.Param;
 

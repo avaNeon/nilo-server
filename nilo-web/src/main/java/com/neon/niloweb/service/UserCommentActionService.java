@@ -73,6 +73,8 @@ public class UserCommentActionService
             UserCommentAction dbAction = userCommentActionMapper.selectByCommentIdAndUserIdAndActionType(commentId,
                                                                                                          userId,
                                                                                                          actionType);
+
+            // 存在相同记录的情况，删除相同的记录
             if (dbAction != null)
             {
                 userCommentActionMapper.deleteByCommentIdAndUserIdAndActionType(commentId, userId, actionType);
@@ -85,8 +87,10 @@ public class UserCommentActionService
                     videoCommentMapper.decreaseDownvoteCount(commentId);
                 }
             }
+            // 否则，需要新增记录
             else
             {
+                // 先判断数据库有没有对立的记录，如果有，那么删除这条记录
                 if (oppositeAction != null)
                 {
                     userCommentActionMapper.deleteByCommentIdAndUserIdAndActionType(commentId, userId, oppositeType);

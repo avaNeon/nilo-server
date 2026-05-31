@@ -19,6 +19,7 @@ import com.neon.nilocommon.entity.vo.videoSeriesInfo.VideoSeriesWithVideosVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.EnumFieldChecker;
 import com.neon.nilocommon.util.FileUtil;
+import com.neon.nilocommon.util.PageCalculator;
 import com.neon.niloweb.config.SystemConfig;
 import com.neon.niloweb.config.WebConfig;
 import com.neon.niloweb.mapper.*;
@@ -74,8 +75,8 @@ public class UserHomeService
         }
         BeanUtils.copyProperties(userInfo, userDetailVO);
 
-        Integer followingCount = followInfoMapper.selectFollowingCount(visitorUserId);
-        Integer followerCount = followInfoMapper.selectFollowerCount(visitorUserId);
+        Integer followingCount = followInfoMapper.selectFollowingCount(hostUserId);
+        Integer followerCount = followInfoMapper.selectFollowerCount(hostUserId);
         if (followingCount == null || followerCount == null)
         {
             throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
@@ -313,11 +314,11 @@ public class UserHomeService
         checkUserExists(userId);
 
         // 查询收藏操作
-        Integer totalCount = userVideoActionMapper.selectCountByUserIdAndActionType(userId, VideoActionType.SAVE.getValue());
+        Integer totalCount = userVideoActionMapper.selectCountByUserIdAndActionType(userId, VideoActionType.COLLECT.getValue());
         int pageSize = webConfig.getPageSize();
         UserVideoActionQuery query = new UserVideoActionQuery();
         query.setUserId(userId);
-        query.setActionType(VideoActionType.SAVE.getValue());
+        query.setActionType(VideoActionType.COLLECT.getValue());
         query.setPageCalculator(new PageCalculator(pageNo, totalCount, pageSize));
         query.setOrderBy("u.action_time DESC");
         List <UserVideoAction> userVideoActionList = userVideoActionMapper.selectList(query);

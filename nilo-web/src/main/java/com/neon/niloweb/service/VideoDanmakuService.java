@@ -7,7 +7,7 @@ import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.po.VideoDanmaku;
 import com.neon.nilocommon.entity.po.VideoInfo;
 import com.neon.nilocommon.entity.po.VideoInfoFile;
-import com.neon.nilocommon.entity.query.PageCalculator;
+import com.neon.nilocommon.util.PageCalculator;
 import com.neon.nilocommon.entity.query.VideoDanmakuQuery;
 import com.neon.nilocommon.entity.query.VideoInfoFileQuery;
 import com.neon.nilocommon.entity.query.VideoInfoQuery;
@@ -17,6 +17,7 @@ import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.mapper.VideoDanmakuMapper;
 import com.neon.niloweb.mapper.VideoInfoFileMapper;
 import com.neon.niloweb.mapper.VideoInfoMapper;
+import com.neon.niloweb.repository.elasticsearch.VideoInfoDocRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
@@ -40,6 +41,8 @@ public class VideoDanmakuService
 
     private final VideoInfoFileMapper <VideoInfoFile, VideoInfoFileQuery> videoInfoFileMapper;
 
+    private final VideoInfoDocRepository videoInfoDocRepository;
+
     private final Snowflake snowflake;
 
     /**
@@ -62,6 +65,7 @@ public class VideoDanmakuService
         VideoDanmaku videoDanmaku = new VideoDanmaku();
         BeanUtils.copyProperties(danmakuDTO, videoDanmaku);
         videoDanmaku.setFileId(videoInfoFileList.get(0).getFileId());
+
         // --------
         // 校验
         // --------
@@ -89,11 +93,14 @@ public class VideoDanmakuService
         // 设置发布时间
         videoDanmaku.setPostTime(LocalDateTime.now());
 
+        // 入库
         videoDanmakuMapper.insert(videoDanmaku);
 
+        // 更新弹幕数量
         videoInfoMapper.increaseByField(videoId, "danmaku_count", 1);
 
-        //todo 更新ES弹幕数量
+        // 更新ES弹幕数量
+        videoInfoDocRepository.increaseDanmakuCountByVideoId(videoId, 1);
     }
 
     /**

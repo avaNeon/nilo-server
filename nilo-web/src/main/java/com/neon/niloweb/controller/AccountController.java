@@ -3,6 +3,7 @@ package com.neon.niloweb.controller;
 import cn.hutool.captcha.CaptchaUtil;
 import cn.hutool.captcha.LineCaptcha;
 import com.neon.nilocommon.captcha.RedisCaptcha;
+import com.neon.niloweb.annotation.Authorized;
 import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.dto.LoginUserInfoDTO;
 import com.neon.nilocommon.entity.dto.RegisterUserInfoDTO;
@@ -105,7 +106,6 @@ public class AccountController
             if (!redisCaptcha.verifyCaptchaCode(loginUserInfoDTO.getCaptchaKey(), loginUserInfoDTO.getCode()))
                 throw new BusinessException(ResponseCode.CAPTCHA_FAILED);
             String clientIp = ServletUtil.getClientIp(request);
-            // TODO 头像、粉丝数、关注数（或许还有硬币数）还没有设置
             TokenUserInfo tokenUserInfo = accountService.login(loginUserInfoDTO.getEmail(),
                                                                loginUserInfoDTO.getPassword(),
                                                                clientIp);
@@ -123,6 +123,7 @@ public class AccountController
         }
     }
 
+    @Authorized
     @Operation(summary = "自动登录接口", description = "检验token，如果token有效，则返回用户信息")
     @GetMapping(path = "/autoLogin")
     public ResponseVO <TokenUserInfo> autoLogin(@RequestHeader(name = "token") @NotEmpty String token)
@@ -147,6 +148,7 @@ public class AccountController
      * @param token token
      * @return 用户统计信息
      */
+    @Authorized
     @Operation(summary = "获取统计信息", description = "获取统计信息，返回值可能为null，代表失败的情况")
     @GetMapping(path = "/state")
     public ResponseVO <UserState> userState(@RequestHeader(name = "token") @NotEmpty String token)

@@ -16,9 +16,11 @@ import com.neon.nilocommon.entity.vo.comment.CommentManagementVO;
 import com.neon.nilocommon.entity.vo.danmaku.DanmakuManagementVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.FileUtil;
+import com.neon.nilocommon.util.PageCalculator;
 import com.neon.niloweb.config.SystemConfig;
 import com.neon.niloweb.config.WebConfig;
 import com.neon.niloweb.mapper.*;
+import com.neon.niloweb.repository.elasticsearch.VideoInfoDocRepository;
 import com.neon.niloweb.repository.rabbitmq.VideoMqRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
@@ -38,13 +40,15 @@ public class CreativeCenterService
 {
     private final SystemConfig systemConfig;
 
-    // --- upload ---
+    private final UserInfoMapper <UserInfo, UserInfoQuery> userInfoMapper;
+
+    // ----- upload -----
 
     private final VideoInfoUploadMapper <VideoInfoUpload, VideoInfoUploadQuery> videoInfoUploadMapper;
 
     private final VideoInfoFileUploadMapper <VideoInfoFileUpload, VideoInfoFileUploadQuery> videoInfoFileUploadMapper;
 
-    // --- info ---
+    // ----- info -----
 
     private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
 
@@ -58,7 +62,7 @@ public class CreativeCenterService
 
     private final UserVideoActionMapper <UserVideoAction, UserVideoActionQuery> userVideoActionMapper;
 
-    // --- archive ---
+    // ----- archive -----
 
     private final VideoInfoArchiveMapper <VideoInfoArchive, VideoInfoArchiveQuery> videoInfoArchiveMapper;
 
@@ -72,7 +76,10 @@ public class CreativeCenterService
 
     private final UserVideoActionArchiveMapper <UserVideoActionArchive, UserVideoActionArchiveQuery> userVideoActionArchiveMapper;
 
-    // --- other ---
+    // ----- ElasticSearch repository -----
+    private final VideoInfoDocRepository videoInfoDocRepository;
+
+    // ----- other -----
 
     private final Snowflake snowflake;
 
@@ -474,8 +481,8 @@ public class CreativeCenterService
             throw new BusinessException(ResponseCode.NOT_FOUND);
         }
 
-        // TODO 给用户扣除发布视频时获得的硬币
-        // TODO 删除ES信息
+        // 给用户扣除发布视频时获得的硬币
+        userInfoMapper.decreaseCoin(userId, webConfig.getCoinBonusPerVideo());
 
         // --- 将所有数据迁移到 archive 表 ---
 
@@ -557,6 +564,11 @@ public class CreativeCenterService
         VideoInfoUploadQuery videoInfoUploadQuery = new VideoInfoUploadQuery();
         videoInfoUploadQuery.setVideoId(videoId);
         videoInfoUploadMapper.deleteByParam(videoInfoUploadQuery);
+
+        // TODO 如果以后要把记录存入redis中，那么这里也要删除redis中留存的记录
+
+        // 删除ES记录
+        videoInfoDocRepository.deleteById(videoId);
     }
 
     public Long getCommentManagementInfoCount(long userId, Long videoId, String nameFuzzy)

@@ -387,10 +387,16 @@
     </select>
 
     <!--  根据videoId获取文件vo对象-->
-    <select id="selectVoByVideoID" resultMap="vo_result_map">
+    <select id="selectVoByVideoId" resultMap="vo_result_map">
         SELECT
         <include refid="vo_column_list"/>
         FROM video_info_file v
         where v.video_id=#{videoId}
+    </select>
+
+    <select id="selectByVideoIdAndFileIndex" resultMap="base_result_map">
+        select
+        <include refid="base_column_list"/>
+        from video_info_file v where file_id=#{fileId} and file_index = #{fileIndex}
     </select>
 </mapper>

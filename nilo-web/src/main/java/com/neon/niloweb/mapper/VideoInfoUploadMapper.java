@@ -33,5 +33,5 @@ public interface VideoInfoUploadMapper<T, P> extends BaseMapper <T, P>
     /**
      * 通用查询的基础上与video_info联表查询
      */
-    List<VideoInfoUploadJoinDTO> selectListWithVideoInfo(@Param("query") VideoInfoUploadQuery query);
+    List <VideoInfoUploadJoinDTO> selectListWithVideoInfo(@Param("query") VideoInfoUploadQuery query);
 }

@@ -852,4 +852,6 @@
             and current_coin >= #{coinAmount}
         </where>
     </update>
+
+
 </mapper>

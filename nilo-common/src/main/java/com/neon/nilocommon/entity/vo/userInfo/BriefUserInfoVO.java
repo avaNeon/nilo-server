@@ -5,6 +5,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * <b>简略用户信息</b><hr/>
+ * 在视频列表页面中展示的用户信息
+ */
 @Getter
 @Setter
 @AllArgsConstructor

@@ -67,7 +67,8 @@ public interface UserInfoMapper<T, P extends BaseQuery> extends BaseMapper <T, P
 
     /**
      * 增加用户硬币数量
-     * @param userId 用户ID
+     *
+     * @param userId     用户ID
      * @param coinAmount 硬币增加数量
      * @return 更改行数
      */
@@ -75,7 +76,8 @@ public interface UserInfoMapper<T, P extends BaseQuery> extends BaseMapper <T, P
 
     /**
      * 减少用户的硬币数量
-     * @param userId 用户ID
+     *
+     * @param userId     用户ID
      * @param coinAmount 扣减硬币总数
      * @return 更改行数（如果为0说明用户ID不对，或者用户硬币余额不足）
      */

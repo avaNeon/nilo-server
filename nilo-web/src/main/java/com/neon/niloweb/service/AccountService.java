@@ -29,10 +29,6 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-
-/**
- * 用户信息 业务接口实现
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -42,16 +38,15 @@ public class AccountService
 
     private final FollowInfoMapper <FollowInfo, FollowInfoQuery> followInfoMapper;
 
-    private final Snowflake snowflake;
-
     private final AccountRedisRepository accountRedisRepository;
+
+    private final Snowflake snowflake;
 
     private final RedissonClient redisson;
 
-    private BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
-
     private final WebConfig webConfig;
 
+    private final static BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     /**
      * 注册
@@ -61,17 +56,23 @@ public class AccountService
         if (userInfoMapper.selectByEmail(email) != null || userInfoMapper.selectByNickName(nickName) != null)
             throw new BusinessException(ResponseCode.DATA_EXISTED);
         UserInfo userInfo = new UserInfo();
+
         // 使用雪花算法生成唯一id
         Long uid = snowflake.nextId();
         userInfo.setUserId(uid);
         userInfo.setEmail(email);
         userInfo.setNickName(nickName);
+
         // 使用BCrypt加密密码，密文保存密码，密码长度固定60位
         userInfo.setPassword(passwordEncoder.encode(password));
+
         // 注意时区
         userInfo.setRegisterTime(LocalDateTime.now());
         userInfo.setGender(UserGender.UNKNOWN.gender);
-        // TODO 设置用户初始硬币数
+
+        // 设置用户初始硬币数
+        userInfo.setTotalCoin(webConfig.getInitialTotalCoin());
+
         userInfoMapper.insert(userInfo);
     }
 

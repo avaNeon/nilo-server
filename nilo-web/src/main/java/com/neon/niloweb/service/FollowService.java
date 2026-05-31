@@ -4,7 +4,7 @@ import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.po.FollowInfo;
 import com.neon.nilocommon.entity.po.UserInfo;
 import com.neon.nilocommon.entity.query.FollowInfoQuery;
-import com.neon.nilocommon.entity.query.PageCalculator;
+import com.neon.nilocommon.util.PageCalculator;
 import com.neon.nilocommon.entity.query.UserInfoQuery;
 import com.neon.nilocommon.entity.vo.userInfo.BriefUserInfoVO;
 import com.neon.nilocommon.exception.BusinessException;

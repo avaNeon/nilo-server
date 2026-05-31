@@ -28,6 +28,9 @@ public class VideoInfoDoc
     @Field(type = FieldType.Text, analyzer = "ik_max_word", searchAnalyzer = "ik_smart")
     private String videoName;
 
+    @Field(type = FieldType.Integer, index = false)
+    private Integer duration;
+
     @Field(type = FieldType.Long, index = false)
     private Long userId;
 

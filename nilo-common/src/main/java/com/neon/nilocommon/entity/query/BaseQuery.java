@@ -1,6 +1,7 @@
 package com.neon.nilocommon.entity.query;
 
 
+import com.neon.nilocommon.util.PageCalculator;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.Setter;

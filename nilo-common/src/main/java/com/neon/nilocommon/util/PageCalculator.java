@@ -1,13 +1,12 @@
-package com.neon.nilocommon.entity.query;
+package com.neon.nilocommon.util;
 
 
 import com.neon.nilocommon.entity.enums.PageSize;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 /**
- * <h4>分页计算器</h4><hr/>
+ * <b>分页计算器</b><hr/>
  * 功能：根据页号和页大小自动计算SQL中LIMIT需要的（startIndex,pageSize）<br/>
  * 异常处理：当pageSize多于总数量时，会自动限制为总数。当startIndex不合法时，会自动设置为0
  */
@@ -15,23 +14,17 @@ import lombok.Setter;
 @NoArgsConstructor
 public class PageCalculator
 {
-    @Setter
+    // 需要手动设置
     private int pageNo;
-    @Setter
     private int pageSize;
-    private int countTotal;
-    @Setter
-    private int pageTotal;
-    /**
-     * LIMIT中查询开始的序号
-     */
-    @Setter
+
+    // 中间计算量（用于 mapper）
     private int start;
-    /**
-     * LIMIT中的查询长度，与pageSize相同
-     */
-    @Setter
     private int size;
+
+    // 查询/计算结果
+    private int countTotal;
+    private int pageTotal;
 
     /**
      * 设置分页参数（会触发计算）
@@ -53,7 +46,7 @@ public class PageCalculator
     }
 
     /**
-     * 设置LIMIT开始序号和有效查询长度
+     * 直接设置LIMIT开始序号和有效查询长度
      *
      * @param start 开始序号
      * @param size  有效查询长度
@@ -62,17 +55,6 @@ public class PageCalculator
     {
         this.start = start;
         this.size = size;
-    }
-
-    /**
-     * 设置数据总数（触发计算）
-     *
-     * @param countTotal 数据总数
-     */
-    public void setCountTotal(int countTotal)
-    {
-        this.countTotal = countTotal;
-        this.calculate();
     }
 
     /**

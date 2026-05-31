@@ -15,6 +15,7 @@ import com.neon.nilocommon.util.VideoMergeUtils;
 import com.neon.nilomqconsumer.mapper.VideoInfoFileUploadMapper;
 import com.neon.nilomqconsumer.mapper.VideoInfoUploadMapper;
 import com.neon.nilomqconsumer.repository.redis.TransCodingRedisRepository;
+import com.neon.nilomqconsumer.service.FileDeleteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;

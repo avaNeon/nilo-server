@@ -1,4 +1,4 @@
-package com.neon.nilomqconsumer.consumer;
+package com.neon.nilomqconsumer.service;
 
 import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.util.StringUtil;

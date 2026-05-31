@@ -1,7 +1,7 @@
 package com.neon.nilomqconsumer.consumer;
 
-import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.constants.MqInfo;
+import com.neon.nilomqconsumer.service.FileDeleteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;

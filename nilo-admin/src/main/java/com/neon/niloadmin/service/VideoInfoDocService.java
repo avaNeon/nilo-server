@@ -48,14 +48,4 @@ public class VideoInfoDocService
         videoInfoDocRepository.save(videoInfoDoc);
     }
 
-    /**
-     * 删除一条videoInfoDoc记录
-     *
-     * @param videoId 食品ID
-     */
-    public void deleteVideoInfoDoc(long videoId)
-    {
-        videoInfoDocRepository.deleteById(videoId);
-    }
-
 }

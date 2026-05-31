@@ -3,6 +3,7 @@ package com.neon.niloadmin.service;
 import cn.hutool.core.lang.Snowflake;
 import com.neon.niloadmin.config.AdminConfig;
 import com.neon.niloadmin.mapper.*;
+import com.neon.niloadmin.repository.elasticsearch.VideoInfoDocRepository;
 import com.neon.niloadmin.repository.rabbitmq.MqRepository;
 import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.dto.VideoInfoUploadAdminJoinDTO;
@@ -10,9 +11,11 @@ import com.neon.nilocommon.entity.enums.videoInfoFileUpload.UpdateType;
 import com.neon.nilocommon.entity.enums.videoInfoFileUpload.VideoFileStatus;
 import com.neon.nilocommon.entity.enums.videoInfoUpload.VideoStatus;
 import com.neon.nilocommon.entity.po.*;
+import com.neon.nilocommon.entity.po.document.VideoInfoDoc;
 import com.neon.nilocommon.entity.query.*;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.FileUtil;
+import com.neon.nilocommon.util.PageCalculator;
 import com.neon.nilocommon.util.StringUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 @Slf4j
@@ -29,6 +33,13 @@ import java.util.function.Supplier;
 @Service
 public class VideoService
 {
+    /* Service */
+
+    private final UserMessageService userMessageService;
+
+    private final VideoInfoDocService videoInfoDocService;
+
+    /* Repository */
 
     private final UserInfoMapper <UserInfo, UserInfoQuery> userInfoMapper;
 
@@ -66,15 +77,23 @@ public class VideoService
 
     private final UserVideoActionArchiveMapper <UserVideoActionArchive, UserVideoActionArchiveQuery> userVideoActionArchiveMapper;
 
-    // --- other ---
-
-    private final VideoInfoDocService videoInfoDocService;
+    private final VideoInfoDocRepository videoInfoDocRepository;
 
     private final MqRepository mqRepository;
+
+    /* Other */
 
     private final AdminConfig adminConfig;
 
     private final Snowflake snowflake;
+
+    /* 常量 */
+
+    private static final String reviewSuccessMessage = """
+            {
+                message:"您的视频已经通过审核"
+            }
+            """;
 
     /**
      * 查询视频
@@ -96,9 +115,10 @@ public class VideoService
      * @param videoId      视频id
      * @param reviewResult 审核结果
      * @param refuseReason 拒绝原因
+     * @return 如果审核不通过，返回拒绝原因
      */
     @Transactional(rollbackFor = Exception.class)
-    public void reviewVideo(long videoId, boolean reviewResult, String refuseReason)// todo将拒绝原因发送给用户
+    public void reviewVideo(long videoId, boolean reviewResult, String refuseReason)
     {
         VideoInfoUpload addedInfoUpload = new VideoInfoUpload();
         addedInfoUpload.setStatus(reviewResult ? VideoStatus.REVIEW_SUCCESS.getStatus() : VideoStatus.REVIEW_FAILED.getStatus()); // 审核状态
@@ -122,7 +142,18 @@ public class VideoService
         videoInfoFileUploadMapper.updateByParam(addedFileUpload, fileUploadQuery);
 
         // 如果审核不通过，就不继续将VideoInfoUpload移动到VideoInfo了
-        if (!reviewResult) return;
+        if (!reviewResult)
+        {
+            // 向用户发送系统消息，通知用户视频审核状态
+            CompletableFuture <Void> completableFuture = userMessageService.sendVideoReviewMessage(videoId, refuseReason);
+            CompletableFuture.allOf(completableFuture).exceptionally(e ->
+                                                                     {
+                                                                         log.warn("发送审核不通过消息失败，异常信息：{}",
+                                                                                  e.toString());
+                                                                         return null;
+                                                                     });
+            return;
+        }
 
         VideoInfoUpload infoUpload = videoInfoUploadMapper.selectByVideoId(videoId);
 
@@ -202,7 +233,7 @@ public class VideoService
         {
             try
             {
-                videoInfoDocService.deleteVideoInfoDoc(videoId);
+                videoInfoDocRepository.deleteById(videoId);
                 throw e;
             }
             // 删除失败逻辑
@@ -213,6 +244,14 @@ public class VideoService
             }
         }
 
+        // 异步向用户发送系统消息，通知用户视频审核状态
+        CompletableFuture <Void> completableFuture = userMessageService.sendVideoReviewMessage(videoId, reviewSuccessMessage);
+
+        CompletableFuture.allOf(completableFuture).exceptionally(e ->
+                                                                 {
+                                                                     log.warn("发送审核通过消息失败，异常信息：{}", e.toString());
+                                                                     return null;
+                                                                 });
     }
 
     /**
@@ -337,6 +376,11 @@ public class VideoService
         videoCommentArchiveMapper.deleteByParam(videoCommentArchiveQuery);
         videoInfoFileArchiveMapper.deleteByParam(videoInfoFileArchiveQuery);
         videoInfoArchiveMapper.deleteByVideoId(videoId);
+
+        // 将恢复的视频数据插入ES中
+        VideoInfoDoc videoInfoDoc = new VideoInfoDoc();
+        BeanUtils.copyProperties(videoInfo, videoInfoDoc);
+        videoInfoDocRepository.save(videoInfoDoc);
     }
 
     /**

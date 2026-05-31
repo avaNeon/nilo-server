@@ -25,6 +25,8 @@ import java.util.List;
 @RestController
 public class VideoController
 {
+    /* 自动装配 */
+
     private final VideoService videoService;
 
     /**

@@ -14,6 +14,7 @@ import com.neon.nilocommon.entity.po.userMessage.UserMessage;
 import com.neon.nilocommon.entity.query.UserMessageQuery;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.EnumFieldChecker;
+import com.neon.nilocommon.util.PageCalculator;
 import com.neon.niloweb.config.WebConfig;
 import com.neon.niloweb.mapper.UserMessageMapper;
 import lombok.RequiredArgsConstructor;
@@ -69,6 +70,17 @@ public class UserMessageService
     }
 
     /**
+     * 将一条消息标记为已读
+     *
+     * @param userId    用户ID
+     * @param messageId 消息ID
+     */
+    public void checkMessage(long userId, long messageId)
+    {
+        userMessageMapper.checkMessage(userId, messageId);
+    }
+
+    /**
      * 获取一个分类的详细总数
      *
      * @param userId      用户ID
@@ -110,8 +122,7 @@ public class UserMessageService
         UserMessageQuery query = new UserMessageQuery();
         query.setUserId(userId);
         query.setMessageType(messageType);
-        query.setPageNo(start);
-        query.setPageSize(pageSize);
+        query.setPageCalculator(new PageCalculator(start, pageSize));
 
         return userMessageMapper.selectDtoList(query);
     }
@@ -173,21 +184,13 @@ public class UserMessageService
                                                          String commentContent,
                                                          String replyCommentContent)
     {
-        ExtendJson extendJson = new ExtendJson(commentContent, replyCommentContent);
-
-        try
+        ExtendJson extendJson = new ExtendJson(commentContent, null);
+        if (replyCommentContent != null && !replyCommentContent.isBlank())
         {
-            insertUserMessage(receiverUserId,
-                              videoId,
-                              MessageType.COMMENT,
-                              senderUserId,
-                              objectMapper.writeValueAsString(extendJson));
-        }
-        catch (JsonProcessingException e)
-        {
-            throw new RuntimeException(e);
+            extendJson.setSubContent(replyCommentContent);
         }
 
+        insertUserMessage(receiverUserId, videoId, MessageType.COMMENT, senderUserId, serializeExtendJson(extendJson));
 
         return CompletableFuture.completedFuture(null);
     }
@@ -199,6 +202,7 @@ public class UserMessageService
      * @param videoId      相关视频ID
      * @param messageType  信息类型
      * @param senderUserId 发送者用户ID
+     * @param extendJson   额外信息
      */
     private void insertUserMessage(long userId, long videoId, MessageType messageType, Long senderUserId, String extendJson)
     {
@@ -237,5 +241,17 @@ public class UserMessageService
                                                             0,
                                                             createdTime,
                                                             null));
+    }
+
+    private String serializeExtendJson(ExtendJson extendJson)
+    {
+        try
+        {
+            return objectMapper.writeValueAsString(extendJson);
+        }
+        catch (JsonProcessingException e)
+        {
+            throw new IllegalStateException("序列化用户消息扩展内容失败", e);
+        }
     }
 }

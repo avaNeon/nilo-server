@@ -51,7 +51,7 @@ public class UserMessageService
      *
      * @param userId     接收消息的用户ID
      * @param videoId    相关视频ID
-     * @param extendJson 扩展JSON
+     * @param extendJson 扩展内容
      */
     private void sendSystemMessage(long userId, long videoId, String extendJson)
     {

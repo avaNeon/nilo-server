@@ -47,6 +47,16 @@ public class UserMesssageController
         return ResponseVO.success(null);
     }
 
+    @Operation(summary = "将一条消息标记为已读")
+    @PostMapping("/check/{messageId}")
+    @Authorized
+    public ResponseVO <Object> checkMessage(@RequestHeader(name = "token") @NotNull String token,
+                                            @PathVariable(name = "messageId") @NotNull @Positive Long messageId)
+    {
+        userMessageService.checkMessage(loginState.getLoginUserId(token), messageId);
+        return ResponseVO.success(null);
+    }
+
     @Operation(summary = "获取单个分类的消息数量")
     @GetMapping("/{messageType}")
     @Authorized

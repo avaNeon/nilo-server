@@ -9,8 +9,10 @@ import com.neon.nilocommon.entity.enums.videoComment.CommentTopType;
 import com.neon.nilocommon.entity.enums.videoComment.DeleteType;
 import com.neon.nilocommon.entity.enums.videoInfo.InteractionType;
 import com.neon.nilocommon.entity.po.UserCommentAction;
+import com.neon.nilocommon.entity.po.UserInfo;
 import com.neon.nilocommon.entity.po.VideoComment;
 import com.neon.nilocommon.entity.po.VideoInfo;
+import com.neon.nilocommon.entity.query.UserInfoQuery;
 import com.neon.nilocommon.entity.query.VideoCommentQuery;
 import com.neon.nilocommon.entity.query.VideoInfoQuery;
 import com.neon.nilocommon.entity.vo.comment.VideoCommentVO;
@@ -19,6 +21,7 @@ import com.neon.nilocommon.util.FileUtil;
 import com.neon.nilocommon.util.PageCalculator;
 import com.neon.nilocommon.util.StringUtil;
 import com.neon.niloweb.config.WebConfig;
+import com.neon.niloweb.mapper.UserInfoMapper;
 import com.neon.niloweb.mapper.VideoCommentMapper;
 import com.neon.niloweb.mapper.VideoInfoMapper;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +33,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -47,6 +51,8 @@ public class VideoCommentService
     private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
 
     private final VideoCommentMapper <VideoComment, VideoCommentQuery> videoCommentMapper;
+
+    private final UserInfoMapper <UserInfo, UserInfoQuery> userInfoMapper;
 
     /* Other */
 
@@ -141,12 +147,14 @@ public class VideoCommentService
 
         if (parentCommentId != 0)
         {
+            String replyCommentContent = formatReplyCommentContent(parentComment);
+
             // 异步向父评论发布用户发送通知
             CompletableFuture <Void> replyCommentMessage = userMessageService.recordCommentMessage(videoComment.getReplyUserId(),
                                                                                                    userId,
                                                                                                    videoId,
                                                                                                    content,
-                                                                                                   parentComment.getContent());
+                                                                                                   replyCommentContent);
 
             CompletableFuture.allOf(replyCommentMessage).exceptionally(e ->
                                                                        {
@@ -156,19 +164,23 @@ public class VideoCommentService
                                                                        });
         }
 
-        // 异步向视频发布者发送新评论通知
-        CompletableFuture <Void> videoCommentMessage = userMessageService.recordCommentMessage(videoInfo.getUserId(),
-                                                                                               userId,
-                                                                                               videoId,
-                                                                                               content,
-                                                                                               null);
+        // 如果回复者就是视频发布者，没必要再给发布者发消息了
+        if (!Objects.equals(videoComment.getReplyUserId(), videoInfo.getUserId()))
+        {
+            // 异步向视频发布者发送新评论通知
+            CompletableFuture <Void> videoCommentMessage = userMessageService.recordCommentMessage(videoInfo.getUserId(),
+                                                                                                   userId,
+                                                                                                   videoId,
+                                                                                                   content,
+                                                                                                   null);
 
-        CompletableFuture.allOf(videoCommentMessage).exceptionally(e ->
-                                                                   {
-                                                                       log.warn("异步发送视频出现新评论消息时产生异常：{}",
-                                                                                e.toString());
-                                                                       return null;
-                                                                   });
+            CompletableFuture.allOf(videoCommentMessage).exceptionally(e ->
+                                                                       {
+                                                                           log.warn("异步发送视频出现新评论消息时产生异常：{}",
+                                                                                    e.toString());
+                                                                           return null;
+                                                                       });
+        }
 
         return commentId;
     }
@@ -376,6 +388,28 @@ public class VideoCommentService
             throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
         }
         return videoComment;
+    }
+
+    private String formatReplyCommentContent(VideoComment parentComment)
+    {
+        UserInfo replyUser = userInfoMapper.selectByUserId(parentComment.getUserId());
+
+        String nickName = replyUser.getNickName();
+        // 如果找不到昵称（不太可能），兜底返回UID
+        if (replyUser.getNickName() == null || replyUser.getNickName().isBlank())
+        {
+            nickName = String.valueOf(parentComment.getUserId());
+        }
+
+        String content = parentComment.getContent();
+        // 如果是纯图片回复，这里就显示“[图片]”
+        if ((content == null || content.isBlank()) && parentComment.getImgPaths() != null && !parentComment.getImgPaths()
+                                                                                                           .isBlank())
+        {
+            content = "[图片]";
+        }
+
+        return nickName + "：" + (content == null ? "" : content);
     }
 
     /**

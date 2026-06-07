@@ -1,7 +1,7 @@
 package com.neon.niloweb.controller;
 
 import com.neon.nilocommon.entity.vo.ResponseVO;
-import com.neon.nilocommon.entity.vo.userInfo.BriefUserInfoVO;
+import com.neon.nilocommon.entity.vo.userInfo.FollowUserInfo;
 import com.neon.nilocommon.loginState.LoginState;
 import com.neon.niloweb.service.FollowService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,10 +39,10 @@ public class FollowController
 
     @Operation(summary = "获取粉丝列表")
     @GetMapping(path = "/follower/{pageNo}/{pageSize}")
-    public ResponseVO <List <BriefUserInfoVO>> getFollowerList(@RequestHeader(name = "token") @NotEmpty String token,
-                                                               @PathVariable(name = "pageNo") @NotNull @Min(1) Integer pageNo,
-                                                               @PathVariable(name = "pageSize") @NotNull @Min(1) @Max(10)
-                                                               Integer pageSize)
+    public ResponseVO <List <FollowUserInfo>> getFollowerList(@RequestHeader(name = "token") @NotEmpty String token,
+                                                              @PathVariable(name = "pageNo") @NotNull @Min(1) Integer pageNo,
+                                                              @PathVariable(name = "pageSize") @NotNull @Min(1) @Max(10)
+                                                              Integer pageSize)
     {
         long followingUserId = loginState.getLoginUserId(token);
         return ResponseVO.success(followService.getFollowerList(followingUserId, pageNo, pageSize));
@@ -50,10 +50,10 @@ public class FollowController
 
     @Operation(summary = "获取关注列表")
     @GetMapping(path = "/following/{pageNo}/{pageSize}")
-    public ResponseVO <List <BriefUserInfoVO>> getFollowingList(@RequestHeader(name = "token") @NotEmpty String token,
-                                                                @PathVariable(name = "pageNo") @NotNull @Min(1) Integer pageNo,
-                                                                @PathVariable(name = "pageSize") @NotNull @Min(1) @Max(10)
-                                                                Integer pageSize)
+    public ResponseVO <List <FollowUserInfo>> getFollowingList(@RequestHeader(name = "token") @NotEmpty String token,
+                                                               @PathVariable(name = "pageNo") @NotNull @Min(1) Integer pageNo,
+                                                               @PathVariable(name = "pageSize") @NotNull @Min(1) @Max(10)
+                                                               Integer pageSize)
 
     {
         long followerUserId = loginState.getLoginUserId(token);

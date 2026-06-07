@@ -214,6 +214,28 @@
         from follow_info f where follower_user_id=#{followerUserId} and following_user_id=#{followingUserId}
     </select>
 
+    <select id="selectByFollowerUserIdAndFollowingUserIdList" resultMap="base_result_map">
+        select
+        <include refid="base_column_list"/>
+        from follow_info f
+        where follower_user_id = #{followerUserId}
+        and following_user_id in
+        <foreach collection="followingUserIdList" item="followingUserId" open="(" separator="," close=")">
+            #{followingUserId}
+        </foreach>
+    </select>
+
+    <select id="selectByFollowerUserIdListAndFollowingUserId" resultMap="base_result_map">
+        select
+        <include refid="base_column_list"/>
+        from follow_info f
+        where following_user_id = #{followingUserId}
+        and follower_user_id in
+        <foreach collection="followerUserIdList" item="followerUserId" open="(" separator="," close=")">
+            #{followerUserId}
+        </foreach>
+    </select>
+
     <select id="selectFollowerCount" resultType="java.lang.Integer">
         SELECT COUNT(1)
         FROM follow_info

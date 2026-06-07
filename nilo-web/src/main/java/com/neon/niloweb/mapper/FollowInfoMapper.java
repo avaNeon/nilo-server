@@ -2,6 +2,8 @@ package com.neon.niloweb.mapper;
 
 import org.apache.ibatis.annotations.Param;
 
+import java.util.List;
+
 /**
  * 数据库操作接口
  */
@@ -43,4 +45,16 @@ public interface FollowInfoMapper<T, P> extends BaseMapper <T, P>
      */
     T selectByFollowerUserIdAndFollowingUserId(@Param("followerUserId") Long followerUserId,
                                                @Param("followingUserId") Long followingUserId);
+
+    /**
+     * 查询指定用户关注的目标用户列表
+     */
+    List <T> selectByFollowerUserIdAndFollowingUserIdList(@Param("followerUserId") Long followerUserId,
+                                                          @Param("followingUserIdList") List <Long> followingUserIdList);
+
+    /**
+     * 查询关注指定用户的来源用户列表
+     */
+    List <T> selectByFollowerUserIdListAndFollowingUserId(@Param("followerUserIdList") List <Long> followerUserIdList,
+                                                          @Param("followingUserId") Long followingUserId);
 }

@@ -4,10 +4,10 @@ import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.po.FollowInfo;
 import com.neon.nilocommon.entity.po.UserInfo;
 import com.neon.nilocommon.entity.query.FollowInfoQuery;
-import com.neon.nilocommon.util.PageCalculator;
 import com.neon.nilocommon.entity.query.UserInfoQuery;
-import com.neon.nilocommon.entity.vo.userInfo.BriefUserInfoVO;
+import com.neon.nilocommon.entity.vo.userInfo.FollowUserInfo;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.nilocommon.util.PageCalculator;
 import com.neon.niloweb.mapper.FollowInfoMapper;
 import com.neon.niloweb.mapper.UserInfoMapper;
 import com.neon.niloweb.repository.redis.AccountRedisRepository;
@@ -17,8 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Service
@@ -72,7 +72,7 @@ public class FollowService
      * @param pageSize        页大小
      * @return 粉丝列表
      */
-    public List <BriefUserInfoVO> getFollowerList(long followingUserId, int pageNo, int pageSize)
+    public List <FollowUserInfo> getFollowerList(long followingUserId, int pageNo, int pageSize)
     {
         Integer followerCount = followInfoMapper.selectFollowerCount(followingUserId);
         if (followerCount == 0)
@@ -85,15 +85,15 @@ public class FollowService
         followInfoQuery.setOrderBy("f.follow_time DESC");
         followInfoQuery.setPageCalculator(new PageCalculator(pageNo, followerCount, pageSize));
         List <FollowInfo> followInfoList = followInfoMapper.selectList(followInfoQuery);
+        if (followInfoList.isEmpty())
+        {
+            return new ArrayList <>();
+        }
 
         List <Long> followerUserIdList = followInfoList.stream().map(FollowInfo::getFollowerUserId).toList();
         List <UserInfo> followerUserInfoList = userInfoMapper.selectBatchByUserId(followerUserIdList);
-        return followerUserInfoList.stream().map(userInfo ->
-                                                 {
-                                                     BriefUserInfoVO briefUserInfoVO = new BriefUserInfoVO();
-                                                     BeanUtils.copyProperties(userInfo, briefUserInfoVO);
-                                                     return briefUserInfoVO;
-                                                 }).toList();
+
+        return buildFollowUserInfoList(followingUserId, followerUserIdList, followerUserInfoList);
     }
 
     /**
@@ -104,7 +104,7 @@ public class FollowService
      * @param pageSize       页大小
      * @return 粉丝列表
      */
-    public List <BriefUserInfoVO> getFollowingList(long followerUserId, int pageNo, int pageSize)
+    public List <FollowUserInfo> getFollowingList(long followerUserId, int pageNo, int pageSize)
     {
         Integer followingCount = followInfoMapper.selectFollowingCount(followerUserId);
         if (followingCount == 0)
@@ -117,15 +117,14 @@ public class FollowService
         followInfoQuery.setOrderBy("f.follow_time DESC");
         followInfoQuery.setPageCalculator(new PageCalculator(pageNo, followingCount, pageSize));
         List <FollowInfo> followInfoList = followInfoMapper.selectList(followInfoQuery);
+        if (followInfoList.isEmpty())
+        {
+            return new ArrayList <>();
+        }
 
         List <Long> followingUserIdList = followInfoList.stream().map(FollowInfo::getFollowingUserId).toList();
         List <UserInfo> followingUserInfoList = userInfoMapper.selectBatchByUserId(followingUserIdList);
-        return followingUserInfoList.stream().map(userInfo ->
-                                                  {
-                                                      BriefUserInfoVO briefUserInfoVO = new BriefUserInfoVO();
-                                                      BeanUtils.copyProperties(userInfo, briefUserInfoVO);
-                                                      return briefUserInfoVO;
-                                                  }).toList();
+        return buildFollowUserInfoList(followerUserId, followingUserIdList, followingUserInfoList);
     }
 
 //    /**
@@ -156,5 +155,48 @@ public class FollowService
         {
             throw new BusinessException(ResponseCode.NOT_LOGIN);
         }
+    }
+
+    private List <FollowUserInfo> buildFollowUserInfoList(long currentUserId,
+                                                          List <Long> targetUserIdList,
+                                                          List <UserInfo> targetUserInfoList)
+    {
+        if (targetUserIdList.isEmpty())
+        {
+            return new ArrayList <>();
+        }
+
+        Set <Long> followedUserIdSet = followInfoMapper.selectByFollowerUserIdAndFollowingUserIdList(currentUserId,
+                                                                                                     targetUserIdList)
+                                                       .stream()
+                                                       .map(FollowInfo::getFollowingUserId)
+                                                       .collect(Collectors.toSet());
+
+        Set <Long> followingUserIdSet = followInfoMapper.selectByFollowerUserIdListAndFollowingUserId(targetUserIdList,
+                                                                                                      currentUserId)
+                                                        .stream()
+                                                        .map(FollowInfo::getFollowerUserId)
+                                                        .collect(Collectors.toSet());
+
+        Map <Long, UserInfo> targetUserInfoMap = targetUserInfoList.stream()
+                                                                   .collect(Collectors.toMap(UserInfo::getUserId,
+                                                                                             userInfo -> userInfo));
+        return targetUserIdList.stream().map(targetUserInfoMap::get).filter(Objects::nonNull).map(userInfo ->
+                                                                                                  {
+                                                                                                      Long targetUserId = userInfo.getUserId();
+
+                                                                                                      FollowUserInfo followUserInfo = new FollowUserInfo();
+                                                                                                      BeanUtils.copyProperties(
+                                                                                                              userInfo,
+                                                                                                              followUserInfo);
+                                                                                                      followUserInfo.setFollowed(
+                                                                                                              followedUserIdSet.contains(
+                                                                                                                      targetUserId));
+                                                                                                      followUserInfo.setFollowing(
+                                                                                                              followingUserIdSet.contains(
+                                                                                                                      targetUserId));
+
+                                                                                                      return followUserInfo;
+                                                                                                  }).toList();
     }
 }

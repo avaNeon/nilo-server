@@ -61,12 +61,18 @@ public class VideoSearchService
                                            String keyword)
     {
         String sortFieldName;
+        boolean useScoreSort = false;
 
         // 校验并转化排序方式
         if (orderType == OrderType.NEWEST.getValue()) sortFieldName = "lastUpdateTime";
         else if (orderType == OrderType.MOST_PLAYED.getValue()) sortFieldName = "playCount";
         else if (orderType == OrderType.MOST_COLLECTED.getValue()) sortFieldName = "collectCount";
         else if (orderType == OrderType.MOST_DANMAKU.getValue()) sortFieldName = "danmakuCount";
+        else if (orderType == OrderType.COMPREHENSIVE.getValue())
+        {
+            sortFieldName = "playCount";
+            useScoreSort = true;
+        }
         else
         {
             throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
@@ -77,7 +83,8 @@ public class VideoSearchService
                                                                                                                pageNo,
                                                                                                                pageSize,
                                                                                                                useHighlight,
-                                                                                                               sortFieldName);
+                                                                                                               sortFieldName,
+                                                                                                               useScoreSort);
         // 如果查询结果为空，直接返回
         if (videoInfoDocListWithPagination.getVideoInfoDocList() == null || videoInfoDocListWithPagination.getVideoInfoDocList()
                                                                                                           .isEmpty())
@@ -128,7 +135,7 @@ public class VideoSearchService
                                                                                           BriefUserInfoVO briefUserInfoVO = new BriefUserInfoVO();
                                                                                           BeanUtils.copyProperties(userInfo,
                                                                                                                    briefUserInfoVO);
-                                                                                          videoInfoDocVO.setBriefUserInfoVO(
+                                                                                          videoInfoDocVO.setBriefUserInfo(
                                                                                                   briefUserInfoVO);
 
                                                                                           // 将分类信息赋值

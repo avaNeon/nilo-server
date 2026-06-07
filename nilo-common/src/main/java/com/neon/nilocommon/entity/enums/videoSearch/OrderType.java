@@ -7,7 +7,7 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum OrderType
 {
-    NEWEST((short) 1), MOST_PLAYED((short) 2), MOST_COLLECTED((short) 3), MOST_DANMAKU((short) 4);
+    COMPREHENSIVE((short) 1), NEWEST((short) 2), MOST_PLAYED((short) 3), MOST_COLLECTED((short) 4), MOST_DANMAKU((short) 5);
 
     final short value;
 }

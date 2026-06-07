@@ -32,7 +32,7 @@ public class VideoSearchController
     @Operation(summary = "搜索视频", description = "使用关键字搜索")
     @GetMapping(path = "/{orderType}/{pageNo}/{pageSize}")
     public ResponseVO <VideoSearchResultVO> searchVideo(
-            @PathVariable(name = "orderType") @NotNull @Min(1) @Max(4) Short orderType,
+            @PathVariable(name = "orderType") @NotNull @Min(1) @Max(5) Short orderType,
             @PathVariable(name = "pageNo") @NotNull @Min(1) Integer pageNo,
             @PathVariable(name = "pageSize") @NotNull @Min(1) @Max(20) Integer pageSize,
             @RequestParam(name = "keyword") @NotEmpty String keyword)

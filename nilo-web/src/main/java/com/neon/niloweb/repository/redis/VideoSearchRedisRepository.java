@@ -5,6 +5,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
 import java.util.List;
 import java.util.Set;
 
@@ -12,6 +16,8 @@ import java.util.Set;
 @Repository
 public class VideoSearchRedisRepository
 {
+    private static final DateTimeFormatter HOT_KEYWORD_DATE_FORMATTER = DateTimeFormatter.BASIC_ISO_DATE;
+
     private final RedisTemplate <String, Object> redisTemplate;
 
     /**
@@ -21,7 +27,13 @@ public class VideoSearchRedisRepository
      */
     public void addHotKeywordCount(String hotKeyword)
     {
-        redisTemplate.opsForZSet().incrementScore(RedisKey.HOT_KEYWORD_RANKING, hotKeyword, 1);
+        LocalDate now = LocalDate.now();
+
+        String key = getHotKeywordRankingKey(now);
+
+        redisTemplate.opsForZSet().incrementScore(key, hotKeyword, 1);
+
+        redisTemplate.expireAt(key, getHotKeywordExpireAt(now));
     }
 
     /**
@@ -32,7 +44,12 @@ public class VideoSearchRedisRepository
      */
     public List <String> getHotKeywordRanking(Integer range)
     {
-        Set <Object> result = redisTemplate.opsForZSet().reverseRange(RedisKey.HOT_KEYWORD_RANKING, 0, range - 1);
+        if (range == null || range <= 0)
+        {
+            return List.of();
+        }
+
+        Set <Object> result = redisTemplate.opsForZSet().reverseRange(getHotKeywordRankingKey(), 0, range - 1);
         if (result == null || result.isEmpty())
         {
             return List.of();
@@ -41,5 +58,20 @@ public class VideoSearchRedisRepository
         {
             return result.stream().map(Object::toString).toList();
         }
+    }
+
+    private String getHotKeywordRankingKey()
+    {
+        return RedisKey.HOT_KEYWORD_RANKING + ":" + LocalDate.now().format(HOT_KEYWORD_DATE_FORMATTER);
+    }
+
+    private String getHotKeywordRankingKey(LocalDate date)
+    {
+        return RedisKey.HOT_KEYWORD_RANKING + ":" + date.format(HOT_KEYWORD_DATE_FORMATTER);
+    }
+
+    private Date getHotKeywordExpireAt(LocalDate date)
+    {
+        return Date.from(date.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant());
     }
 }

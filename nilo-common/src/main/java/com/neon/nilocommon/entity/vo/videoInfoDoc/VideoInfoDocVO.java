@@ -16,7 +16,7 @@ import java.util.List;
 @Data
 public class VideoInfoDocVO
 {
-    private BriefUserInfoVO briefUserInfoVO;
+    private BriefUserInfoVO briefUserInfo;
 
     private Long videoId;
 

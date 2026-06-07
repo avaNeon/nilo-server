@@ -14,13 +14,15 @@ public interface VideoInfoDocExtensionRepository
      * @param pageSize      页大小
      * @param useHighlight  是否开始高亮
      * @param sortFieldName 排序的字段名（递减排序）
+     * @param useScoreSort  是否追加相关性分数排序
      * @return 搜索结果
      */
     VideoInfoDocListWithPagination searchVideoInfo(String keyword,
                                                    Integer pageNo,
                                                    Integer pageSize,
                                                    Boolean useHighlight,
-                                                   String sortFieldName);
+                                                   String sortFieldName,
+                                                   Boolean useScoreSort);
 
     /**
      * 根据 videoId 增加一条 document 的 playCount 值

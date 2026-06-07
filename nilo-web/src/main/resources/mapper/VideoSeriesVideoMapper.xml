@@ -242,7 +242,7 @@
     <update id="resort">
         <foreach collection="videoSeriesVideoList" item="videoSeriesVideo" separator=";">
             UPDATE video_series_video
-            SET sort_index = #{videoSeriesVideo.sortType}
+            SET sort_index = #{videoSeriesVideo.sortIndex}
             WHERE series_id = #{seriesId} AND video_id = #{videoSeriesVideo.videoId}
         </foreach>
     </update>

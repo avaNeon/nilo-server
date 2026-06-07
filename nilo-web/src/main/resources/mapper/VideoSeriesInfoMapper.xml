@@ -4,13 +4,13 @@
 <mapper namespace="com.neon.niloweb.mapper.VideoSeriesInfoMapper">
     <!--实体映射-->
     <resultMap id="base_result_map" type="com.neon.nilocommon.entity.po.VideoSeriesInfo">
-        <!--合集ID-->
+        <!--系列ID-->
         <result column="series_id" property="seriesId"/>
         <!--用户ID-->
         <result column="user_id" property="userId"/>
-        <!--合集名称-->
+        <!--系列名称-->
         <result column="series_name" property="seriesName"/>
-        <!--合集描述-->
+        <!--系列描述-->
         <result column="series_description" property="seriesDescription"/>
         <!--排序序号-->
         <result column="sort_index" property="sortIndex"/>
@@ -20,13 +20,13 @@
 
     <!--VO实体映射-->
     <resultMap id="vo_result_map" type="com.neon.nilocommon.entity.vo.videoSeriesInfo.VideoSeriesInfoVO">
-        <!--合集ID-->
+        <!--系列ID-->
         <result column="series_id" property="seriesId"/>
         <!--用户ID-->
         <result column="user_id" property="userId"/>
-        <!--合集名称-->
+        <!--系列名称-->
         <result column="series_name" property="seriesName"/>
-        <!--合集描述-->
+        <!--系列描述-->
         <result column="series_description" property="seriesDescription"/>
         <!--排序序号-->
         <result column="sort_index" property="sortIndex"/>
@@ -39,13 +39,13 @@
     <!--带有视频列表的VO实体映射-->
     <resultMap id="with_video_vo_result_map"
                type="com.neon.nilocommon.entity.vo.videoSeriesInfo.VideoSeriesWithVideosVO">
-        <!--合集ID-->
+        <!--系列ID-->
         <result column="series_id" property="seriesId"/>
         <!--用户ID-->
         <result column="user_id" property="userId"/>
-        <!--合集名称-->
+        <!--系列名称-->
         <result column="series_name" property="seriesName"/>
-        <!--合集描述-->
+        <!--系列描述-->
         <result column="series_description" property="seriesDescription"/>
         <!--排序序号-->
         <result column="sort_index" property="sortIndex"/>
@@ -366,7 +366,7 @@
         SELECT
         <include refid="vo_column_list"/>
         FROM video_series_info vsi LEFT JOIN (
-        SELECT vsv.video_id, ROW_NUMBER() OVER (
+        SELECT vsv.series_id, vsv.video_id, ROW_NUMBER() OVER (
         PARTITION BY vsv.series_id
         ORDER BY vsv.sort_index
         ) AS rn
@@ -376,7 +376,6 @@
         video_info v ON first_vsv.video_id = v.video_id
         WHERE vsi.user_id = #{userId}
         ORDER BY vsi.sort_index
-        LIMIT #{start},#{pageSize}
     </select>
 
     <delete id="deleteByUserIdAndSeriesId">
@@ -387,10 +386,16 @@
     </delete>
 
     <update id="resort">
-        <foreach collection="videoSeriesInfoList" item="videoSeriesInfo" separator="," open="(" close=")">
-            UPDATE video_series_info
-            SET sort_index = #{videoSeriesInfo.sortIndex}
-            WHERE user_id = #{userId} AND series_id = #{videoSeriesInfo.seriesId}
+        UPDATE video_series_info
+        SET sort_index = CASE series_id
+        <foreach collection="seriesList" item="series">
+            WHEN #{series.seriesId} THEN #{series.sortIndex}
+        </foreach>
+        END
+        WHERE user_id = #{userId}
+        AND series_id IN
+        <foreach collection="seriesList" item="series" open="(" close=")" separator=",">
+            #{series.seriesId}
         </foreach>
     </update>
 

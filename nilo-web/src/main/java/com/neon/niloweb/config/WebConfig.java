@@ -94,12 +94,12 @@ public class WebConfig
     /**
      * 热度提升阈值（单位：播放数）
      */
-    private int upgradeThreshold = 100_000;
+    private int upgradeThreshold = 1000;
 
     /**
      * 热度降低阈值（单位：播放数）
      */
-    private int downgradeThreshold = 50_000;
+    private int downgradeThreshold = 500;
 
     /**
      * 热门视频查询页大小
@@ -125,4 +125,14 @@ public class WebConfig
      * 发布视频奖励硬币数量（注意与Admin同步！）
      */
     private short coinBonusPerVideo = 10;
+
+    /**
+     * 最大系列数量
+     */
+    private short maxSeriesNumber = 50;
+
+    /**
+     * 最大系列视频数量
+     */
+    private short maxSerieVideosNumber = 100;
 }

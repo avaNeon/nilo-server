@@ -89,11 +89,7 @@ public class VideoService
 
     /* 常量 */
 
-    private static final String reviewSuccessMessage = """
-            {
-                message:"您的视频已经通过审核"
-            }
-            """;
+    private static final String reviewSuccessMessage = "您的视频已经通过审核";
 
     /**
      * 查询视频
@@ -211,11 +207,14 @@ public class VideoService
                                                      .toList();
 
         // 删除旧的视频文件的弹幕
-        Integer deletedDanmakuCount = videoDanmakuMapper.deleteByFileIdBatch(deleteFileList.stream()
-                                                                                           .map(VideoInfoFile::getFileId)
-                                                                                           .toList());
-        // 更新videoInfo信息，因为我们删除了旧视频文件的弹幕
-        videoInfoMapper.decreaseByField(videoId, "danmaku_count", deletedDanmakuCount);
+        if (!deleteFileList.isEmpty())
+        {
+            Integer deletedDanmakuCount = videoDanmakuMapper.deleteByFileIdBatch(deleteFileList.stream()
+                                                                                               .map(VideoInfoFile::getFileId)
+                                                                                               .toList());
+            // 更新videoInfo信息，因为我们删除了旧视频文件的弹幕
+            videoInfoMapper.decreaseByField(videoId, "danmaku_count", deletedDanmakuCount);
+        }
 
         // 将记录保存到ES中
         videoInfoDocService.saveVideoInfoDoc(videoInfo);

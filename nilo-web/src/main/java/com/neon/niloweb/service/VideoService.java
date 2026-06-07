@@ -12,9 +12,9 @@ import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.PageCalculator;
 import com.neon.niloweb.config.WebConfig;
 import com.neon.niloweb.mapper.*;
+import com.neon.niloweb.repository.rabbitmq.PlayCountMqRepository;
 import com.neon.niloweb.repository.redis.CategoryRedisRepository;
 import com.neon.niloweb.repository.redis.HotVideoRedisRepository;
-import com.neon.niloweb.service.async.VideoAsyncService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -23,7 +23,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -34,8 +33,6 @@ import static com.neon.nilocommon.entity.constants.RedisKey.CATEGORY_UPDATE_LOCK
 @Service
 public class VideoService
 {
-    private final VideoAsyncService videoAsyncService;
-
     private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
 
     private final VideoInfoFileMapper <VideoInfoFile, VideoInfoFileQuery> videoInfoFileMapper;
@@ -49,6 +46,8 @@ public class VideoService
     private final CategoryRedisRepository categoryRedisRepository;
 
     private final HotVideoRedisRepository hotVideoRedisRepository;
+
+    private final PlayCountMqRepository playCountMqRepository;
 
     private final WebConfig webConfig;
 
@@ -219,14 +218,25 @@ public class VideoService
     public List <BriefVideoInfoVO> loadHotVideos(int pageNo)
     {
         List <Long> videoIdList = hotVideoRedisRepository.getHotVideoIdList(pageNo);
+        if (videoIdList == null || videoIdList.isEmpty())
+        {
+            return List.of();
+        }
+
         List <BriefVideoInfoVO> voList = videoInfoMapper.selectBriefVoListByVideoIdBatch(videoIdList);
+
         if (voList == null || voList.isEmpty())
         {
             return List.of();
         }
         else
         {
-            return voList;
+            // 重新排序，保证MySQL查询出来的voList顺序和Redis保存的一致
+            Map <Long, BriefVideoInfoVO> voMap = voList.stream()
+                                                       .collect(java.util.stream.Collectors.toMap(BriefVideoInfoVO::getVideoId,
+                                                                                                  vo -> vo));
+
+            return videoIdList.stream().map(voMap::get).filter(Objects::nonNull).toList();
         }
     }
 
@@ -337,10 +347,10 @@ public class VideoService
     }
 
     /**
-     * 定时将新统计到的播放信息记录到mysql中，并交给redis处理
+     * 定时将新统计到的播放信息发送个MQ，交由消费者处理
      */
     @Scheduled(fixedRateString = "#{@webConfig.playCountRefreshInterval}")
-    private void flushPlayCount()
+    private void sendPlayCount()
     {
         if (playCountBuffer.isEmpty())
         {
@@ -377,26 +387,8 @@ public class VideoService
                     batch.put(videoId, increment);
                 }
 
-                // 保存不可变快照，然后提交给异步方法
-                Map <Long, Integer> batchSnapshot = Map.copyOf(batch);
-
-                // 异步更新mysql播放量
-                CompletableFuture <Void> mysqlCompletableFuture = videoAsyncService.flushPlayCountBatchToMysql(batchSnapshot);
-
-                // 异步更新redis活跃视频统计数据
-                CompletableFuture <Void> redisCompletableFuture = videoAsyncService.flushPlayCountBatchToRedis(batchSnapshot);
-
-                // 异步更新ES播放量
-                CompletableFuture <Void> esCompletableFuture = videoAsyncService.flushPlayCountToES(batch);
-
-                // 等异步更新结束看看有没有错误
-                CompletableFuture.allOf(mysqlCompletableFuture, redisCompletableFuture, esCompletableFuture).exceptionally(e ->
-                                                                                                                           {
-                                                                                                                               log.warn(
-                                                                                                                                       "异步刷新播放数据时产生异常：{}",
-                                                                                                                                       e.toString());
-                                                                                                                               return null;
-                                                                                                                           });
+                // 交给MQ消费端削峰刷新
+                playCountMqRepository.sendPlayCountFlushMessage(batch);
             }
         }
     }

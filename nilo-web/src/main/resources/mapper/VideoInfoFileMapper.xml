@@ -397,6 +397,6 @@
     <select id="selectByVideoIdAndFileIndex" resultMap="base_result_map">
         select
         <include refid="base_column_list"/>
-        from video_info_file v where file_id=#{fileId} and file_index = #{fileIndex}
+        from video_info_file v where video_id=#{videoId} and file_index = #{fileIndex}
     </select>
 </mapper>

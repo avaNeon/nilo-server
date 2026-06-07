@@ -4,13 +4,23 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 public class VideoPlayHistoryDTO
 {
+    /**
+     * 用户ID
+     */
+    private Long userId;
+
+    /**
+     * 用户昵称
+     */
+    private String nickName;
+
     /**
      * 视频ID
      */
@@ -24,7 +34,7 @@ public class VideoPlayHistoryDTO
     /**
      * 最后更新时间
      */
-    private LocalDate lastUpdateTime;
+    private LocalDateTime lastUpdateTime;
 
     /**
      * 视频封面

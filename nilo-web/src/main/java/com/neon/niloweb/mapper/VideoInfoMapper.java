@@ -2,6 +2,7 @@ package com.neon.niloweb.mapper;
 
 import com.neon.nilocommon.entity.po.VideoInfo;
 import com.neon.nilocommon.entity.query.VideoInfoQuery;
+import com.neon.nilocommon.entity.tmp.VideoSeriesVideoCountTMP;
 import com.neon.nilocommon.entity.vo.VideoSeriesVideoVO;
 import com.neon.nilocommon.entity.vo.videoInfo.BriefVideoInfoVO;
 import com.neon.nilocommon.entity.vo.videoInfo.VideoInfoVO;
@@ -84,6 +85,22 @@ public interface VideoInfoMapper<T, P> extends BaseMapper <T, P>
     Integer selectCountByUserIdAndVideoIdList(@Param("userId") Long userId, @Param("videoIdList") List <Long> videoIdList);
 
     /**
+     * 汇总指定用户发布视频的点赞数
+     *
+     * @param userId 用户ID
+     * @return 视频点赞总数
+     */
+    Long selectLikeCountByUserId(@Param("userId") Long userId);
+
+    /**
+     * 汇总指定用户发布视频的播放数
+     *
+     * @param userId 用户ID
+     * @return 视频播放总数
+     */
+    Long selectPlayCountByUserId(@Param("userId") Long userId);
+
+    /**
      * 根据userId分页查询不在seriesId合集的视频数量
      *
      * @param userId   用户ID
@@ -115,9 +132,7 @@ public interface VideoInfoMapper<T, P> extends BaseMapper <T, P>
      * @param pageSize 页大小
      * @return 视频列表
      */
-    List <VideoInfo> selectVideoInfoBySeriesId(@Param("seriesId") Long seriesId,
-                                               @Param("start") Integer start,
-                                               @Param("pageSize") Integer pageSize);
+    List <VideoInfo> selectVideoInfoBySeriesId(@Param("seriesId") Long seriesId);
 
     /**
      * 根据seriesId列表批量查找videoInfo
@@ -128,6 +143,14 @@ public interface VideoInfoMapper<T, P> extends BaseMapper <T, P>
      */
     List <VideoSeriesVideoVO> selectVideoInfoBySeriesIdBatch(@Param("seriesIdList") List <Long> seriesIdList,
                                                              @Param("pageSize") Integer pageSize);
+
+    /**
+     * 根据seriesId列表批量统计合集下的视频数量
+     *
+     * @param seriesIdList seriesId列表
+     * @return 视频数量列表
+     */
+    List <VideoSeriesVideoCountTMP> selectVideoCountBySeriesIdBatch(@Param("seriesIdList") List <Long> seriesIdList);
 
     /**
      * 根据VideoId更新

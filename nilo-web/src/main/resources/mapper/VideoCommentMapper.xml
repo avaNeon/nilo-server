@@ -784,6 +784,13 @@
         </where>
     </update>
 
+    <select id="selectUpvoteCountByUserId" resultType="java.lang.Long">
+        SELECT IFNULL(SUM(upvote_count), 0)
+        FROM video_comment
+        WHERE user_id = #{userId}
+          AND deleted = 0
+    </select>
+
     <select id="selectCommentManagementVOCount" resultType="long">
         SELECT COUNT(1)
         FROM video_comment vc

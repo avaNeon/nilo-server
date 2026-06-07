@@ -30,9 +30,13 @@ public class UserDetailVO
 
     private String noticeInfo;
 
-    private Integer theme;
+    private Short theme;
 
     private Integer currentCoin;
+
+    private Long likeCount;
+
+    private Long playCount;
 
     private Integer followerCount;
 

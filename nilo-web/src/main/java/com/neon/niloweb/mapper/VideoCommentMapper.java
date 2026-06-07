@@ -95,6 +95,14 @@ public interface VideoCommentMapper<T, P> extends BaseMapper <T, P>
     Integer decreaseDownvoteCount(@Param("commentId") Long commentId);
 
     /**
+     * 汇总指定用户评论获得的点赞数
+     *
+     * @param userId 用户ID
+     * @return 评论点赞总数
+     */
+    Long selectUpvoteCountByUserId(@Param("userId") Long userId);
+
+    /**
      * 评论管理页面，查询多个视频的评论信息数量
      *
      * @param userId 视频ID列表

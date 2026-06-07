@@ -30,15 +30,15 @@ public class UpdatedUserInfoDTO
     @Max(2)
     private Integer gender;
 
-    @Size(min = 10, max = 10)
+    @Size(max = 10)
     private String birthday;
 
-    @Size(min = 1, max = 150)
+    @Size(max = 150)
     private String school;
 
-    @Size(min = 1, max = 200)
+    @Size(max = 200)
     private String personalIntroduction;
 
-    @Size(min = 1, max = 300)
+    @Size(max = 300)
     private String noticeInfo;
 }

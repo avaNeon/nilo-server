@@ -9,6 +9,7 @@ import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.entity.vo.TokenUserInfoVO;
 import com.neon.nilocommon.entity.vo.UserDetailVO;
 import com.neon.nilocommon.entity.vo.videoInfo.BriefVideoInfoVO;
+import com.neon.nilocommon.entity.vo.videoInfo.CollectedVideoInfoVO;
 import com.neon.nilocommon.entity.vo.videoSeriesInfo.VideoSeriesWithVideosVO;
 import com.neon.nilocommon.loginState.LoginState;
 import com.neon.nilocommon.util.ServletUtil;
@@ -19,9 +20,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.validation.annotation.Validated;
@@ -95,35 +94,31 @@ public class UserHomeController
         return ResponseVO.success(null);
     }
 
-    /**
-     * 查询视频列表
-     *
-     * @return 分页视频列表
-     */
-    @Operation(summary = "查询视频列表", description = "查询视频列表，按照创建时间倒序排序")
+    @Operation(summary = "查询投稿视频列表", description = "查询视频列表，按照创建时间倒序排序")
     @GetMapping(path = "/video/{userId}")
     public ResponseVO <PaginationResponseVO <BriefVideoInfoVO>> loadVideo(@PathVariable(name = "userId") @NotNull Long userId,
                                                                           @RequestParam(name = "pageNo") @NotNull @Min(1)
-                                                                          Integer pageNo)
+                                                                          Integer pageNo,
+                                                                          @RequestParam(name = "pageSize") @NotNull @Min(1)
+                                                                          @Max(20) Integer pageSize,
+                                                                          @RequestParam(name = "sortType") @NotNull @Min(1)
+                                                                          @Max(3) Short sortType,
+                                                                          @RequestParam(name = "keyword", required = false)
+                                                                          @Size(max = 100) String keyword)
     {
-        return ResponseVO.success(userHomeService.loadVideo(userId, pageNo));
+        return ResponseVO.success(userHomeService.loadVideo(userId, pageNo, pageSize, sortType, keyword));
     }
 
-    /**
-     * 查询收藏视频列表
-     *
-     * @return 分页收藏视频列表
-     */
     @Operation(summary = "查询收藏视频列表", description = "查询收藏视频列表，按照创建时间倒序排序")
     @GetMapping(path = "/collection/{userId}")
-    public ResponseVO <PaginationResponseVO <BriefVideoInfoVO>> loadCollection(
+    public ResponseVO <PaginationResponseVO <CollectedVideoInfoVO>> loadCollection(
             @PathVariable(name = "userId") @NotNull Long userId, @RequestParam(name = "pageNo") @NotNull @Min(1) Integer pageNo)
     {
         return ResponseVO.success(userHomeService.loadCollection(userId, pageNo));
     }
 
-    @Operation(summary = "获取用户合集展示")
-    @GetMapping("/{userId}/series/videos")
+    @Operation(summary = "获取用户系列展示")
+    @GetMapping("/series/videos/{userId}")
     public ResponseVO <List <VideoSeriesWithVideosVO>> loadSeriesWithVideos(@PathVariable(name = "userId") @NotNull Long userId)
     {
         return ResponseVO.success(userHomeService.loadSeriesWithVideos(userId));

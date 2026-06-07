@@ -41,5 +41,10 @@ public class VideoSeriesWithVideosVO
 
     private LocalDateTime updateTime;
 
+    /**
+     * 系列下的视频总数
+     */
+    private Integer videoCount;
+
     private List<VideoSeriesVideoVO> videoInfoList;
 }

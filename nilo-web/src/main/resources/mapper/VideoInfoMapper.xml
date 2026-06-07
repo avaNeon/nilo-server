@@ -175,7 +175,7 @@
 
     <sql id="video_series_column_list">
         v.video_id,v.video_cover,v.video_name,v.duration,v.play_count,
-		 v.danmaku_count,v.last_play_time
+		 v.danmaku_count,v.last_update_time
     </sql>
 
     <sql id="base_condition_filed">
@@ -1081,20 +1081,31 @@
         </foreach>
     </select>
 
+    <select id="selectLikeCountByUserId" resultType="java.lang.Long">
+        SELECT IFNULL(SUM(like_count), 0)
+        FROM video_info
+        WHERE user_id = #{userId}
+    </select>
+
+    <select id="selectPlayCountByUserId" resultType="java.lang.Long">
+        SELECT IFNULL(SUM(play_count), 0)
+        FROM video_info
+        WHERE user_id = #{userId}
+    </select>
+
     <select id="selectCountVideoInfoByUserIdExcludingSeriesId" resultType="java.lang.Integer">
         SELECT COUNT(1)
         FROM video_info v
-                 LEFT JOIN video_series_video vsv ON v.video_id = vsv.video_id
+                 LEFT JOIN video_series_video vsv ON v.video_id = vsv.video_id AND vsv.series_id = #{seriesId}
         WHERE v.user_id = #{userId}
-          AND vsv.series_id != #{seriesId}
-        ORDER BY v.last_update_time DESC
+          AND vsv.video_id IS NULL
     </select>
 
     <select id="selectVideoInfoByUserIdExcludingSeriesId" resultMap="base_result_map">
         SELECT
         <include refid="base_column_list"/>
-        FROM video_info v LEFT JOIN video_series_video vsv ON v.video_id = vsv.video_id
-        WHERE v.user_id = #{userId} AND vsv.series_id != #{seriesId}
+        FROM video_info v LEFT JOIN video_series_video vsv ON v.video_id = vsv.video_id AND vsv.series_id = #{seriesId}
+        WHERE v.user_id = #{userId} AND vsv.video_id IS NULL
         ORDER BY v.last_update_time DESC
         LIMIT #{start},#{pageSize}
     </select>
@@ -1105,7 +1116,6 @@
         FROM video_series_video vsv LEFT JOIN video_info v ON vsv.video_id = v. video_id
         WHERE vsv.series_id = #{seriesId}
         ORDER BY vsv.sort_index
-        LIMIT #{start},#{pageSize}
     </select>
 
     <select id="selectVideoInfoBySeriesIdBatch" resultType="com.neon.nilocommon.entity.vo.VideoSeriesVideoVO">
@@ -1127,5 +1137,15 @@
             WHERE vsv.rn &lt;= #{pageSize}
         </if>
         ORDER BY vsv.series_id,vsv.rn
+    </select>
+
+    <select id="selectVideoCountBySeriesIdBatch" resultType="com.neon.nilocommon.entity.tmp.VideoSeriesVideoCountTMP">
+        SELECT series_id AS seriesId, COUNT(1) AS videoCount
+        FROM video_series_video
+        WHERE series_id IN
+        <foreach collection="seriesIdList" item="seriesId" separator="," open="(" close=")">
+            #{seriesId}
+        </foreach>
+        GROUP BY series_id
     </select>
 </mapper>

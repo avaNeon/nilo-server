@@ -6,15 +6,18 @@ import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.userInfo.UserGender;
 import com.neon.nilocommon.entity.enums.userInfo.UserTheme;
 import com.neon.nilocommon.entity.enums.userVideoAction.VideoActionType;
+import com.neon.nilocommon.entity.enums.videoInfo.SortType;
 import com.neon.nilocommon.entity.po.*;
 import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
 import com.neon.nilocommon.entity.query.*;
+import com.neon.nilocommon.entity.tmp.VideoSeriesVideoCountTMP;
 import com.neon.nilocommon.entity.vo.PaginationResponseVO;
 import com.neon.nilocommon.entity.vo.TokenUserInfoVO;
 import com.neon.nilocommon.entity.vo.UserDetailVO;
 import com.neon.nilocommon.entity.vo.VideoSeriesVideoVO;
 import com.neon.nilocommon.entity.vo.userInfo.BriefUserInfoVO;
 import com.neon.nilocommon.entity.vo.videoInfo.BriefVideoInfoVO;
+import com.neon.nilocommon.entity.vo.videoInfo.CollectedVideoInfoVO;
 import com.neon.nilocommon.entity.vo.videoSeriesInfo.VideoSeriesWithVideosVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.EnumFieldChecker;
@@ -31,9 +34,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -46,6 +47,8 @@ public class UserHomeService
     private final FollowInfoMapper <FollowInfo, FollowInfoQuery> followInfoMapper;
 
     private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
+
+    private final VideoCommentMapper <VideoComment, VideoCommentQuery> videoCommentMapper;
 
     private final UserVideoActionMapper <UserVideoAction, UserVideoActionQuery> userVideoActionMapper;
 
@@ -91,7 +94,12 @@ public class UserHomeService
             userDetailVO.setHasFollowed(followInfo != null);
         }
 
-        // TODO 后续增加点赞数、播放数
+        Long videoLikeCount = videoInfoMapper.selectLikeCountByUserId(hostUserId);
+        Long commentLikeCount = videoCommentMapper.selectUpvoteCountByUserId(hostUserId);
+        Long playCount = videoInfoMapper.selectPlayCountByUserId(hostUserId);
+        userDetailVO.setLikeCount(videoLikeCount + commentLikeCount);
+        userDetailVO.setPlayCount(playCount);
+
         return userDetailVO;
     }
 
@@ -131,7 +139,7 @@ public class UserHomeService
         // 校验头像图片是否存在
         boolean avatarChanged = false;
         // 如果头像更改
-        if (!dbUserInfo.getAvatar().equals(updatedUserInfoDTO.getAvatar()))
+        if (!Objects.equals(dbUserInfo.getAvatar(), updatedUserInfoDTO.getAvatar()))
         {
             avatarChanged = true;
             Path tmpPath = Path.of(webConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME, Constants.TMP_FOLDER_NAME);
@@ -148,10 +156,11 @@ public class UserHomeService
             throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
         }
         // 校验生日
-        if (updatedUserInfoDTO.getBirthday() != null && (updatedUserInfoDTO.getBirthday()
-                                                                           .isBlank() || !updatedUserInfoDTO.getBirthday()
-                                                                                                            .matches(
-                                                                                                                    "\\d{4}-\\d{2}-\\d{2}")))
+        // 生日可以是空，但是只要有值就必须符合格式
+        if (updatedUserInfoDTO.getBirthday() != null && (!updatedUserInfoDTO.getBirthday()
+                                                                            .isBlank() && !updatedUserInfoDTO.getBirthday()
+                                                                                                             .matches(
+                                                                                                                     "\\d{4}-\\d{2}-\\d{2}")))
         {
             throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
         }
@@ -209,7 +218,6 @@ public class UserHomeService
             if (nickNameChanged)
             {
                 UserState userState = accountService.getUserStateByUserId(userId);
-                // TODO 后续可能还有获赞数、播放数
                 userState.setCurrentCoin(modifiedUserInfo.getCurrentCoin());
                 try
                 {
@@ -281,22 +289,51 @@ public class UserHomeService
      * 查询指定用户发布视频列表<hr/>
      * 视频分页大小由配置文件固定
      *
-     * @param userId 视频所属者用户ID
-     * @param pageNo 页号
+     * @param userId     视频所属者用户ID
+     * @param pageNo     页号
+     * @param pageSize
+     * @param sortTypeNo
+     * @param keyword
      * @return 视频分页列表
      */
-    public PaginationResponseVO <BriefVideoInfoVO> loadVideo(long userId, int pageNo)
+    public PaginationResponseVO <BriefVideoInfoVO> loadVideo(long userId,
+                                                             int pageNo,
+                                                             int pageSize,
+                                                             short sortTypeNo,
+                                                             String keyword)
     {
         // 检查用户是否存在
         checkUserExists(userId);
         // 查询视频记录
         VideoInfoQuery videoInfoQuery = new VideoInfoQuery();
         videoInfoQuery.setUserId(userId);
+        if (keyword != null && !keyword.isEmpty())
+        {
+            videoInfoQuery.setVideoNameFuzzy(keyword);
+        }
         Integer totalCount = videoInfoMapper.selectCount(videoInfoQuery);
-        int pageSize = webConfig.getPageSize();
-        videoInfoQuery.setOrderBy("v.last_update_time DESC");
+
+        // 校验排序类型
+        Optional <SortType> sortType = EnumFieldChecker.findByFieldValue(SortType.class, "no", sortTypeNo);
+        if (sortType.isEmpty())
+        {
+            throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
+        }
+        else
+        {
+            videoInfoQuery.setOrderBy(sortType.get().getValue());
+        }
+
+
         videoInfoQuery.setPageCalculator(new PageCalculator(pageNo, totalCount, pageSize));
+
+        if ((pageNo - 1) * pageSize >= totalCount)
+        {
+            return new PaginationResponseVO <>(totalCount, pageSize, pageNo, List.of());
+        }
+
         List <BriefVideoInfoVO> briefVideoInfoVOList = videoInfoMapper.selectBriefVoListByParam(videoInfoQuery);
+
         return new PaginationResponseVO <>(totalCount, pageSize, pageNo, briefVideoInfoVOList);
     }
 
@@ -308,7 +345,7 @@ public class UserHomeService
      * @param pageNo 页号
      * @return 收藏视频分页列表
      */
-    public PaginationResponseVO <BriefVideoInfoVO> loadCollection(long userId, int pageNo)
+    public PaginationResponseVO <CollectedVideoInfoVO> loadCollection(long userId, int pageNo)
     {
         // 检查用户是否存在
         checkUserExists(userId);
@@ -316,6 +353,13 @@ public class UserHomeService
         // 查询收藏操作
         Integer totalCount = userVideoActionMapper.selectCountByUserIdAndActionType(userId, VideoActionType.COLLECT.getValue());
         int pageSize = webConfig.getPageSize();
+
+        // 如果没数据，直接返回
+        if (totalCount == 0)
+        {
+            return new PaginationResponseVO <>(totalCount, pageSize, pageNo, List.of());
+        }
+
         UserVideoActionQuery query = new UserVideoActionQuery();
         query.setUserId(userId);
         query.setActionType(VideoActionType.COLLECT.getValue());
@@ -323,12 +367,36 @@ public class UserHomeService
         query.setOrderBy("u.action_time DESC");
         List <UserVideoAction> userVideoActionList = userVideoActionMapper.selectList(query);
 
-        // 转换为 video_id 列表
-        List <Long> videoIdList = userVideoActionList.stream().map(UserVideoAction::getVideoId).toList();
+        if (userVideoActionList == null || userVideoActionList.isEmpty())
+        {
+            return new PaginationResponseVO <>(totalCount, pageSize, pageNo, List.of());
+        }
+        else
+        {
 
-        // 查询视频记录
-        List <BriefVideoInfoVO> briefVideoInfoVOList = videoInfoMapper.selectBriefVoListByVideoIdBatch(videoIdList);
-        return new PaginationResponseVO <>(totalCount, pageSize, pageNo, briefVideoInfoVOList);
+            // 转换为 video_id 列表
+            List <Long> videoIdList = userVideoActionList.stream().map(UserVideoAction::getVideoId).toList();
+
+            // 查询视频记录
+            List <BriefVideoInfoVO> briefVideoInfoVOList = videoInfoMapper.selectBriefVoListByVideoIdBatch(videoIdList);
+
+            // 将 userVideoActionList 转化为 id 和 value 的映射
+            Map <Long, UserVideoAction> idActionMap = userVideoActionList.stream()
+                                                                         .collect(Collectors.toMap(UserVideoAction::getVideoId,
+                                                                                                   userVideoAction -> userVideoAction));
+
+            List <CollectedVideoInfoVO> voList = briefVideoInfoVOList.stream().map(item ->
+                                                                                   {
+                                                                                       UserVideoAction videoAction = idActionMap.get(
+                                                                                               item.getVideoId());
+                                                                                       CollectedVideoInfoVO vo = new CollectedVideoInfoVO();
+                                                                                       BeanUtils.copyProperties(item, vo);
+                                                                                       vo.setCollectDate(videoAction.getActionTime());
+                                                                                       return vo;
+                                                                                   }).toList();
+
+            return new PaginationResponseVO <>(totalCount, pageSize, pageNo, voList);
+        }
     }
 
     /**
@@ -358,15 +426,25 @@ public class UserHomeService
                                                                                                  webConfig.getUserHomeSeriesVideoDisplaySize());
         Map <Long, List <VideoSeriesVideoVO>> seriesIdMap = videoInfoList.stream()
                                                                          .collect(Collectors.groupingBy(VideoSeriesVideoVO::getSeriesId));
-        return videoSeriesInfoList.stream().map(videoSeriesInfo ->
-                                                {
-                                                    VideoSeriesWithVideosVO videoSeriesWithVideosVO = new VideoSeriesWithVideosVO();
-                                                    BeanUtils.copyProperties(videoSeriesInfo, videoSeriesWithVideosVO);
-                                                    videoSeriesWithVideosVO.setVideoInfoList(seriesIdMap.getOrDefault(
-                                                            videoSeriesInfo.getSeriesId(),
-                                                            List.of()));
-                                                    return videoSeriesWithVideosVO;
-                                                }).toList();
+
+        // 查询系列中的视频数量，并回填
+        List <VideoSeriesVideoCountTMP> videoCountList = videoInfoMapper.selectVideoCountBySeriesIdBatch(seriesIdList);
+        Map <Long, Integer> seriesVideoCountMap = videoCountList.stream()
+                                                                .collect(Collectors.toMap(VideoSeriesVideoCountTMP::getSeriesId,
+                                                                                          VideoSeriesVideoCountTMP::getVideoCount));
+        return videoSeriesInfoList.stream()
+                                  .map(videoSeriesInfo ->
+                                       {
+                                           VideoSeriesWithVideosVO videoSeriesWithVideosVO = new VideoSeriesWithVideosVO();
+                                           BeanUtils.copyProperties(videoSeriesInfo, videoSeriesWithVideosVO);
+                                           videoSeriesWithVideosVO.setVideoCount(seriesVideoCountMap.getOrDefault(videoSeriesInfo.getSeriesId(),
+                                                                                                                  0));
+                                           videoSeriesWithVideosVO.setVideoInfoList(seriesIdMap.getOrDefault(videoSeriesInfo.getSeriesId(),
+                                                                                                             List.of()));
+                                           return videoSeriesWithVideosVO;
+                                       })
+                                  .filter(videoSeriesWithVideosVO -> videoSeriesWithVideosVO.getVideoCount() > 0) // 没有视频的系列不展示
+                                  .toList();
     }
 
     /**

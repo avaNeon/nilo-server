@@ -332,4 +332,9 @@
         GROUP BY video_user_id, action_type
         ON DUPLICATE KEY UPDATE statistics_count = VALUES(statistics_count)
     </insert>
+
+    <delete id="deleteStatisticsBeforeDate">
+        DELETE FROM statistics_info
+        WHERE statistics_date &lt; #{endDate}
+    </delete>
 </mapper>

@@ -29,5 +29,7 @@ public class StatisticsTask
         statisticsMqRepository.sendStatisticsProcessMessage(StatisticsTaskType.DANMAKU_STATISTICS);
 
         statisticsMqRepository.sendStatisticsProcessMessage(StatisticsTaskType.VIDEO_ACTION_STATISTICS);
+
+        statisticsMqRepository.sendStatisticsProcessMessage(StatisticsTaskType.DELETE_EXPIRED_STATISTICS);
     }
 }

@@ -46,6 +46,7 @@ public class StatisticsConsumer
             case COMMENT_STATISTICS -> reduceDailyComment(dto);
             case DANMAKU_STATISTICS -> reduceDailyDanmaku(dto);
             case VIDEO_ACTION_STATISTICS -> reduceDailyVideoAction(dto);
+            case DELETE_EXPIRED_STATISTICS -> deleteExpiredStatistics(dto);
             default -> throw new IllegalArgumentException("Unsupported statistics task type: " + type);
         }
     }
@@ -189,5 +190,21 @@ public class StatisticsConsumer
 
         LocalDate statisticsDate = dto.getStatisticsTime().toLocalDate();
         statisticsService.collectDailyVideoActionStatistics(statisticsDate);
+    }
+
+    /**
+     * <b>删除过期统计数据</b><hr/>
+     * <p>删除超过7天的统计数据</p>
+     */
+    private void deleteExpiredStatistics(StatisticsTaskDTO dto)
+    {
+        StatisticsTaskType type = dto.getStatisticsTaskType();
+        if (type != StatisticsTaskType.DELETE_EXPIRED_STATISTICS)
+        {
+            throw new IllegalArgumentException("Unsupported statistics task type: " + type);
+        }
+
+        LocalDate statisticsDate = dto.getStatisticsTime().toLocalDate();
+        statisticsService.deleteExpiredStatistics(statisticsDate);
     }
 }

@@ -43,13 +43,15 @@ public class StatisticsService
      */
     public void collectVideoPlayDailyStatistics(LocalDate statisticsDate)
     {
-        statisticsRedisRepository.scanDailyPlayCount(statisticsDate, DAILY_PLAY_SCAN_COUNT, DAILY_PLAY_BATCH_SIZE, map ->
+        LocalDate targetStatisticsDate = buildTargetStatisticsDate(statisticsDate);
+
+        statisticsRedisRepository.scanDailyPlayCount(targetStatisticsDate, DAILY_PLAY_SCAN_COUNT, DAILY_PLAY_BATCH_SIZE, map ->
         {
             Map <Long, VideoPlayDaily> idVideoMap = videoInfoMapper.selectVideoInfoByVideoIdBatch(new ArrayList <>(map.keySet()))
                                                                    .stream()
                                                                    .collect(Collectors.toMap(VideoInfo::getVideoId,
                                                                                              videoInfo -> new VideoPlayDaily(
-                                                                                                     statisticsDate,
+                                                                                                     targetStatisticsDate,
                                                                                                      videoInfo.getVideoId(),
                                                                                                      videoInfo.getUserId(),
                                                                                                      0)));
@@ -81,7 +83,7 @@ public class StatisticsService
      */
     public Integer collectUserPlayStatistics(LocalDate statisticsDate)
     {
-        return statisticsInfoMapper.reduceVideoPlayDaily(statisticsDate);
+        return statisticsInfoMapper.reduceVideoPlayDaily(buildTargetStatisticsDate(statisticsDate));
     }
 
     /**
@@ -91,7 +93,7 @@ public class StatisticsService
      */
     public Integer deleteVideoPlayDaily(LocalDate localDate)
     {
-        return videoPlayDailyMapper.deleteByStatisticsDate(localDate);
+        return videoPlayDailyMapper.deleteByStatisticsDate(buildTargetStatisticsDate(localDate));
     }
 
     /**
@@ -102,8 +104,9 @@ public class StatisticsService
      */
     public Integer collectDailyFollowerStatistics(LocalDate statisticsDate)
     {
-        DateRange dateRange = buildDateRange(statisticsDate);
-        return statisticsInfoMapper.reduceDailyFollower(statisticsDate, dateRange.startDate(), dateRange.endDate());
+        LocalDate targetStatisticsDate = buildTargetStatisticsDate(statisticsDate);
+        DateRange dateRange = buildDateRange(targetStatisticsDate);
+        return statisticsInfoMapper.reduceDailyFollower(targetStatisticsDate, dateRange.startDate(), dateRange.endDate());
     }
 
     /**
@@ -114,8 +117,9 @@ public class StatisticsService
      */
     public Integer collectDailyCommentStatistics(LocalDate statisticsDate)
     {
-        DateRange dateRange = buildDateRange(statisticsDate);
-        return statisticsInfoMapper.reduceDailyComment(statisticsDate, dateRange.startDate(), dateRange.endDate());
+        LocalDate targetStatisticsDate = buildTargetStatisticsDate(statisticsDate);
+        DateRange dateRange = buildDateRange(targetStatisticsDate);
+        return statisticsInfoMapper.reduceDailyComment(targetStatisticsDate, dateRange.startDate(), dateRange.endDate());
     }
 
     /**
@@ -126,8 +130,9 @@ public class StatisticsService
      */
     public Integer collectDailyDanmakuStatistics(LocalDate statisticsDate)
     {
-        DateRange dateRange = buildDateRange(statisticsDate);
-        return statisticsInfoMapper.reduceDailyDanmaku(statisticsDate, dateRange.startDate(), dateRange.endDate());
+        LocalDate targetStatisticsDate = buildTargetStatisticsDate(statisticsDate);
+        DateRange dateRange = buildDateRange(targetStatisticsDate);
+        return statisticsInfoMapper.reduceDailyDanmaku(targetStatisticsDate, dateRange.startDate(), dateRange.endDate());
     }
 
     /**
@@ -138,13 +143,35 @@ public class StatisticsService
      */
     public Integer collectDailyVideoActionStatistics(LocalDate statisticsDate)
     {
-        DateRange dateRange = buildDateRange(statisticsDate);
-        return statisticsInfoMapper.reduceDailyVideoAction(statisticsDate, dateRange.startDate(), dateRange.endDate());
+        LocalDate targetStatisticsDate = buildTargetStatisticsDate(statisticsDate);
+        DateRange dateRange = buildDateRange(targetStatisticsDate);
+        return statisticsInfoMapper.reduceDailyVideoAction(targetStatisticsDate, dateRange.startDate(), dateRange.endDate());
+    }
+
+    /**
+     * 删除过期数据
+     *
+     * @param statisticsDate 统计日期
+     * @return 删除行数
+     */
+    public Integer deleteExpiredStatistics(LocalDate statisticsDate)
+    {
+        return statisticsInfoMapper.deleteStatisticsBeforeDate(statisticsDate.minusDays(7));
     }
 
     private DateRange buildDateRange(LocalDate statisticsDate)
     {
         return new DateRange(statisticsDate.atStartOfDay(), statisticsDate.plusDays(1).atStartOfDay());
+    }
+
+    /**
+     * <b>将统计日期转化为我们真正要统计的日期</b>
+     * @param statisticsDate 统计日期
+     * @return 转化后的日期
+     */
+    private LocalDate buildTargetStatisticsDate(LocalDate statisticsDate)
+    {
+        return statisticsDate.minusDays(1);
     }
 
     private record DateRange(LocalDateTime startDate, LocalDateTime endDate)

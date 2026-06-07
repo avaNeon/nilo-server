@@ -13,7 +13,8 @@ public enum StatisticsTaskType
     FOLLOWER_STATISTICS("FOLLOWER_STATISTICS", "每日新增粉丝统计"),
     COMMENT_STATISTICS("COMMENT_STATISTICS", "每日评论统计"),
     DANMAKU_STATISTICS("DANMAKU_STATISTICS", "每日弹幕统计"),
-    VIDEO_ACTION_STATISTICS("VIDEO_ACTION_STATISTICS", "每日点赞、收藏、投币统计");
+    VIDEO_ACTION_STATISTICS("VIDEO_ACTION_STATISTICS", "每日点赞、收藏、投币统计"),
+    DELETE_EXPIRED_STATISTICS("DELETE_EXPIRED_STATISTICS", "删除过期统计数据");
 
     private final String label;
     private final String description;

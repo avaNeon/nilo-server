@@ -72,6 +72,13 @@ public interface StatisticsInfoMapper<T, P> extends BaseMapper <T, P>
                                    @Param("endDate") LocalDateTime endDate);
 
     /**
+     * <b>删除指定时间（不包含）以前的所有数据</b>
+     * @param endDate 截止时间
+     * @return 改变行数
+     */
+    Integer deleteStatisticsBeforeDate(@Param("endDate") LocalDate endDate);
+
+    /**
      * 根据StatisticsDateAndUserIdAndDataType更新
      */
     Integer updateByStatisticsDateAndUserIdAndDataType(@Param("bean") T t,

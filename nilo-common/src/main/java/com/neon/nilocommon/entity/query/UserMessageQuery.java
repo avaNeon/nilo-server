@@ -51,7 +51,7 @@ public class UserMessageQuery extends BaseQuery
     private String createTimeEnd;
 
     /**
-     * 扩展信息（以JSON格式保存）
+     * 扩展内容
      */
     private String extendJson;
 

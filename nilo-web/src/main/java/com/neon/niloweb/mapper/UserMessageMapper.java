@@ -40,6 +40,15 @@ public interface UserMessageMapper<T, P> extends BaseMapper <T, P>
     Integer checkAllMessages(@Param("userId") Long userId, @Param("messageType") Short messageType);
 
     /**
+     * <b>将指定消息标记为已读</b>
+     *
+     * @param userId    用户ID
+     * @param messageId 消息ID
+     * @return 改变行数
+     */
+    Integer checkMessage(@Param("userId") Long userId, @Param("messageId") Long messageId);
+
+    /**
      * <b>根据用户ID和消息ID删除一条数据</b>
      *
      * @param userId    用户ID

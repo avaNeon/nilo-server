@@ -22,6 +22,22 @@
         <result column="extend_json" property="extendJson"/>
     </resultMap>
 
+    <resultMap id="dto_result_map" type="com.neon.nilocommon.entity.dto.UserMessageDTO">
+        <result column="message_id" property="messageId"/>
+        <result column="video_id" property="videoId"/>
+        <result column="message_type" property="messageType"/>
+        <result column="sender_user_id" property="senderUserId"/>
+        <result column="read_type" property="readType"/>
+        <result column="create_time" property="createTime"/>
+        <result column="extend_json"
+                property="extendJson"
+                typeHandler="com.neon.nilocommon.handler.ExtendJsonTypeHandler"/>
+        <result column="nick_name" property="nickName"/>
+        <result column="avatar" property="avatar"/>
+        <result column="video_cover" property="videoCover"/>
+        <result column="video_name" property="videoName"/>
+    </resultMap>
+
 
     <!-- 通用查询结果列-->
     <sql id="base_column_list">
@@ -418,6 +434,14 @@
           AND message_type = #{messageType}
     </update>
 
+    <update id="checkMessage">
+        UPDATE user_message
+        SET read_type = 1
+        WHERE user_id = #{userId}
+          AND message_id = #{messageId}
+          AND read_type = 0
+    </update>
+
     <delete id="deleteByUserIdAndMessageId">
         DELETE
         FROM user_message
@@ -425,10 +449,10 @@
           AND message_id = #{messageId}
     </delete>
 
-    <select id="selectDtoList" resultType="com.neon.nilocommon.entity.dto.UserMessageDTO">
+    <select id="selectDtoList" resultMap="dto_result_map">
         SELECT
         <include refid="dto_column_list"/>
-        FROM user_message u LEFT JOIN user_info ui ON u.user_id = ui.user_id
+        FROM user_message u LEFT JOIN user_info ui ON u.sender_user_id = ui.user_id
         JOIN video_info v ON u.video_id = v.video_id
         <include refid="query_condition"/>
         <if test="query.orderBy!=null">

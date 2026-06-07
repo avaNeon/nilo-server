@@ -1,5 +1,6 @@
 package com.neon.nilocommon.entity.dto;
 
+import com.neon.nilocommon.entity.po.userMessage.ExtendJson;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -42,9 +43,9 @@ public class UserMessageDTO
     private LocalDate createTime;
 
     /**
-     * 扩展信息（以JSON格式保存）
+     * 扩展内容
      */
-    private String extendJson;
+    private ExtendJson extendJson;
 
     /**
      * 发送者用户昵称

@@ -53,7 +53,7 @@ public class UserMessage
     private LocalDate createTime;
 
     /**
-     * 扩展信息（以JSON格式保存）
+     * 扩展内容
      */
     private String extendJson;
 }

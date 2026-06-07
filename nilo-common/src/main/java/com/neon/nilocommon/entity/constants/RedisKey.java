@@ -64,7 +64,7 @@ public class RedisKey
     public static final String THUMBNAIL_SUFFIX = "_thumb";
 
     /**
-     * 热词记录键名
+     * 热词每日榜单键名前缀
      */
     public static final String HOT_KEYWORD_RANKING = REDIS_KEY_PREFIX + "hot-keyword:ranking";
 

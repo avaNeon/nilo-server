@@ -35,7 +35,9 @@ public class HotVideoRedisRepository
     {
         int pageSize = webConfig.getHotVideoPageSize();
         int start = (pageNo - 1) * pageSize;
+
         Set <Object> result = redisTemplate.opsForZSet().reverseRange(RedisKey.HOT_VIDEO_RANKING, start, start + pageSize - 1);
+
         if (result == null || result.isEmpty())
         {
             return List.of();

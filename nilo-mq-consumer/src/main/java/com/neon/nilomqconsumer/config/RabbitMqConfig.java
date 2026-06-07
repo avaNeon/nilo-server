@@ -161,4 +161,27 @@ public class RabbitMqConfig
                              .with(STATISTIC_DLK);
     }
 
+    /* 播放量刷新交换机 */
+    @Bean
+    public DirectExchange playCountExchange()
+    {
+        return new DirectExchange(PLAY_COUNT_EXCHANGE);
+    }
+
+    /* 播放量刷新队列 */
+    @Bean
+    public Queue playCountQueue()
+    {
+        return QueueBuilder.durable(PLAY_COUNT_QUEUE)
+                           .quorum()
+                           .build();
+    }
+
+    /* 播放量刷新队列-交换机绑定 */
+    @Bean
+    public Binding playCountBinding()
+    {
+        return BindingBuilder.bind(playCountQueue()).to(playCountExchange()).with(PLAY_COUNT_ROUTING_KEY);
+    }
+
 }

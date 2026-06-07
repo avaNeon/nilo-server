@@ -38,4 +38,9 @@ public class MqInfo
     public static final String STATISTIC_DLX = "statistic.dlx";
     public static final String STATISTIC_DLQ = "statistic.dlq";
     public static final String STATISTIC_DLK = "statistic.dead";
+
+    // ————PLAY COUNT————————————————————————————————————————————————————————
+    public static final String PLAY_COUNT_EXCHANGE = "video.play-count.direct";
+    public static final String PLAY_COUNT_QUEUE = "video.play-count.queue";
+    public static final String PLAY_COUNT_ROUTING_KEY = "video.play-count.routing.key";
 }

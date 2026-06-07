@@ -8,6 +8,7 @@ import com.neon.nilocommon.entity.vo.videoInfo.VideoInfoVO;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 视频信息 数据库操作接口
@@ -47,6 +48,14 @@ public interface VideoInfoMapper<T, P> extends BaseMapper <T, P>
      * @return 修改行数
      */
     Integer increaseByField(@Param("videoId") Long videoId, @Param("field") String filed, @Param("increment") Integer increment);
+
+    /**
+     * 批量增加播放量
+     *
+     * @param playCountMap 视频ID和播放量增量
+     * @return 修改行数
+     */
+    Integer increasePlayCountBatch(@Param("playCountMap") Map <Long, Integer> playCountMap);
 
     /**
      * 将指定字段减少一定的量

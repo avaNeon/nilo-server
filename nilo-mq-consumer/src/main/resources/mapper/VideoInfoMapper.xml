@@ -1009,6 +1009,21 @@
         </where>
     </update>
 
+    <update id="increasePlayCountBatch">
+        UPDATE video_info
+        SET play_count = play_count + CASE video_id
+        <foreach collection="playCountMap" index="videoId" item="increment">
+            WHEN #{videoId} THEN #{increment}
+        </foreach>
+        ELSE 0
+        END,
+        last_play_time = now()
+        WHERE video_id IN
+        <foreach collection="playCountMap" index="videoId" item="increment" open="(" close=")" separator=",">
+            #{videoId}
+        </foreach>
+    </update>
+
     <update id="decreaseByField">
         UPDATE video_info
         <set>

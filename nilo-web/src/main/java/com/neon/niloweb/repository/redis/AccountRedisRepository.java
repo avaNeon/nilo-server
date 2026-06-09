@@ -42,9 +42,34 @@ public class AccountRedisRepository
      * @param userId 用户ID
      * @return 统计信息
      */
-    public UserState getUserStateUserId(long userId)
+    public UserState getUserStateByUserId(long userId)
     {
         return (UserState) redisTemplate.opsForValue().get(RedisKey.USER_STATE_PREFIX + userId);
+    }
+
+    /**
+     * 根据用户ID获取账户状态。
+     */
+    public Integer getStatusByUserId(long userId)
+    {
+        Object result = redisTemplate.opsForValue().get(RedisKey.USER_AUTH_PREFIX + userId);
+        if (result instanceof Integer status)
+        {
+            return status;
+        }
+        return null;
+    }
+
+    /**
+     * 保存账户状态。
+     */
+    public void saveUserStatus(Long userId, Integer status, int expireDays)
+    {
+        if (userId == null)
+        {
+            throw new RuntimeException("用户ID为空");
+        }
+        redisTemplate.opsForValue().set(RedisKey.USER_AUTH_PREFIX + userId, status, expireDays, TimeUnit.DAYS);
     }
 
     /**

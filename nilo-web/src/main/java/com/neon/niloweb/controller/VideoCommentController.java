@@ -8,7 +8,7 @@ import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.entity.vo.comment.VideoCommentVO;
 import com.neon.nilocommon.exception.BusinessException;
-import com.neon.nilocommon.loginState.LoginState;
+import com.neon.niloweb.loginState.LoginState;
 import com.neon.nilocommon.util.EnumFieldChecker;
 import com.neon.nilocommon.util.FileUtil;
 import com.neon.niloweb.config.WebConfig;

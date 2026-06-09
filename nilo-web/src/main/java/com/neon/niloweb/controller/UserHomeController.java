@@ -11,7 +11,7 @@ import com.neon.nilocommon.entity.vo.UserDetailVO;
 import com.neon.nilocommon.entity.vo.videoInfo.BriefVideoInfoVO;
 import com.neon.nilocommon.entity.vo.videoInfo.CollectedVideoInfoVO;
 import com.neon.nilocommon.entity.vo.videoSeriesInfo.VideoSeriesWithVideosVO;
-import com.neon.nilocommon.loginState.LoginState;
+import com.neon.niloweb.loginState.LoginState;
 import com.neon.nilocommon.util.ServletUtil;
 import com.neon.niloweb.config.WebConfig;
 import com.neon.niloweb.service.UserHomeService;

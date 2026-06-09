@@ -3,7 +3,7 @@ package com.neon.niloweb.aspect;
 import com.neon.niloweb.annotation.Authorized;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.exception.BusinessException;
-import com.neon.niloweb.repository.redis.AccountRedisRepository;
+import com.neon.niloweb.loginState.LoginState;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,7 +24,7 @@ public class GlobalAspect
 {
     /* 自动装配 */
 
-    private final AccountRedisRepository accountRedisRepository;
+    private final LoginState loginState;
 
     /**
      * 让Spring自动装配当前线程的{@link jakarta.servlet.http.HttpServletRequest}对象
@@ -63,9 +63,6 @@ public class GlobalAspect
             throw new BusinessException(ResponseCode.NOT_LOGIN);
         }
 
-        if (accountRedisRepository.getTokenUserInfoByToken(token) == null)
-        {
-            throw new BusinessException(ResponseCode.EXPIRE_LOGIN);
-        }
+        loginState.getLoginState(token);
     }
 }

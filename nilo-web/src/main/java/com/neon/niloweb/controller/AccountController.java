@@ -12,7 +12,7 @@ import com.neon.nilocommon.entity.po.UserState;
 import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.exception.BusinessException;
-import com.neon.nilocommon.loginState.LoginState;
+import com.neon.niloweb.loginState.LoginState;
 import com.neon.nilocommon.util.ServletUtil;
 import com.neon.niloweb.config.WebConfig;
 import com.neon.niloweb.service.AccountService;

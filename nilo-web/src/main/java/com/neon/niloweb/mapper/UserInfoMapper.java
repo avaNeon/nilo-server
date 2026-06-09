@@ -82,4 +82,13 @@ public interface UserInfoMapper<T, P extends BaseQuery> extends BaseMapper <T, P
      * @return 更改行数（如果为0说明用户ID不对，或者用户硬币余额不足）
      */
     Integer decreaseCoin(@Param("userId") Long userId, @Param("coinAmount") Short coinAmount);
+
+    /**
+     * 删除视频时扣减发布奖励硬币，余额不足则直接置为0
+     *
+     * @param userId     用户ID
+     * @param coinAmount 扣减硬币总数
+     * @return 更改行数
+     */
+    Integer decreaseCoinForVideoDelete(@Param("userId") Long userId, @Param("coinAmount") Short coinAmount);
 }

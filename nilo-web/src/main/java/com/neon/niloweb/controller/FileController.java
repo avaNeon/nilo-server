@@ -5,7 +5,7 @@ import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.exception.BusinessException;
-import com.neon.nilocommon.loginState.LoginState;
+import com.neon.niloweb.loginState.LoginState;
 import com.neon.niloweb.service.FileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

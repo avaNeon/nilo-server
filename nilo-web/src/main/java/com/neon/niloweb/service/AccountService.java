@@ -15,6 +15,7 @@ import com.neon.nilocommon.entity.query.UserInfoQuery;
 import com.neon.nilocommon.entity.vo.userInfo.BriefUserInfoVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.config.WebConfig;
+import com.neon.niloweb.loginState.LoginState;
 import com.neon.niloweb.mapper.FollowInfoMapper;
 import com.neon.niloweb.mapper.UserInfoMapper;
 import com.neon.niloweb.repository.redis.AccountRedisRepository;
@@ -45,6 +46,8 @@ public class AccountService
     private final RedissonClient redisson;
 
     private final WebConfig webConfig;
+
+    private final LoginState loginState;
 
     private final static BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
@@ -102,6 +105,13 @@ public class AccountService
         // 新建一个7天时长的token
         BriefUserInfoVO briefUserInfoVO = BeanUtil.copyProperties(userInfo, BriefUserInfoVO.class);
         TokenUserInfo tokenUserInfo = new TokenUserInfo();
+
+        // 设置账户状态
+        if (accountRedisRepository.getStatusByUserId(userId) == null)
+        {
+            accountRedisRepository.saveUserStatus(userId, userInfo.getStatus(), webConfig.getUserInfoExpireDays());
+        }
+
         // 先保存brief user info
         tokenUserInfo.setUserInfo(briefUserInfoVO);
         generateAndSaveToken(tokenUserInfo, webConfig.getUserInfoExpireDays());
@@ -114,13 +124,10 @@ public class AccountService
      */
     public TokenUserInfo autoLogin(String token)
     {
-        TokenUserInfo tokenUserInfo = accountRedisRepository.getTokenUserInfoByToken(token);
-        if (tokenUserInfo == null)
-        {
-            throw new BusinessException(ResponseCode.EXPIRE_LOGIN);
-        }
+        TokenUserInfo tokenUserInfo = loginState.getLoginState(token);
+
         // 如果过期时间小于1天，则自动延长至7天
-        else if (tokenUserInfo.getExpireTime() - System.currentTimeMillis() < TimeUnit.DAYS.toMillis(1))
+        if (tokenUserInfo.getExpireTime() - System.currentTimeMillis() < TimeUnit.DAYS.toMillis(1))
         {
             // 先延长token缓存
             accountRedisRepository.extendExpireTime(RedisKey.WEB_TOKEN_PREFIX + token, webConfig.getUserInfoExpireDays());
@@ -146,10 +153,11 @@ public class AccountService
     public UserState getUserStateByUserId(long userId)
     {
         // 查统计信息
-        UserState userState = accountRedisRepository.getUserStateUserId(userId);
+        UserState userState = accountRedisRepository.getUserStateByUserId(userId);
         // 如果缓存中没有统计信息
         if (userState == null)
         {
+            // 粒度为单个用户
             RLock lock = redisson.getLock(RedisKey.USER_STATE_LOCK_PREFIX + userId);
             boolean locked = false;
             try
@@ -158,7 +166,7 @@ public class AccountService
                 // 抢到锁了，进行二次检查
                 if (locked)
                 {
-                    userState = accountRedisRepository.getUserStateUserId(userId);
+                    userState = accountRedisRepository.getUserStateByUserId(userId);
                     if (userState == null)
                     {
                         // 缓存还没更新，手动更新缓存

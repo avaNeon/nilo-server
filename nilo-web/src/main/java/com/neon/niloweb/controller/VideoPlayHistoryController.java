@@ -2,7 +2,7 @@ package com.neon.niloweb.controller;
 
 import com.neon.nilocommon.entity.dto.VideoPlayHistoryDTO;
 import com.neon.nilocommon.entity.vo.ResponseVO;
-import com.neon.nilocommon.loginState.LoginState;
+import com.neon.niloweb.loginState.LoginState;
 import com.neon.niloweb.annotation.Authorized;
 import com.neon.niloweb.service.VideoPlayHistoryService;
 import io.swagger.v3.oas.annotations.Operation;

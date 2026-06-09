@@ -34,14 +34,24 @@ public class RedisKey
     public static final String WEB_TOKEN_PREFIX = REDIS_KEY_PREFIX + "token:web:";
 
     /**
-     * 用户统计信息的分布式锁
+     * 用户状态信息前缀
      */
-    public static final String USER_STATE_LOCK_PREFIX = REDIS_KEY_PREFIX + "user:state:lock:";
+    public static final String USER_AUTH_PREFIX = REDIS_KEY_PREFIX + "user:auth:";
+
+    /**
+     * 用户状态信息的分布式锁
+     */
+    public static final String USER_AUTH_LOCK_PREFIX = REDIS_KEY_PREFIX + "user:auth:lock:";
 
     /**
      * 用户统计信息前缀
      */
     public static final String USER_STATE_PREFIX = REDIS_KEY_PREFIX + "user:state:";
+
+    /**
+     * 用户统计信息的分布式锁
+     */
+    public static final String USER_STATE_LOCK_PREFIX = REDIS_KEY_PREFIX + "user:state:lock:";
 
     /**
      * 验证码相关前缀

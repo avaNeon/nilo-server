@@ -7,7 +7,7 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum DeleteType
 {
-    UNDELETED(0), DELETED_BY_USER(1), DELETED_BY_VIDEO_CREATER(2);
+    UNDELETED(0), DELETED_BY_USER(1), DELETED_BY_VIDEO_CREATER(2), DELETED_BY_ADMIN(3);
 
     private final int value;
 }

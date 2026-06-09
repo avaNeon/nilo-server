@@ -2,16 +2,13 @@ package com.neon.niloweb.service;
 
 import cn.hutool.core.lang.Snowflake;
 import com.neon.nilocommon.entity.dto.DanmakuDTO;
-import com.neon.nilocommon.entity.enums.PageSize;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.po.VideoDanmaku;
 import com.neon.nilocommon.entity.po.VideoInfo;
 import com.neon.nilocommon.entity.po.VideoInfoFile;
-import com.neon.nilocommon.util.PageCalculator;
 import com.neon.nilocommon.entity.query.VideoDanmakuQuery;
 import com.neon.nilocommon.entity.query.VideoInfoFileQuery;
 import com.neon.nilocommon.entity.query.VideoInfoQuery;
-import com.neon.nilocommon.entity.vo.PaginationResponseVO;
 import com.neon.nilocommon.entity.vo.danmaku.DanmakuVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.mapper.VideoDanmakuMapper;
@@ -156,19 +153,31 @@ public class VideoDanmakuService
     public void deleteDanmaku(long userId, long danmakuId)
     {
         VideoDanmaku videoDanmaku = videoDanmakuMapper.selectByDanmakuId(danmakuId);
+
         // 不能删除不存在的弹幕
         if (videoDanmaku == null)
         {
             throw new BusinessException(ResponseCode.NOT_FOUND);
         }
         VideoInfo videoInfo = videoInfoMapper.selectByVideoId(videoDanmaku.getVideoId());
+
         // 只能删除 自己的弹幕 或者 自己视频下的弹幕
         if (videoDanmaku.getUserId() != userId && videoInfo.getUserId() != userId)
         {
             throw new BusinessException(ResponseCode.NOT_FOUND);
         }
-        videoDanmakuMapper.deleteByDanmakuId(danmakuId);
-        videoInfoMapper.decreaseByField(videoDanmaku.getVideoId(), "danmaku_count", 1);
+
+        Integer deletedCount = videoDanmakuMapper.deleteByDanmakuId(danmakuId);
+
+        if (deletedCount != null && deletedCount > 0)
+        {
+            videoInfoMapper.decreaseByField(videoDanmaku.getVideoId(), "danmaku_count", 1);
+            videoInfoDocRepository.decreaseDanmakuCountByVideoId(videoDanmaku.getVideoId(), 1);
+        }
+        else
+        {
+            throw new BusinessException("删除弹幕失败");
+        }
     }
 
     /**
@@ -180,57 +189,11 @@ public class VideoDanmakuService
     }
 
     /**
-     * 根据条件查询列表
-     */
-    public Integer findCountByParam(VideoDanmakuQuery param)
-    {
-        return this.videoDanmakuMapper.selectCount(param);
-    }
-
-    /**
-     * 分页查询方法
-     */
-    public PaginationResponseVO <VideoDanmaku> findListByPage(VideoDanmakuQuery param)
-    {
-        int count = this.findCountByParam(param);
-        int pageSize = param.getPageSize() == null ? PageSize.SIZE15.getSize() : param.getPageSize();
-
-        PageCalculator page = new PageCalculator(param.getPageNo(), count, pageSize);
-        param.setPageCalculator(page);
-        List <VideoDanmaku> list = this.findListByParam(param);
-        return new PaginationResponseVO <>(count, page.getPageSize(), page.getPageNo(), page.getPageTotal(), list);
-    }
-
-    /**
      * 新增
      */
     public Integer add(VideoDanmaku bean)
     {
         return this.videoDanmakuMapper.insert(bean);
-    }
-
-    /**
-     * 批量新增
-     */
-    public Integer addBatch(List <VideoDanmaku> listBean)
-    {
-        if (listBean == null || listBean.isEmpty())
-        {
-            return 0;
-        }
-        return this.videoDanmakuMapper.insertBatch(listBean);
-    }
-
-    /**
-     * 批量新增或者修改
-     */
-    public Integer addOrUpdateBatch(List <VideoDanmaku> listBean)
-    {
-        if (listBean == null || listBean.isEmpty())
-        {
-            return 0;
-        }
-        return this.videoDanmakuMapper.insertOrUpdateBatch(listBean);
     }
 
     /**
@@ -249,27 +212,4 @@ public class VideoDanmakuService
         return this.videoDanmakuMapper.deleteByParam(param);
     }
 
-    /**
-     * 根据DanmakuId获取对象
-     */
-    public VideoDanmaku getVideoDanmakuByDanmakuId(Long danmakuId)
-    {
-        return this.videoDanmakuMapper.selectByDanmakuId(danmakuId);
-    }
-
-    /**
-     * 根据DanmakuId修改
-     */
-    public Integer updateVideoDanmakuByDanmakuId(VideoDanmaku bean, Long danmakuId)
-    {
-        return this.videoDanmakuMapper.updateByDanmakuId(bean, danmakuId);
-    }
-
-    /**
-     * 根据DanmakuId删除
-     */
-    public Integer deleteVideoDanmakuByDanmakuId(Long danmakuId)
-    {
-        return this.videoDanmakuMapper.deleteByDanmakuId(danmakuId);
-    }
 }

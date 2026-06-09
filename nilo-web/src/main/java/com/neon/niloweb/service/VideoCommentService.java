@@ -259,6 +259,7 @@ public class VideoCommentService
      * @param userId    用户ID
      * @param commentId 评论ID
      */
+    @Transactional
     public void deleteComment(long userId, long commentId)
     {
         VideoComment videoComment = videoCommentMapper.selectByCommentId(commentId);
@@ -272,19 +273,29 @@ public class VideoCommentService
         }
         Long commentUserId = videoComment.getUserId();
         Long videoUserId = videoComment.getVideoUserId();
+        Integer deletedCount;
         if (userId == commentUserId)
         {
-            videoCommentMapper.safeDeleteByCommentId(commentId, DeleteType.DELETED_BY_USER.getValue());
+            deletedCount = videoCommentMapper.safeDeleteByCommentId(commentId, DeleteType.DELETED_BY_USER.getValue());
         }
         else if (userId == videoUserId)
         {
-            videoCommentMapper.safeDeleteByCommentId(commentId, DeleteType.DELETED_BY_VIDEO_CREATER.getValue());
+            deletedCount = videoCommentMapper.safeDeleteByCommentId(commentId, DeleteType.DELETED_BY_VIDEO_CREATER.getValue());
         }
         // 3. 该用户不是评论发布者
         // 4. 该用户不是评论所在视频的发布者
         else
         {
             throw new BusinessException(ResponseCode.WRONG_ARGUMENTS);
+        }
+
+        if (deletedCount != null && deletedCount > 0)
+        {
+            videoInfoMapper.decreaseByField(videoComment.getVideoId(), "comment_count", 1);
+        }
+        else
+        {
+            throw new BusinessException("删除失败");
         }
     }
 

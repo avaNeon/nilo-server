@@ -873,4 +873,16 @@
             #{categoryId}
         </foreach>
     </select>
+
+    <update id="toggleRecommendType">
+        UPDATE video_info
+        SET recommend_type =
+                CASE recommend_type
+                    WHEN 0
+                        THEN 1
+                    WHEN 1
+                        THEN 0
+                    END
+        WHERE video_id = #{videoId}
+    </update>
 </mapper>

@@ -5,8 +5,11 @@ import com.neon.niloadmin.config.AdminConfig;
 import com.neon.niloadmin.mapper.*;
 import com.neon.niloadmin.repository.elasticsearch.VideoInfoDocRepository;
 import com.neon.niloadmin.repository.rabbitmq.MqRepository;
+import com.neon.niloadmin.repository.redis.AccountRedisRepository;
 import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.dto.VideoInfoUploadAdminJoinDTO;
+import com.neon.nilocommon.entity.enums.ResponseCode;
+import com.neon.nilocommon.entity.enums.videoInfoArchive.DeleterType;
 import com.neon.nilocommon.entity.enums.videoInfoFileUpload.UpdateType;
 import com.neon.nilocommon.entity.enums.videoInfoFileUpload.VideoFileStatus;
 import com.neon.nilocommon.entity.enums.videoInfoUpload.VideoStatus;
@@ -24,7 +27,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
@@ -79,6 +84,8 @@ public class VideoService
 
     private final VideoInfoDocRepository videoInfoDocRepository;
 
+    private final AccountRedisRepository accountRedisRepository;
+
     private final MqRepository mqRepository;
 
     /* Other */
@@ -103,6 +110,17 @@ public class VideoService
         Integer count = videoInfoUploadMapper.selectCount(infoUploadQuery);
         infoUploadQuery.setPageCalculator(new PageCalculator(infoUploadQuery.getPageNo(), count, infoUploadQuery.getPageSize()));
         return videoInfoUploadMapper.selectListWithVideoInfoWithUserInfo(infoUploadQuery);
+    }
+
+    /**
+     * 查询视频分P信息
+     *
+     * @param videoId 视频ID
+     * @return 分P文件列表
+     */
+    public List <VideoInfoFileUpload> loadVideoFileList(long videoId)
+    {
+        return videoInfoFileUploadMapper.selectByVideoId(videoId);
     }
 
     /**
@@ -213,8 +231,16 @@ public class VideoService
                                                                                                .map(VideoInfoFile::getFileId)
                                                                                                .toList());
             // 更新videoInfo信息，因为我们删除了旧视频文件的弹幕
-            videoInfoMapper.decreaseByField(videoId, "danmaku_count", deletedDanmakuCount);
+            if (deletedDanmakuCount != null && deletedDanmakuCount > 0)
+            {
+                videoInfoMapper.decreaseByField(videoId, "danmaku_count", deletedDanmakuCount);
+                videoInfo.setDanmakuCount(Math.max((videoInfo.getDanmakuCount() == null ? 0 : videoInfo.getDanmakuCount()) - deletedDanmakuCount,
+                                                   0));
+            }
         }
+
+        // 更新 UserState
+        accountRedisRepository.deleteUserState(videoInfo.getUserId());
 
         // 将记录保存到ES中
         videoInfoDocService.saveVideoInfoDoc(videoInfo);
@@ -267,6 +293,10 @@ public class VideoService
         {
             throw new BusinessException("没发现该视频");
         }
+
+        // 恢复用户硬币
+        userInfoMapper.increaseCoin(videoInfoArchive.getUserId(), adminConfig.getCoinBonusPerVideo());
+
 
         // --- 将所有数据迁移到主表 ---
 
@@ -376,10 +406,171 @@ public class VideoService
         videoInfoFileArchiveMapper.deleteByParam(videoInfoFileArchiveQuery);
         videoInfoArchiveMapper.deleteByVideoId(videoId);
 
+        // 更新 UserState
+        accountRedisRepository.deleteUserState(videoInfo.getUserId());
+
         // 将恢复的视频数据插入ES中
         VideoInfoDoc videoInfoDoc = new VideoInfoDoc();
         BeanUtils.copyProperties(videoInfo, videoInfoDoc);
         videoInfoDocRepository.save(videoInfoDoc);
+
+        // 通知用户视频被恢复
+        CompletableFuture <Void> completableFuture = userMessageService.sendVideoRelatedMessage(videoInfo.getUserId(),
+                                                                                                videoId,
+                                                                                                "您的视频：[" + videoInfo.getVideoName() + "]已被管理员恢复");
+        CompletableFuture.allOf(completableFuture).exceptionally(e ->
+                                                                 {
+                                                                     log.warn("发送恢复视频消息失败，异常信息：{}", e.toString());
+                                                                     return null;
+                                                                 });
+    }
+
+    /**
+     * 切换视频推荐状态
+     *
+     * @param videoId 视频ID
+     */
+    @Transactional
+    public void toggleVideoRecommend(long videoId)
+    {
+        // 查询当前推荐视频数量有没有到最大值
+        VideoInfoQuery query = new VideoInfoQuery();
+        query.setRecommendType(1);
+        Integer firstCount = videoInfoMapper.selectCount(query);
+        if (firstCount >= adminConfig.getMaxRecommendVideoNumber())
+        {
+            throw new BusinessException("超过最大推荐视频数量：" + adminConfig.getMaxRecommendVideoNumber());
+        }
+
+        // 修改
+        videoInfoMapper.toggleRecommendType(videoId);
+
+        // 再查询
+        Integer secondCount = videoInfoMapper.selectCount(query);
+        if (secondCount > adminConfig.getMaxRecommendVideoNumber())
+        {
+            throw new BusinessException("超过最大推荐视频数量：" + adminConfig.getMaxRecommendVideoNumber());
+        }
+    }
+
+    /**
+     * 删除用户视频
+     *
+     * @param userId  发布者ID
+     * @param videoId 视频ID
+     * @param detail  删除详情
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteVideo(long userId, long videoId, String detail)
+    {
+        VideoInfo videoInfo = videoInfoMapper.selectByVideoId(videoId);
+        // 如果 视频不存在 或者 视频不属于该用户
+        if (videoInfo == null || !Objects.equals(videoInfo.getUserId(), userId))
+        {
+            throw new BusinessException(ResponseCode.NOT_FOUND);
+        }
+
+        // 给用户扣除发布视频时获得的硬币
+        userInfoMapper.decreaseCoinForVideoDelete(userId, adminConfig.getCoinBonusPerVideo());
+
+        // --- 将所有数据迁移到 archive 表 ---
+
+        // video_info
+        // 我们认为 video_info 代表了删除的操作，因此其他表如果存在原来的记录，将不会认为是重复删除，并会将archive中对应的记录清除并重新录入
+
+        VideoInfoArchive videoInfoArchive = videoInfoArchiveMapper.selectByVideoId(videoId);
+        if (videoInfoArchive != null)
+        {
+            throw new BusinessException("请勿重复删除");
+        }
+        videoInfoArchive = new VideoInfoArchive();
+        videoInfoArchive.setDeleteTime(LocalDateTime.now());
+        videoInfoArchive.setDeleterType(DeleterType.ADMIN.getValue());
+        videoInfoArchive.setDeleteDetail(detail);
+        BeanUtils.copyProperties(videoInfo, videoInfoArchive);
+        videoInfoArchiveMapper.insert(videoInfoArchive);
+
+        // video_info_file
+        VideoInfoFileQuery videoInfoFileQuery = new VideoInfoFileQuery();
+        videoInfoFileQuery.setVideoId(videoId);
+        List <VideoInfoFile> videoInfoFileList = videoInfoFileMapper.selectList(videoInfoFileQuery);
+        VideoInfoFileArchiveQuery videoInfoFileArchiveQuery = new VideoInfoFileArchiveQuery();
+        videoInfoFileArchiveQuery.setVideoId(videoId);
+        videoInfoFileArchiveMapper.deleteByParam(videoInfoFileArchiveQuery);
+        archiveBatch(videoInfoFileList, VideoInfoFileArchive::new, videoInfoFileArchiveMapper);
+
+        // video_comment
+        VideoCommentQuery videoCommentQuery = new VideoCommentQuery();
+        videoCommentQuery.setVideoId(videoId);
+        List <VideoComment> videoCommentList = videoCommentMapper.selectList(videoCommentQuery);
+        VideoCommentArchiveQuery videoCommentArchiveQuery = new VideoCommentArchiveQuery();
+        videoCommentArchiveQuery.setVideoId(videoId);
+        videoCommentArchiveMapper.deleteByParam(videoCommentArchiveQuery);
+        archiveBatch(videoCommentList, VideoCommentArchive::new, videoCommentArchiveMapper);
+
+        // video_danmaku
+        VideoDanmakuQuery videoDanmakuQuery = new VideoDanmakuQuery();
+        videoDanmakuQuery.setVideoId(videoId);
+        List <VideoDanmaku> videoDanmakuList = videoDanmakuMapper.selectList(videoDanmakuQuery);
+        VideoDanmakuArchiveQuery videoDanmakuArchiveQuery = new VideoDanmakuArchiveQuery();
+        videoDanmakuArchiveQuery.setVideoId(videoId);
+        videoDanmakuArchiveMapper.deleteByParam(videoDanmakuArchiveQuery);
+        archiveBatch(videoDanmakuList, VideoDanmakuArchive::new, videoDanmakuArchiveMapper);
+
+        // user_comment_action
+        UserCommentActionQuery userCommentActionQuery = new UserCommentActionQuery();
+        userCommentActionQuery.setVideoId(videoId);
+        List <UserCommentAction> userCommentActionList = userCommentActionMapper.selectList(userCommentActionQuery);
+        UserCommentActionArchiveQuery userCommentActionArchiveQuery = new UserCommentActionArchiveQuery();
+        userCommentActionArchiveQuery.setVideoId(videoId);
+        userCommentActionArchiveMapper.deleteByParam(userCommentActionArchiveQuery);
+        archiveBatch(userCommentActionList, UserCommentActionArchive::new, userCommentActionArchiveMapper);
+
+        // user_video_action
+        UserVideoActionQuery userVideoActionQuery = new UserVideoActionQuery();
+        userVideoActionQuery.setVideoId(videoId);
+        List <UserVideoAction> userVideoActionList = userVideoActionMapper.selectList(userVideoActionQuery);
+        UserVideoActionArchiveQuery userVideoActionArchiveQuery = new UserVideoActionArchiveQuery();
+        userVideoActionArchiveQuery.setVideoId(videoId);
+        userVideoActionArchiveMapper.deleteByParam(userVideoActionArchiveQuery);
+        archiveBatch(userVideoActionList, UserVideoActionArchive::new, userVideoActionArchiveMapper);
+
+        // --- 删除原业务表数据 ---
+
+        userCommentActionMapper.deleteByParam(userCommentActionQuery);
+        userVideoActionMapper.deleteByParam(userVideoActionQuery);
+        videoDanmakuMapper.deleteByParam(videoDanmakuQuery);
+        videoCommentMapper.deleteByParam(videoCommentQuery);
+        videoInfoFileMapper.deleteByParam(videoInfoFileQuery);
+        videoInfoMapper.deleteByVideoId(videoId);
+
+        // --- 清理 upload 表 ---
+
+        VideoInfoFileUploadQuery videoInfoFileUploadQuery = new VideoInfoFileUploadQuery();
+        videoInfoFileUploadQuery.setVideoId(videoId);
+        videoInfoFileUploadMapper.deleteByParam(videoInfoFileUploadQuery);
+
+        VideoInfoUploadQuery videoInfoUploadQuery = new VideoInfoUploadQuery();
+        videoInfoUploadQuery.setVideoId(videoId);
+        videoInfoUploadMapper.deleteByParam(videoInfoUploadQuery);
+
+        // 更新 UserState
+        accountRedisRepository.deleteUserState(userId);
+
+        // TODO 如果以后要把记录存入redis中，那么这里也要删除redis中留存的记录
+
+        // 删除ES记录
+        videoInfoDocRepository.deleteById(videoId);
+
+        // 通知用户视频被删除
+        CompletableFuture <Void> completableFuture = userMessageService.sendVideoRelatedMessage(userId,
+                                                                                                videoId,
+                                                                                                "您的视频：[" + videoInfo.getVideoName() + "]已被管理员删除，原因：\n" + detail);
+        CompletableFuture.allOf(completableFuture).exceptionally(e ->
+                                                                 {
+                                                                     log.warn("发送删除视频消息失败，异常信息：{}", e.toString());
+                                                                     return null;
+                                                                 });
     }
 
     /**

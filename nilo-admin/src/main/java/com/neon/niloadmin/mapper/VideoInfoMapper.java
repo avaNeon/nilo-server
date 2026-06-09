@@ -11,6 +11,7 @@ public interface VideoInfoMapper<T, P> extends BaseMapper <T, P>
 {
     /**
      * 批量查询分类下有多少视频
+     *
      * @param categoryIdList 分类ID列表
      * @return 视频数量
      */
@@ -34,6 +35,14 @@ public interface VideoInfoMapper<T, P> extends BaseMapper <T, P>
      * @return 修改行数
      */
     Integer decreaseByField(@Param("videoId") Long videoId, @Param("field") String filed, @Param("decrement") Integer decrement);
+
+    /**
+     * 切换视频的推荐状态
+     *
+     * @param videoId 视频ID
+     * @return 修改行数
+     */
+    Integer toggleRecommendType(@Param("videoId") Long videoId);
 
     /**
      * 根据VideoId更新

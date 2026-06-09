@@ -2,7 +2,6 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.neon.niloadmin.mapper.VideoInfoFileUploadMapper">
-
     <!--实体映射-->
     <resultMap id="base_result_map" type="com.neon.nilocommon.entity.po.VideoInfoFileUpload">
         <!--唯一ID-->
@@ -527,4 +526,10 @@
         from video_info_file_upload v where upload_id=#{uploadId} and user_id=#{userId}
     </select>
 
+    <select id="selectByVideoId" resultMap="base_result_map">
+        select
+        <include refid="base_column_list"/>
+        from video_info_file_upload
+        where video_id = #{videoId}
+    </select>
 </mapper>

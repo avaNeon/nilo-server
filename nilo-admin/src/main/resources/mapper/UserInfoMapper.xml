@@ -852,4 +852,24 @@
             and current_coin >= #{coinAmount}
         </where>
     </update>
+
+    <update id="decreaseCoinForVideoDelete">
+        UPDATE user_info
+        <set>
+            current_coin = GREATEST(current_coin - #{coinAmount}, 0)
+        </set>
+        <where>
+            user_id = #{userId}
+        </where>
+    </update>
+
+    <select id="selectStatByTimePeriod" resultType="com.neon.nilocommon.entity.vo.UserStatVO">
+        SELECT COUNT(1)              AS count,
+               DATE(u.register_time) AS date
+        FROM user_info u
+        WHERE u.register_time >= #{startTime}
+          AND u.register_time &lt; DATE_ADD(#{endTime}, INTERVAL 1 DAY)
+        GROUP BY DATE(u.register_time)
+        ORDER BY date
+    </select>
 </mapper>

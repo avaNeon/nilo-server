@@ -19,4 +19,9 @@ public class AdminConfig
     private boolean showCommandLogs;
 
     private short coinBonusPerVideo = 10;
+
+    /**
+     * 最大推荐视频数量
+     */
+    private short maxRecommendVideoNumber = 10;
 }

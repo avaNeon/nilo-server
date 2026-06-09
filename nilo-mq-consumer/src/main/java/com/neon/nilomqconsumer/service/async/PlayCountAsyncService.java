@@ -19,7 +19,7 @@ import java.util.concurrent.CompletableFuture;
 @Service
 public class PlayCountAsyncService
 {
-    private static final int MYSQL_PLAY_COUNT_BATCH_SIZE = 10;
+    private static final int MYSQL_PLAY_COUNT_BATCH_SIZE = 100;
 
     private static final int ES_PLAY_COUNT_BATCH_SIZE = 200;
 
@@ -40,7 +40,7 @@ public class PlayCountAsyncService
         int failCount = 0;
         Map <Long, Integer> subBatch = new LinkedHashMap <>(MYSQL_PLAY_COUNT_BATCH_SIZE);
 
-        // 采用折中方案，10条记录整合为一条SQL让MySQL处理，如果失败10条记录全部失效
+        // 采用折中方案，100条记录整合为一条SQL让MySQL处理，如果失败100条记录全部失效
         for (Map.Entry <Long, Integer> entry : batch.entrySet())
         {
             if (entry.getKey() == null || entry.getValue() == null || entry.getValue() <= 0)

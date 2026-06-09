@@ -1,8 +1,10 @@
 package com.neon.niloadmin.mapper;
 
 import com.neon.nilocommon.entity.query.BaseQuery;
+import com.neon.nilocommon.entity.vo.UserStatVO;
 import org.apache.ibatis.annotations.Param;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -82,4 +84,22 @@ public interface UserInfoMapper<T, P extends BaseQuery> extends BaseMapper <T, P
      * @return 更改行数（如果为0说明用户ID不对，或者用户硬币余额不足）
      */
     Integer decreaseCoin(@Param("userId") Long userId, @Param("coinAmount") Short coinAmount);
+
+    /**
+     * 删除视频时扣减发布奖励硬币，余额不足则直接置为0
+     *
+     * @param userId     用户ID
+     * @param coinAmount 扣减硬币总数
+     * @return 更改行数
+     */
+    Integer decreaseCoinForVideoDelete(@Param("userId") Long userId, @Param("coinAmount") Short coinAmount);
+
+    /**
+     * 查询指定日期范围内的注册的用户数，按天分隔
+     *
+     * @param startTime 开始日期（包含）
+     * @param endTime   结束日期（包含）
+     * @return 数据列表
+     */
+    List <UserStatVO> selectStatByTimePeriod(@Param("startTime") LocalDate startTime, @Param("endTime") LocalDate endTime);
 }

@@ -22,6 +22,7 @@ import com.neon.niloweb.config.WebConfig;
 import com.neon.niloweb.mapper.*;
 import com.neon.niloweb.repository.elasticsearch.VideoInfoDocRepository;
 import com.neon.niloweb.repository.rabbitmq.VideoMqRepository;
+import com.neon.niloweb.repository.redis.AccountRedisRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
@@ -75,6 +76,9 @@ public class CreativeCenterService
     private final UserCommentActionArchiveMapper <UserCommentActionArchive, UserCommentActionArchiveQuery> userCommentActionArchiveMapper;
 
     private final UserVideoActionArchiveMapper <UserVideoActionArchive, UserVideoActionArchiveQuery> userVideoActionArchiveMapper;
+
+    // ----- Redis repository -----
+    private final AccountRedisRepository accountRedisRepository;
 
     // ----- ElasticSearch repository -----
     private final VideoInfoDocRepository videoInfoDocRepository;
@@ -482,7 +486,7 @@ public class CreativeCenterService
         }
 
         // 给用户扣除发布视频时获得的硬币
-        userInfoMapper.decreaseCoin(userId, webConfig.getCoinBonusPerVideo());
+        userInfoMapper.decreaseCoinForVideoDelete(userId, webConfig.getCoinBonusPerVideo());
 
         // --- 将所有数据迁移到 archive 表 ---
 
@@ -564,6 +568,9 @@ public class CreativeCenterService
         VideoInfoUploadQuery videoInfoUploadQuery = new VideoInfoUploadQuery();
         videoInfoUploadQuery.setVideoId(videoId);
         videoInfoUploadMapper.deleteByParam(videoInfoUploadQuery);
+
+        // 修改用户硬币
+        accountRedisRepository.deleteUserState(userId);
 
         // TODO 如果以后要把记录存入redis中，那么这里也要删除redis中留存的记录
 

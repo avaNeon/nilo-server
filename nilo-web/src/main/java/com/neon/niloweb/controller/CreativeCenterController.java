@@ -13,9 +13,11 @@ import com.neon.nilocommon.entity.vo.VideoStatusCountVO;
 import com.neon.nilocommon.entity.vo.comment.CommentManagementVO;
 import com.neon.nilocommon.entity.vo.danmaku.DanmakuManagementVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.niloweb.enums.UploadQuotaType;
 import com.neon.niloweb.loginState.LoginState;
 import com.neon.niloweb.repository.redis.CategoryRedisRepository;
 import com.neon.niloweb.service.CreativeCenterService;
+import com.neon.niloweb.service.UploadQuotaService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -41,6 +43,8 @@ public class CreativeCenterController
     private final CategoryRedisRepository categoryRedisRepository;
 
     private final LoginState loginState;
+
+    private final UploadQuotaService uploadQuotaService;
 
     /**
      * 上传/修改视频<hr/>
@@ -98,7 +102,24 @@ public class CreativeCenterController
                                           videoUploadDTO.getOriginInfo(),
                                           uploadFileList,
                                           tokenUserInfo);
+
         return ResponseVO.success(null);
+    }
+
+    @Operation(summary = "获取今日剩余视频上传额度", description = "返回单位：byte")
+    @GetMapping(path = "/video/uploadQuota")
+    public ResponseVO <Long> getRemainingVideoUploadQuota(@RequestHeader(name = "token") @NotEmpty String token)
+    {
+        long userId = loginState.getLoginUserId(token);
+        return ResponseVO.success(uploadQuotaService.getRemainingQuota(userId, UploadQuotaType.VIDEO));
+    }
+
+    @Operation(summary = "获取今日剩余图片上传额度", description = "返回单位：byte")
+    @GetMapping(path = "/image/uploadQuota")
+    public ResponseVO <Long> getRemainingImageUploadQuota(@RequestHeader(name = "token") @NotEmpty String token)
+    {
+        long userId = loginState.getLoginUserId(token);
+        return ResponseVO.success(uploadQuotaService.getRemainingQuota(userId, UploadQuotaType.IMAGE));
     }
 
     /**

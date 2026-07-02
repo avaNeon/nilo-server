@@ -49,6 +49,10 @@
         <result column="create_time" property="createTime"/>
         <!--最后更新时间-->
         <result column="last_update_time" property="lastUpdateTime"/>
+        <!--父级分类ID-->
+        <result column="p_category_id" property="pCategoryId"/>
+        <!--分类ID-->
+        <result column="category_id" property="categoryId"/>
         <!--父级分类编号-->
         <result column="parent_category_number" property="parentCategoryNumber"/>
         <!--分类编号-->
@@ -141,13 +145,19 @@
 
     <!-- 通用查询条件列-->
     <sql id="query_condition">
+        <bind name="videoCoverFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.videoCoverFuzzy)"/>
+        <bind name="videoNameFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.videoNameFuzzy)"/>
+        <bind name="originInfoFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.originInfoFuzzy)"/>
+        <bind name="tagsFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.tagsFuzzy)"/>
+        <bind name="introductionFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.introductionFuzzy)"/>
+        <bind name="interactionFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.interactionFuzzy)"/>
         <where>
             <include refid="base_condition_filed"/>
             <if test="query.videoCoverFuzzy!= null  and query.videoCoverFuzzy!=''">
-                and v.video_cover like concat('%', #{query.videoCoverFuzzy}, '%')
+                and v.video_cover like concat('%', #{videoCoverFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.videoNameFuzzy!= null  and query.videoNameFuzzy!=''">
-                and v.video_name like concat('%', #{query.videoNameFuzzy}, '%')
+                and v.video_name like concat('%', #{videoNameFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.createTimeStart!= null and query.createTimeStart!=''">
                 <![CDATA[ and  v.create_time>= #{query.createTimeStart} ]]>
@@ -162,16 +172,16 @@
                 <![CDATA[ and  v.last_update_time< #{query.lastUpdateTimeEnd} ]]>
             </if>
             <if test="query.originInfoFuzzy!= null  and query.originInfoFuzzy!=''">
-                and v.origin_info like concat('%', #{query.originInfoFuzzy}, '%')
+                and v.origin_info like concat('%', #{originInfoFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.tagsFuzzy!= null  and query.tagsFuzzy!=''">
-                and v.tags like concat('%', #{query.tagsFuzzy}, '%')
+                and v.tags like concat('%', #{tagsFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.introductionFuzzy!= null  and query.introductionFuzzy!=''">
-                and v.introduction like concat('%', #{query.introductionFuzzy}, '%')
+                and v.introduction like concat('%', #{introductionFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.interactionFuzzy!= null  and query.interactionFuzzy!=''">
-                and v.interaction like concat('%', #{query.interactionFuzzy}, '%')
+                and v.interaction like concat('%', #{interactionFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.exclusiveStatusList!=null">
                 and v.status not in

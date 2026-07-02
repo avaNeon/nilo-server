@@ -1,7 +1,9 @@
 package com.neon.niloweb.service;
 
 import cn.hutool.core.lang.Snowflake;
+import com.neon.nilocommon.config.SystemConfig;
 import com.neon.nilocommon.entity.constants.Constants;
+import com.neon.nilocommon.entity.dto.UploadedVideoFileDTO;
 import com.neon.nilocommon.entity.dto.VideoInfoUploadJoinDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.videoInfoArchive.DeleterType;
@@ -15,18 +17,23 @@ import com.neon.nilocommon.entity.vo.VideoStatusCountVO;
 import com.neon.nilocommon.entity.vo.comment.CommentManagementVO;
 import com.neon.nilocommon.entity.vo.danmaku.DanmakuManagementVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.nilocommon.repository.redis.SystemConfigRedisRepository;
 import com.neon.nilocommon.util.FileUtil;
 import com.neon.nilocommon.util.PageCalculator;
-import com.neon.niloweb.config.SystemConfig;
+import com.neon.nilocommon.util.StringUtil;
 import com.neon.niloweb.config.WebConfig;
 import com.neon.niloweb.mapper.*;
 import com.neon.niloweb.repository.elasticsearch.VideoInfoDocRepository;
 import com.neon.niloweb.repository.rabbitmq.VideoMqRepository;
 import com.neon.niloweb.repository.redis.AccountRedisRepository;
+import com.neon.niloweb.repository.redis.CategoryRedisRepository;
+import com.neon.niloweb.repository.redis.UploadRedisRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -39,7 +46,7 @@ import java.util.stream.Collectors;
 @Service
 public class CreativeCenterService
 {
-    private final SystemConfig systemConfig;
+    private final SystemConfigRedisRepository systemConfigRedisRepository;
 
     private final UserInfoMapper <UserInfo, UserInfoQuery> userInfoMapper;
 
@@ -80,6 +87,10 @@ public class CreativeCenterService
     // ----- Redis repository -----
     private final AccountRedisRepository accountRedisRepository;
 
+    private final CategoryRedisRepository categoryRedisRepository;
+
+    private final UploadRedisRepository uploadRedisRepository;
+
     // ----- ElasticSearch repository -----
     private final VideoInfoDocRepository videoInfoDocRepository;
 
@@ -116,6 +127,15 @@ public class CreativeCenterService
                             TokenUserInfo tokenUserInfo)
     {
         Long userId = tokenUserInfo.getUserInfo().getUserId();
+
+        // 对上传文件去重
+        uploadFileList = distinctUploadFilesByUploadId(uploadFileList);
+
+        if (uploadFileList.isEmpty())
+        {
+            throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
+        }
+
         // 将传入的参数赋值给视频信息对象
         VideoInfoUpload videoInfoUpload = new VideoInfoUpload();
         videoInfoUpload.setVideoId(videoId);
@@ -131,6 +151,7 @@ public class CreativeCenterService
         videoInfoUpload.setOriginInfo(originInfo);
 
         // 检查分P数是否在合理范围内
+        SystemConfig systemConfig = systemConfigRedisRepository.getSystemConfig();
         if (uploadFileList.size() > systemConfig.getVideoMaxEpisodes())
         {
             throw new BusinessException("分P数过多");
@@ -147,6 +168,8 @@ public class CreativeCenterService
             videoInfoUpload.setLastUpdateTime(curDate);
             videoInfoUpload.setStatus(VideoStatus.TRANSCODING.getStatus());
             videoInfoUploadMapper.insert(videoInfoUpload);
+
+            verifyNewUploadedVideoFiles(userId, uploadFileList);
 
             // 新增视频文件记录
             int index = 1;
@@ -168,7 +191,8 @@ public class CreativeCenterService
             // 如果移动失败即上传失败
             FileUtil.verifyAndMoveCover(webConfig.getRootFilePath(), coverPathStr);
 
-            videoMqRepository.addVideoFile2TranscodingQueue(uploadFileList);
+            // 事务结束后交给MQ
+            addVideoFileToTranscodingQueueAfterCommit(uploadFileList);
         }
         else // 修改情况
         {
@@ -185,15 +209,57 @@ public class CreativeCenterService
             {
                 throw new BusinessException("没有权限修改");
             }
+            Short status = videoInfoUploadDb.getStatus();
+
+            VideoInfoFileUploadQuery videoFileUploadQuery = new VideoInfoFileUploadQuery();
+            videoFileUploadQuery.setVideoId(videoId);
+            videoFileUploadQuery.setUserId(userId); // 限制住只能改本用户id的视频，因为是通过token获得用户id，可以避免用户改别人视频
+            List <VideoInfoFileUpload> dbUploadFileList = videoInfoFileUploadMapper.selectList(videoFileUploadQuery);
+
+            // 过滤掉审核失败的文件
+            if (VideoStatus.REVIEW_FAILED.getStatus().equals(status))
+            {
+                Set <Long> oldUploadIdSet = dbUploadFileList.stream()
+                                                            .map(VideoInfoFileUpload::getUploadId)
+                                                            .filter(Objects::nonNull)
+                                                            .collect(Collectors.toSet());
+                uploadFileList = uploadFileList.stream()
+                                               .filter(uploadFile -> !oldUploadIdSet.contains(uploadFile.getUploadId()))
+                                               .toList();
+                if (uploadFileList.isEmpty())
+                {
+                    throw new BusinessException("审核失败后请重新上传视频文件");
+                }
+            }
+
+            // 过滤掉转码失败的文件
+            if (VideoStatus.TRANSCODING_FAIL.getStatus().equals(status))
+            {
+                Set <Long> failedUploadIdSet = dbUploadFileList.stream()
+                                                               .filter(file -> file.getFilePath() == null || file.getFilePath()
+                                                                                                                 .isBlank())
+                                                               .map(VideoInfoFileUpload::getUploadId)
+                                                               .filter(Objects::nonNull)
+                                                               .collect(Collectors.toSet());
+                uploadFileList = uploadFileList.stream()
+                                               .filter(uploadFile -> !failedUploadIdSet.contains(uploadFile.getUploadId()))
+                                               .toList();
+                if (uploadFileList.isEmpty())
+                {
+                    throw new BusinessException("转码失败后请重新上传视频文件");
+                }
+            }
+
             // 校验本次提交信息是否与旧信息完全一致
             boolean sameVideoInfoUpload = isSameVideoInfoUpload(videoInfoUpload);
+
             boolean sameVideoFileUpload = verifyDuplicateData(videoId, userId, uploadFileList);
+
             if (sameVideoInfoUpload && sameVideoFileUpload)
             {
                 throw new BusinessException("请勿重复提交");
             }
 
-            Short status = videoInfoUploadDb.getStatus();
             /*
              * 我们的视频处理逻辑是只能修改 审核过的 或者 转码失败的 视频信息和文件，否则就只能等。
              */
@@ -206,15 +272,12 @@ public class CreativeCenterService
             String oldCover = videoInfoUploadDb.getVideoCover();
 
             /* 处理部分 */
-            VideoInfoFileUploadQuery videoFileUploadQuery = new VideoInfoFileUploadQuery();
-            videoFileUploadQuery.setVideoId(videoId);
-            videoFileUploadQuery.setUserId(userId); // 限制住只能改本用户id的视频，因为是通过token获得用户id，可以避免用户改别人视频
-            List <VideoInfoFileUpload> dbUploadFileList = videoInfoFileUploadMapper.selectList(videoFileUploadQuery);
-
-            // 以 uploadId 为 key 建立 DB 文件的查找 Map （不包括转码失败的文件，就算用户携带也不能要）
+            // 以 uploadId 为 key 建立 DB 文件的查找 Map （不包括转码失败的文件，就算用户携带也不能要）（现在路径为空的文件也会被排除）
             Map <Long, VideoInfoFileUpload> dbFileByUploadId = dbUploadFileList.stream()
-                                                                               .filter(videoInfoFileUpload -> !videoInfoFileUpload.getTransferResult()
-                                                                                                                                  .equals(VideoFileStatus.TRANSCODING_FAIL.getStatus()))
+                                                                               .filter(videoInfoFileUpload -> !VideoFileStatus.TRANSCODING_FAIL.getStatus()
+                                                                                                                                               .equals(videoInfoFileUpload.getTransferResult()))
+                                                                               .filter(videoInfoFileUpload -> videoInfoFileUpload.getFilePath() != null && !videoInfoFileUpload.getFilePath()
+                                                                                                                                                                               .isBlank())
                                                                                .collect(Collectors.toMap(VideoInfoFileUpload::getUploadId,
                                                                                                          Function.identity(),
                                                                                                          (d1, d2) -> d2));
@@ -257,6 +320,7 @@ public class CreativeCenterService
             ArrayList <VideoInfoFileUpload> newFileList = new ArrayList <>(uploadFileList.stream()
                                                                                          .filter(file -> file.getFileId() == null)
                                                                                          .toList());
+            verifyNewUploadedVideoFiles(userId, newFileList);
 
             videoInfoUpload.setLastUpdateTime(curDate);
 
@@ -303,21 +367,14 @@ public class CreativeCenterService
 
 
             // 如果更换封面
-            if (!oldCover.equals(coverPathStr))
+            if (!Objects.equals(oldCover, coverPathStr))
             {
                 // 先把封面移动到video文件夹
                 // 先检查一下封面是否合法且存在
-                FileUtil.fileExists(Path.of(webConfig.getRootFilePath(),
-                                            Constants.FILE_FOLDER_NAME,
-                                            Constants.TMP_FOLDER_NAME,
-                                            oldCover).toString(), coverPathStr);
+                FileUtil.fileExists(Path.of(webConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME, Constants.TMP_FOLDER_NAME)
+                                        .toString(), coverPathStr);
                 // 如果封面过期了直接修改失败
                 FileUtil.verifyAndMoveCover(webConfig.getRootFilePath(), coverPathStr);
-                // 然后删除原来的旧封面
-                videoMqRepository.addVideoFile2DeleteQueue(Path.of(webConfig.getRootFilePath(),
-                                                                   Constants.FILE_FOLDER_NAME,
-                                                                   Constants.COVER_FOLDER_NAME,
-                                                                   oldCover).toString());
             }
 
             if (!newFileList.isEmpty())
@@ -327,10 +384,11 @@ public class CreativeCenterService
                     newFile.setUserId(userId);
                     newFile.setVideoId(videoId);
                 }
-                videoMqRepository.addVideoFile2TranscodingQueue(newFileList);
+
+                // 事务结束后交给MQ
+                addVideoFileToTranscodingQueueAfterCommit(newFileList);
             }
         }
-
 
     }
 
@@ -368,7 +426,35 @@ public class CreativeCenterService
         // 分页查询
         Integer count = videoInfoUploadMapper.selectCount(query);
         query.setPageCalculator(new PageCalculator(pageNo, count, pageSize));
-        return videoInfoUploadMapper.selectListWithVideoInfo(query);
+
+        List <VideoInfoUploadJoinDTO> result = videoInfoUploadMapper.selectListWithVideoInfo(query);
+
+        // 从Redis获取分类ID到编号的映射，回填视频的分类编号
+        List <CategoryInfo> categoryInfoList = categoryRedisRepository.getCategoryInfo();
+
+        if (categoryInfoList != null && !categoryInfoList.isEmpty())
+        {
+            // ID 到 NUM 的映射
+            Map <Integer, String> idToNumber = categoryInfoList.stream()
+                                                               .collect(Collectors.toMap(CategoryInfo::getCategoryId,
+                                                                                         CategoryInfo::getCategoryNumber,
+                                                                                         (a, b) -> a));
+
+            for (VideoInfoUploadJoinDTO dto : result)
+            {
+                if ((dto.getParentCategoryNumber() == null || dto.getParentCategoryNumber()
+                                                                 .isBlank()) && dto.getPCategoryId() != null)
+                {
+                    dto.setParentCategoryNumber(idToNumber.get(dto.getPCategoryId()));
+                }
+                if ((dto.getCategoryNumber() == null || dto.getCategoryNumber().isBlank()) && dto.getCategoryId() != null)
+                {
+                    dto.setCategoryNumber(idToNumber.get(dto.getCategoryId()));
+                }
+            }
+        }
+
+        return result;
     }
 
     /**
@@ -431,20 +517,6 @@ public class CreativeCenterService
         }
     }
 
-    private String validateInteraction(String interaction)
-    {
-        if (interaction == null || interaction.isBlank())
-        {
-            return "";
-        }
-        List <Integer> list = Arrays.stream(interaction.split(",")).map(String::trim).map(Integer::parseInt).toList();
-        if (list.stream().anyMatch(i -> i != 0 && i != 1))
-        {
-            throw new BusinessException(ResponseCode.NOT_FOUND);
-        }
-        return list.stream().distinct().sorted().map(String::valueOf).collect(Collectors.joining(","));
-    }
-
     /**
      * 获取上传文件
      *
@@ -455,15 +527,30 @@ public class CreativeCenterService
     public List <VideoInfoFileUploadVO> loadVideoFileUpload(long videoId, long userId)
     {
         VideoInfoUpload videoInfoUpload = videoInfoUploadMapper.selectByVideoId(videoId);
-        if (!Objects.equals(videoInfoUpload.getUserId(), userId))
+
+        // 如果没找到视频上传记录，就抛异常
+        if (videoInfoUpload == null || !Objects.equals(videoInfoUpload.getUserId(), userId))
         {
             throw new BusinessException(ResponseCode.NOT_FOUND);
         }
+
         List <VideoInfoFileUpload> uploadList = videoInfoFileUploadMapper.selectByVideoId(videoId);
+
+        boolean reviewFailed = VideoStatus.REVIEW_FAILED.getStatus().equals(videoInfoUpload.getStatus());
+        boolean transcodingFailed = VideoStatus.TRANSCODING_FAIL.getStatus().equals(videoInfoUpload.getStatus());
+
         return uploadList.stream().map(uploadFile ->
                                        {
                                            VideoInfoFileUploadVO vo = new VideoInfoFileUploadVO();
                                            BeanUtils.copyProperties(uploadFile, vo);
+
+                                           // 审核失败的文件均不可复用；转码失败时仅空路径文件不可复用
+                                           if (reviewFailed || (transcodingFailed && (uploadFile.getFilePath() == null || uploadFile.getFilePath()
+                                                                                                                                    .isBlank())))
+                                           {
+                                               vo.setUploadId(null);
+                                           }
+
                                            return vo;
                                        }).toList();
     }
@@ -479,14 +566,26 @@ public class CreativeCenterService
     public void deleteVideo(long userId, long videoId, String detail)
     {
         VideoInfo videoInfo = videoInfoMapper.selectByVideoId(videoId);
-        // 如果 视频不存在 或者 视频不属于该用户
-        if (videoInfo == null || !Objects.equals(videoInfo.getUserId(), userId))
+
+        // 如果正式表没有记录，转到删除未发布视频方法
+        if (videoInfo == null)
+        {
+            deleteUnpublishedVideo(userId, videoId);
+            return;
+        }
+
+        // 如果 视频不属于该用户
+        if (!Objects.equals(videoInfo.getUserId(), userId))
         {
             throw new BusinessException(ResponseCode.NOT_FOUND);
         }
 
+
         // 给用户扣除发布视频时获得的硬币
-        userInfoMapper.decreaseCoinForVideoDelete(userId, webConfig.getCoinBonusPerVideo());
+        userInfoMapper.decreaseCoinForVideoDelete(userId,
+                                                  systemConfigRedisRepository.getSystemConfig()
+                                                                             .getRewardsPreUpload()
+                                                                             .shortValue());
 
         // --- 将所有数据迁移到 archive 表 ---
 
@@ -642,6 +741,200 @@ public class CreativeCenterService
     }
 
     /**
+     * 将视频上传文件按照uploadId去重
+     *
+     * @param uploadFileList 上传文件列表
+     * @return 去重后的列表
+     */
+    private List <VideoInfoFileUpload> distinctUploadFilesByUploadId(List <VideoInfoFileUpload> uploadFileList)
+    {
+        if (uploadFileList == null || uploadFileList.isEmpty())
+        {
+            return Collections.emptyList();
+        }
+
+        Map <Long, VideoInfoFileUpload> fileMap = new LinkedHashMap <>();
+
+        for (VideoInfoFileUpload uploadFile : uploadFileList)
+        {
+            fileMap.putIfAbsent(uploadFile.getUploadId(), uploadFile);
+        }
+
+        return new ArrayList <>(fileMap.values());
+    }
+
+    /**
+     * 将上传文件列表在事务提交后传给MQ
+     *
+     * @param uploadFileList 上传文件列表
+     */
+    private void addVideoFileToTranscodingQueueAfterCommit(List <VideoInfoFileUpload> uploadFileList)
+    {
+        if (uploadFileList == null || uploadFileList.isEmpty())
+        {
+            return;
+        }
+
+        List <VideoInfoFileUpload> mqFileList = new ArrayList <>(uploadFileList);
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive())
+        {
+            videoMqRepository.addVideoFile2TranscodingQueue(mqFileList);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization()
+        {
+            @Override
+            public void afterCommit()
+            {
+                videoMqRepository.addVideoFile2TranscodingQueue(mqFileList);
+            }
+        });
+    }
+
+    /**
+     * 删除未发布视频
+     *
+     * @param userId  用户ID
+     * @param videoId 视频ID
+     */
+    private void deleteUnpublishedVideo(long userId, long videoId)
+    {
+        VideoInfoUpload videoInfoUpload = videoInfoUploadMapper.selectByVideoId(videoId);
+
+        // 如果没找到视频记录，停止
+        if (videoInfoUpload == null)
+        {
+            return;
+        }
+
+        // 只能删除自己的视频
+        if (!Objects.equals(videoInfoUpload.getUserId(), userId))
+        {
+            throw new BusinessException(ResponseCode.NOT_FOUND);
+        }
+
+        // 转码中不能修改
+        if (VideoStatus.TRANSCODING.getStatus().equals(videoInfoUpload.getStatus()))
+        {
+            return;
+        }
+
+        // 只能是 转码失败/待审核/审核失败 这几个状态
+        if (!VideoStatus.TRANSCODING_FAIL.getStatus()
+                                         .equals(videoInfoUpload.getStatus()) && !VideoStatus.PENDING_REVIEW.getStatus()
+                                                                                                            .equals(videoInfoUpload.getStatus()) && !VideoStatus.REVIEW_FAILED.getStatus()
+                                                                                                                                                                              .equals(videoInfoUpload.getStatus()))
+        {
+            throw new BusinessException(ResponseCode.NOT_FOUND);
+        }
+
+        List <VideoInfoFileUpload> uploadFileList = videoInfoFileUploadMapper.selectByVideoId(videoId);
+        List <String> deletePathList = buildUnpublishedVideoDeletePathList(videoInfoUpload, uploadFileList);
+
+        // 删除 video_info_file_upload
+        VideoInfoFileUploadQuery videoInfoFileUploadQuery = new VideoInfoFileUploadQuery();
+        videoInfoFileUploadQuery.setVideoId(videoId);
+        videoInfoFileUploadMapper.deleteByParam(videoInfoFileUploadQuery);
+
+        // 删除 video_info_upload
+        VideoInfoUploadQuery videoInfoUploadQuery = new VideoInfoUploadQuery();
+        videoInfoUploadQuery.setVideoId(videoId);
+        videoInfoUploadMapper.deleteByParam(videoInfoUploadQuery);
+
+        // 在事务提交后把删除路径交给MQ
+        addVideoFileToDeleteQueueAfterCommit(deletePathList);
+    }
+
+    /**
+     * 构建未发布视频需要删除的文件路径
+     *
+     * @param videoInfoUpload 上传视频记录
+     * @param uploadFileList  上传视频文件列表
+     * @return 需要删除的路径
+     */
+    private List <String> buildUnpublishedVideoDeletePathList(VideoInfoUpload videoInfoUpload,
+                                                              List <VideoInfoFileUpload> uploadFileList)
+    {
+        String fileRootPath = Path.of(webConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME).normalize().toString();
+        List <String> deletePathList = new ArrayList <>();
+
+        if (uploadFileList != null)
+        {
+            uploadFileList.stream()
+                          .map(VideoInfoFileUpload::getFilePath)
+                          .filter(filePath -> filePath != null && !filePath.isBlank()) // 把为空的路径过滤掉
+                          .map(filePath -> Path.of(fileRootPath, filePath).normalize().toString())
+                          .filter(absPath -> StringUtil.isValidPath(fileRootPath, absPath))
+                          .filter(FileUtil::fileExists)
+                          .forEach(deletePathList::add);
+        }
+
+        String coverPath = videoInfoUpload.getVideoCover();
+
+        // 如果封面路径且存在，删除封面
+        if (coverPath != null && !coverPath.isBlank())
+        {
+            String coverAbsPath = Path.of(fileRootPath, Constants.COVER_FOLDER_NAME, coverPath).normalize().toString();
+            if (StringUtil.isValidPath(fileRootPath, coverAbsPath) && FileUtil.fileExists(coverAbsPath))
+            {
+                deletePathList.add(coverAbsPath);
+            }
+        }
+
+        return deletePathList.stream().distinct().toList();
+    }
+
+    private void addVideoFileToDeleteQueueAfterCommit(List <String> filePathList)
+    {
+        if (filePathList == null || filePathList.isEmpty())
+        {
+            return;
+        }
+
+        List <String> mqFilePathList = new ArrayList <>(filePathList);
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive())
+        {
+            videoMqRepository.addVideoFile2DeleteQueue(mqFilePathList);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization()
+        {
+            @Override
+            public void afterCommit()
+            {
+                videoMqRepository.addVideoFile2DeleteQueue(mqFilePathList);
+            }
+        });
+    }
+
+    /**
+     * 校验互动设置是否合法，并尽量修复
+     *
+     * @param interaction 互动设置字符串
+     * @return 如果有重复或者顺序错误的，可以返回正确格式
+     */
+    private String validateInteraction(String interaction)
+    {
+        if (interaction == null || interaction.isBlank())
+        {
+            return "";
+        }
+
+        List <Integer> list = Arrays.stream(interaction.split(",")).map(String::trim).map(Integer::parseInt).toList();
+
+        if (list.stream().anyMatch(i -> i != 0 && i != 1))
+        {
+            throw new BusinessException(ResponseCode.NOT_FOUND);
+        }
+
+        return list.stream().distinct().sorted().map(String::valueOf).collect(Collectors.joining(","));
+    }
+
+    /**
      * 检查视频信息是否相同<hr/>
      * 具体检查：标题、封面、分类、投稿类型、来源、标签、简介、互动设置
      *
@@ -665,6 +958,52 @@ public class CreativeCenterService
                                                                                                   dbInfo.getTags()) && Objects.equals(
                 newInfo.getIntroduction(),
                 dbInfo.getIntroduction()) && Objects.equals(newInfo.getInteraction(), dbInfo.getInteraction());
+    }
+
+    /**
+     * 校验新上传视频文件是否符合限制
+     */
+    private void verifyNewUploadedVideoFiles(long userId, List <VideoInfoFileUpload> uploadFileList)
+    {
+        if (uploadFileList == null || uploadFileList.isEmpty())
+        {
+            return;
+        }
+
+        SystemConfig systemConfig = systemConfigRedisRepository.getSystemConfig();
+        long maxVideoSize = (long) systemConfig.getVideoFileMaxSize() * Constants.Mebibyte;
+
+        for (VideoInfoFileUpload uploadFile : uploadFileList)
+        {
+            Long uploadId = uploadFile.getUploadId();
+            if (uploadId == null)
+            {
+                throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
+            }
+
+            UploadedVideoFileDTO uploadedVideoFileDTO = uploadRedisRepository.getPreUploadKey(userId, uploadId);
+            if (uploadedVideoFileDTO == null)
+            {
+                throw new BusinessException("文件不存在，请重新上传");
+            }
+            if (uploadedVideoFileDTO.getChunkSize() == null || uploadedVideoFileDTO.getChunkIndex() == null || !uploadedVideoFileDTO.getChunkSize()
+                                                                                                                                    .equals(uploadedVideoFileDTO.getChunkIndex()))
+            {
+                throw new BusinessException("文件未上传完成");
+            }
+
+            Long fileSize = uploadedVideoFileDTO.getFileSize();
+
+            if (fileSize == null)
+            {
+                throw new BusinessException("文件未上传完成");
+            }
+
+            if (fileSize > maxVideoSize)
+            {
+                throw new BusinessException("文件大小超过限制");
+            }
+        }
     }
 
     /**

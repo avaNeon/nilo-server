@@ -1,5 +1,6 @@
 package com.neon.nilocommon.entity.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -11,6 +12,19 @@ import java.time.LocalDateTime;
 @Getter
 public class VideoInfoUploadJoinDTO
 {
+
+    /**
+     * 父级分类ID，内部使用不对外展示
+     */
+    @JsonProperty(value = "pCategoryId", access = JsonProperty.Access.WRITE_ONLY)
+    private Integer pCategoryId;
+
+    /**
+     * 分类ID，内部使用不对外展示
+     */
+    @JsonProperty(value = "categoryId", access = JsonProperty.Access.WRITE_ONLY)
+    private Integer categoryId;
+
     /**
      * 视频ID
      */

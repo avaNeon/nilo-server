@@ -14,10 +14,9 @@ import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.FfmpegUtil;
 import com.neon.nilocommon.util.FileUtil;
 import com.neon.nilocommon.util.StringUtil;
-import com.neon.niloweb.config.SystemConfig;
 import com.neon.niloweb.config.WebConfig;
 import com.neon.niloweb.mapper.VideoInfoFileMapper;
-import com.neon.niloweb.repository.rabbitmq.VideoMqRepository;
+import com.neon.nilocommon.repository.redis.SystemConfigRedisRepository;
 import com.neon.niloweb.repository.redis.UploadRedisRepository;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletResponse;
@@ -34,7 +33,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -44,15 +42,13 @@ public class FileService
 {
     private final WebConfig webConfig;
 
-    private final SystemConfig systemConfig;
+    private final SystemConfigRedisRepository systemConfigRedisRepository;
 
     private final Snowflake snowflake;
 
     private final UploadRedisRepository uploadRedisRepository;
 
     private final VideoInfoFileMapper <VideoInfoFile, VideoInfoFileQuery> videoInfoFileMapper;
-
-    private final VideoMqRepository videoMqRepository;
 
     /**
      * 上传视频封面（分类的封面和视频封面都是放在file/cover下的，但是视频的cover按天保存，分类的cover按月保存）<hr/>
@@ -64,6 +60,11 @@ public class FileService
      */
     public String uploadImage(MultipartFile file, Boolean createThumbnail)
     {
+        if (file.getSize() > (long) systemConfigRedisRepository.getSystemConfig().getImageMaxSize() * Constants.Mebibyte)
+        {
+            throw new BusinessException("文件大小超过限制");
+        }
+
         validateImage(file);
 
         String dateName = LocalDate.now().format(DateTimeFormatter.ofPattern(DatePattern.DATE)); // 目录按日划分
@@ -118,7 +119,7 @@ public class FileService
         }
 
         String absolutePath = Paths.get(coverRootPath, filePath).toString();
-        if (!StringUtil.isValidPath(absolutePath, coverRootPath)) throw new BusinessException("非法的文件路径");
+        if (!StringUtil.isValidPath(coverRootPath, absolutePath)) throw new BusinessException("非法的文件路径");
         String suffix = StringUtil.getSuffix(filePath);
         response.setContentType(resolveImageContentType(suffix));
         response.setHeader("Cache-Control", "max-age=2592000"); // 30天
@@ -158,7 +159,8 @@ public class FileService
         UploadedVideoFileDTO videoFileDTO = uploadRedisRepository.getPreUploadKey(userId, uploadId);
         if (videoFileDTO == null) throw new BusinessException("文件不存在，请重新上传");
         // 查看视频文件是否超过限制
-        if (videoFileDTO.getFileSize() + chunkFile.getSize() > systemConfig.getVideoFileMaxSize() * Constants.Mebibyte)
+        if (videoFileDTO.getFileSize() + chunkFile.getSize() > systemConfigRedisRepository.getSystemConfig()
+                                                                                          .getVideoFileMaxSize() * Constants.Mebibyte)
         {
             throw new BusinessException("文件大小超过限制");
         }
@@ -180,36 +182,6 @@ public class FileService
         catch (IOException e)
         {
             throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * 删除上传的视频文件
-     *
-     * @param uploadId 上传id
-     * @param userId   用户id
-     */
-    public void deleteVideo(long uploadId, long userId)
-    {
-        UploadedVideoFileDTO fileDTO = uploadRedisRepository.getPreUploadKey(userId, uploadId);
-        // delete redis key first
-        uploadRedisRepository.deletePreUploadKey(userId, uploadId);
-        if (fileDTO == null)
-        {
-            log.warn("删除不存在的临时文件");
-        }
-        else
-        {
-            Path deletePath = Path.of(webConfig.getRootFilePath(),
-                                      Constants.FILE_FOLDER_NAME,
-                                      Constants.TMP_FOLDER_NAME,
-                                      fileDTO.getFilePath());
-            if (FileUtil.fileExists(deletePath.toString()))
-            {
-                ArrayList <String> deleteList = new ArrayList <>();
-                deleteList.add(deletePath.toString());
-                videoMqRepository.addVideoFile2DeleteQueue(deleteList);
-            }
         }
     }
 
@@ -305,7 +277,7 @@ public class FileService
         Path rootPath = Paths.get(webConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME).normalize();
         Path targetPath = rootPath.resolve(filePath).normalize();
 
-        if (!StringUtil.isValidPath(targetPath.toString(), rootPath.toString()))
+        if (!StringUtil.isValidPath(rootPath.toString(), targetPath.toString()))
         {
             throw new BusinessException("非法的文件路径");
         }

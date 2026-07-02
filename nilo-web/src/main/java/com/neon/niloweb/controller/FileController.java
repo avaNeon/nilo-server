@@ -5,6 +5,9 @@ import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.niloweb.annotation.Authorized;
+import com.neon.niloweb.annotation.UploadQuota;
+import com.neon.niloweb.enums.UploadQuotaType;
 import com.neon.niloweb.loginState.LoginState;
 import com.neon.niloweb.service.FileService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,8 +37,11 @@ public class FileController
      */
     @Operation(summary = "上传图片")
     @PutMapping("/image")
+    @Authorized
+    @UploadQuota(type = UploadQuotaType.IMAGE)
     public ResponseVO <String> uploadImage(@RequestParam(name = "file") @NotNull MultipartFile file,
-                                           @RequestParam(name = "createThumbnail") @NotNull Boolean createThumbnail)
+                                           @RequestParam(name = "createThumbnail") @NotNull Boolean createThumbnail,
+                                           @RequestHeader(name = "token") String token)
     {
         return ResponseVO.success(fileService.uploadImage(file, createThumbnail));
     }
@@ -83,6 +89,7 @@ public class FileController
      */
     @Operation(summary = "上传单块视频文件")
     @PostMapping("/video")
+    @UploadQuota(type = UploadQuotaType.VIDEO)
     public ResponseVO <Object> uploadVideo(@RequestParam(name = "chunkFile") @NotNull MultipartFile chunkFile,
                                            @RequestParam(name = "chunkIndex") @NotNull Integer chunkIndex,
                                            @RequestParam(name = "uploadId") @NotNull Long uploadId,
@@ -90,23 +97,6 @@ public class FileController
     {
         long userId = loginState.getLoginUserId(token);
         fileService.uploadVideo(chunkFile, chunkIndex, userId, uploadId);
-        return ResponseVO.success(null);
-    }
-
-    /**
-     * 删除上传的视频文件
-     *
-     * @param uploadId uploadId
-     * @param token    token
-     * @return 无内容
-     */
-    @Operation(summary = "删除上传的视频文件")
-    @DeleteMapping("/video")
-    public ResponseVO <Object> deleteVideo(@RequestParam(name = "uploadId") @NotNull Long uploadId,
-                                           @RequestHeader(name = "token") String token)
-    {
-        long userId = loginState.getLoginUserId(token);
-        fileService.deleteVideo(uploadId, userId);
         return ResponseVO.success(null);
     }
 

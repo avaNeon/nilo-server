@@ -21,7 +21,7 @@ public class VideoInfoUploadQuery extends BaseQuery
     /**
      * 排除的状态
      */
-    private List<Short> exclusiveStatusList;
+    private List <Short> exclusiveStatusList;
 
     /**
      * 视频ID
@@ -90,6 +90,12 @@ public class VideoInfoUploadQuery extends BaseQuery
      * 0:自制作 1:转载
      */
     private Short postType;
+
+    /**
+     * <p>是否推荐0:未推荐 1:已推荐</p><hr/>
+     * <b>（仅在特殊情况下使用，不是本PO的字段！！！特别注意！！！）</b>
+     */
+    private Short recommendType;
 
     /**
      * 原资源说明

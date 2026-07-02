@@ -80,6 +80,11 @@ public class VideoInfoUploadAdminQueryDTO
     private Integer categoryId;
 
     /**
+     * 是否推荐0:未推荐 1:已推荐
+     */
+    private Short recommendType;
+
+    /**
      * 0:转码中 1:转码失败 2:待审核 3:审核成功 4:审核失败
      */
     private Short status;

@@ -47,18 +47,20 @@ public class VideoSearchService
     /**
      * 搜索视频
      *
-     * @param orderType    排序方式
-     * @param pageNo       页号
-     * @param pageSize     页大小
-     * @param useHighlight 是否开始高亮
-     * @param keyword      搜索关键词
+     * @param orderType         排序方式
+     * @param pageNo            页号
+     * @param pageSize          页大小
+     * @param useHighlight      是否开始高亮
+     * @param keyword           搜索关键词
+     * @param addHotSearchCount 是否增加热搜数
      * @return 视频信息列表
      */
     public VideoSearchResultVO searchVideo(Short orderType,
                                            Integer pageNo,
                                            Integer pageSize,
                                            Boolean useHighlight,
-                                           String keyword)
+                                           String keyword,
+                                           boolean addHotSearchCount)
     {
         String sortFieldName;
         boolean useScoreSort = false;
@@ -151,8 +153,11 @@ public class VideoSearchService
         // 赋值视频信息
         videoSearchResultVO.setVideoInfoDocList(videoInfoDocVOList);
 
-        // 记录搜索关键词，统计热搜榜单
-        videoSearchRedisRepository.addHotKeywordCount(keyword);
+        // （如果需要记录）记录搜索关键词，统计热搜榜单
+        if (addHotSearchCount)
+        {
+            videoSearchRedisRepository.addHotKeywordCount(keyword);
+        }
 
         return videoSearchResultVO;
     }

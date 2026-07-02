@@ -37,7 +37,7 @@ public class VideoSearchController
             @PathVariable(name = "pageSize") @NotNull @Min(1) @Max(20) Integer pageSize,
             @RequestParam(name = "keyword") @NotEmpty String keyword)
     {
-        return ResponseVO.success(videoSearchService.searchVideo(orderType, pageNo, pageSize, true, keyword));
+        return ResponseVO.success(videoSearchService.searchVideo(orderType, pageNo, pageSize, true, keyword, true));
     }
 
     @Operation(summary = "视频详情页推荐视频", description = "通过视频标题搜索相关视频，不保证传回固定行数")
@@ -45,11 +45,13 @@ public class VideoSearchController
     public ResponseVO <List <VideoInfoDocVO>> searchRecommendVideo(@PathVariable(name = "videoId") @NotNull Long videoId,
                                                                    @RequestParam(name = "videoName") @NotEmpty String videoName)
     {
+        // 查询相关视频（无需计入热搜数）
         VideoSearchResultVO videoSearchResultVO = videoSearchService.searchVideo(OrderType.MOST_PLAYED.getValue(),
                                                                                  1,
                                                                                  webConfig.getRecommendVideoSize(),
                                                                                  false,
-                                                                                 videoName);
+                                                                                 videoName,
+                                                                                 false);
         // 如果其中有本视频，则把本视频去掉，这就是为什么我们不能保证传回固定数量的记录
         List <VideoInfoDocVO> resultList = videoSearchResultVO.getVideoInfoDocList()
                                                               .stream()

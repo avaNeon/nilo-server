@@ -8,9 +8,6 @@ import org.springframework.data.redis.core.*;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
 
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Slf4j
@@ -46,120 +43,6 @@ public class HotVideoRedisRepository
         {
             return result.stream().filter(Objects::nonNull).map(Object::toString).map(Long::valueOf).toList();
         }
-    }
-
-    /**
-     * <b>批量更新视频计数</b><hr/>
-     * <p>包含了更新热表/冷表统计数据，以及视频近7天播放数两个数据</p>
-     *
-     * @param playCountMap 视频播放统计列表
-     */
-    public void updateVideoPlayCountBatch(Map <Long, Integer> playCountMap)
-    {
-        if (playCountMap == null || playCountMap.isEmpty())
-        {
-            return;
-        }
-
-        String luaScript = """
-                -- redis key 名称
-                local hot_ranking_key = KEYS[1]
-                local hot_counting_key_prefix = KEYS[2]
-                local cold_ranking_key = KEYS[3]
-                local cold_counting_key_prefix = KEYS[4]
-                local video_record_prefix = KEYS[5]
-                
-                -- 参数
-                local currentHour = tonumber(ARGV[1])
-                local currentDay = ARGV[2]
-                
-                local success_count = 0
-                local failed_count = 0
-                
-                -- 批量新增播放数据
-                for i = 3, #ARGV, 2 do
-                    local video_id = ARGV[i]
-                    local increment = tonumber(ARGV[i + 1])
-                
-                    if video_id and increment and increment > 0 then
-                
-                        local ok, result = pcall(function()
-                
-                            local hotRank = redis.call('ZRANK', hot_ranking_key, video_id)
-                            local coldRank = redis.call('ZRANK', cold_ranking_key, video_id)
-                
-                            if hotRank then -- 如果热表中有记录
-                                -- 热表记录增加
-                                redis.call('ZINCRBY', hot_counting_key_prefix .. video_id, increment, currentHour)
-                
-                            elseif coldRank then -- 如果冷表中有记录
-                                -- 冷表记录增加
-                                redis.call('ZINCRBY', cold_counting_key_prefix .. video_id, increment, currentHour)
-                
-                            else -- 如果两个排行榜中无记录，冷表加上一条
-                                redis.call('ZADD', cold_ranking_key, increment, video_id)
-                                redis.call('ZINCRBY', cold_counting_key_prefix .. video_id, increment, currentHour)
-                            end
-                
-                            -- 记录历史播放记录，保存两天
-                            local video_record_key = video_record_prefix .. currentDay
-                            local exist = redis.call('EXISTS', video_record_key) == 1
-                            local new_count = redis.call('HINCRBY', video_record_key, video_id, increment)
-                
-                            -- 如果第一次创建key，设置2天的过期时间
-                            if not exist then
-                                redis.call('EXPIRE', video_record_key, 172800)
-                            end
-                
-                        end)
-                
-                        if not ok then
-                            failed_count = failed_count + 1
-                            redis.log(redis.LOG_WARNING, 'failed to add play count to a video: ' .. video_id)
-                        else
-                            success_count = success_count + 1
-                        end
-                    end
-                end
-                
-                return success_count .. ':' .. failed_count
-                """;
-
-        // UTC整点小时数
-        long currentHour = ChronoUnit.HOURS.between(Instant.EPOCH, Instant.now());
-        // 当地时间天数
-        String currentDay = LocalDate.now().toString();
-
-        List <String> args = new ArrayList <>(playCountMap.size() * 2 + 1);
-        args.add(String.valueOf(currentHour));
-        args.add(currentDay);
-        playCountMap.forEach((videoId, increment) ->
-                             {
-                                 if (videoId != null && increment != null && increment > 0)
-                                 {
-                                     args.add(String.valueOf(videoId));
-                                     args.add(String.valueOf(increment));
-                                 }
-                             });
-
-        if (args.size() == 2)
-        {
-            return;
-        }
-
-        DefaultRedisScript <String> script = new DefaultRedisScript <>();
-        script.setScriptText(luaScript);
-        script.setResultType(String.class);
-
-        String result = stringRedisTemplate.execute(script,
-                                                    List.of(RedisKey.HOT_VIDEO_RANKING,
-                                                            RedisKey.HOT_VIDEO_COUNTING_PREFIX,
-                                                            RedisKey.COLD_VIDEO_RANKING,
-                                                            RedisKey.COLD_VIDEO_COUNTING_PREFIX,
-                                                            RedisKey.VIDEO_DAILY_PLAY_COUNT_PREFIX),
-                                                    args.toArray(Object[]::new));
-
-        log.info("lua script executed result: {}", result);
     }
 
     /**

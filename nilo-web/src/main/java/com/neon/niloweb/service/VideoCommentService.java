@@ -289,11 +289,7 @@ public class VideoCommentService
             throw new BusinessException(ResponseCode.WRONG_ARGUMENTS);
         }
 
-        if (deletedCount != null && deletedCount > 0)
-        {
-            videoInfoMapper.decreaseByField(videoComment.getVideoId(), "comment_count", 1);
-        }
-        else
+        if (deletedCount == null || deletedCount == 0)
         {
             throw new BusinessException("删除失败");
         }

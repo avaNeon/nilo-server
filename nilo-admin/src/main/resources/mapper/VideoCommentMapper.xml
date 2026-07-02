@@ -184,7 +184,7 @@
         delete
         from video_comment
         where deleted != 0
-          and comment_id IN
+        and comment_id IN
         <foreach collection="commentIdList" item="commentId" separator="," open="(" close=")">
             #{commentId}
         </foreach>
@@ -218,7 +218,7 @@
         SELECT count(1)
         FROM video_comment
         WHERE deleted != 0
-          and comment_id IN
+        and comment_id IN
         <foreach collection="commentIdList" item="commentId" separator="," open="(" close=")">
             #{commentId}
         </foreach>
@@ -266,4 +266,22 @@
         LIMIT #{start},#{pageSize}
     </select>
 
+    <update id="decreaseBatchReplyCount">
+        UPDATE video_comment
+        SET reply_count = reply_count - #{count}
+        WHERE comment_id IN
+        <foreach collection="commentIds" separator="," open="(" close=")" item="commentId">
+            #{commentId}
+        </foreach>
+    </update>
+
+    <select id="selectBatchByCommentIdList" resultMap="base_result_map">
+        SELECT
+        <include refid="base_column_list"/>
+        FROM video_comment v
+        WHERE comment_id IN
+        <foreach collection="commentIdList" item="commentId" separator="," open="(" close=")">
+            #{commentId}
+        </foreach>
+    </select>
 </mapper>

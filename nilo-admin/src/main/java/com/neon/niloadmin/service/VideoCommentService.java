@@ -14,7 +14,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 @RequiredArgsConstructor
 @Service
@@ -24,9 +27,6 @@ public class VideoCommentService
 
     private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
 
-    /**
-     * 分页查询评论列表。
-     */
     public Long getCommentManagementInfoCount(String nameFuzzy)
     {
         if (nameFuzzy == null || nameFuzzy.isBlank())
@@ -64,11 +64,7 @@ public class VideoCommentService
 
         Integer deletedCount = videoCommentMapper.safeDeleteByCommentId(commentId, DeleteType.DELETED_BY_ADMIN.getValue());
 
-        if (deletedCount != null && deletedCount > 0)
-        {
-            videoInfoMapper.decreaseByField(videoComment.getVideoId(), "comment_count", 1);
-        }
-        else
+        if (deletedCount == null || deletedCount == 0)
         {
             throw new BusinessException("评论未被删除");
         }
@@ -127,6 +123,26 @@ public class VideoCommentService
             throw new BusinessException("存在未逻辑删除或不存在的评论");
         }
 
+        // 先把所有评论记录查出来
+        List <VideoComment> commentList = videoCommentMapper.selectBatchByCommentIdList(commentIdList);
+
+        // 统计所有被真正删除评论的视频ID和数量（第一层）
+        Map <Long, Integer> videoCommentDeleteCountMap = new HashMap <>();
+        commentList.forEach(comment ->
+                            {
+                                if (comment.getVideoId() != null)
+                                {
+                                    videoCommentDeleteCountMap.merge(comment.getVideoId(), 1, Integer::sum);
+                                }
+                            });
+
+        // 然后转化为所有删除评论的父评论ID
+        List <Long> parentCommentIdList = commentList.stream()
+                                                     .map(VideoComment::getParentCommentId)
+                                                     .filter(pid -> !Objects.equals(pid, 0L))
+                                                     .distinct()
+                                                     .toList();
+
         deletedCount = videoCommentMapper.destroyDeletedByCommentIdList(currentLevelCommentIdList);
         // 确保都被删除
         if (deletedCount == null || deletedCount == 0)
@@ -134,22 +150,51 @@ public class VideoCommentService
             throw new BusinessException("评论未被删除");
         }
 
+        // 如果存在父评论
+        if (!parentCommentIdList.isEmpty())
+        {
+            // 将所有被删除评论的父评论回复数-1
+            videoCommentMapper.decreaseBatchReplyCount(parentCommentIdList, 1);
+        }
+
         // 循环删除每层子评论
         while (!currentLevelCommentIdList.isEmpty())
         {
+            // 查询下一层子评论ID
             List <Long> childCommentIdList = videoCommentMapper.selectChildCommentIdList(currentLevelCommentIdList);
             if (childCommentIdList == null || childCommentIdList.isEmpty())
             {
                 break;
             }
 
-            childCommentIdList = childCommentIdList.stream().distinct().toList();
+            // 统计子评论的视频ID和数量
+            List <VideoComment> childCommentList = videoCommentMapper.selectBatchByCommentIdList(childCommentIdList);
+            childCommentList.forEach(comment ->
+                                     {
+                                         if (comment.getVideoId() != null)
+                                         {
+                                             videoCommentDeleteCountMap.merge(comment.getVideoId(), 1, Integer::sum);
+                                         }
+                                     });
+
+            // 删除这层评论
             Integer deletedChildCount = videoCommentMapper.destroyByCommentIdList(childCommentIdList);
             if (deletedChildCount == null || deletedChildCount == 0)
             {
                 break;
             }
+
             currentLevelCommentIdList = childCommentIdList;
+        }
+
+        // 过滤掉不存在的视频ID和数量为0的条目
+        videoCommentDeleteCountMap.entrySet()
+                                  .removeIf(entry -> entry.getKey() == null || entry.getValue() == null || entry.getValue() <= 0);
+
+        // 统一扣减每个视频的评论数
+        if (!videoCommentDeleteCountMap.isEmpty())
+        {
+            videoInfoMapper.decreaseCommentCountBatch(videoCommentDeleteCountMap);
         }
     }
 

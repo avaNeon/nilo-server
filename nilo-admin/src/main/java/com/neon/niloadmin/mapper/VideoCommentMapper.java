@@ -15,6 +15,14 @@ public interface VideoCommentMapper<T, P> extends BaseMapper <T, P>
     VideoComment selectByCommentId(@Param("commentId") Long commentId);
 
     /**
+     * 根据评论ID列表批量查询评论信息
+     *
+     * @param commentIdList 评论ID列表
+     * @return 评论信息列表
+     */
+    List <VideoComment> selectBatchByCommentIdList(@Param("commentIdList") List <Long> commentIdList);
+
+    /**
      * 查询指定父评论下一级的评论ID列表。
      */
     List <Long> selectChildCommentIdList(@Param("parentCommentIdList") List <Long> parentCommentIdList);
@@ -56,5 +64,10 @@ public interface VideoCommentMapper<T, P> extends BaseMapper <T, P>
     List <CommentManagementAdmin> selectCommentManagement(@Param("nameFuzzy") String nameFuzzy,
                                                           @Param("start") Integer start,
                                                           @Param("pageSize") Integer pageSize);
+
+    /**
+     * 统一减少评论的回复数量
+     */
+    Integer decreaseBatchReplyCount(@Param("commentIds") List <Long> commentIds, @Param("count") Integer count);
 
 }

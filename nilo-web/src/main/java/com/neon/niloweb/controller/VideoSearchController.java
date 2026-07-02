@@ -21,7 +21,7 @@ import java.util.List;
 @Tag(name = "视频搜索接口")
 @Validated
 @RequiredArgsConstructor
-@RequestMapping("/video-serach")
+@RequestMapping("/video-search")
 @RestController
 public class VideoSearchController
 {

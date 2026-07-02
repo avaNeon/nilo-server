@@ -20,10 +20,10 @@ import com.neon.nilocommon.entity.vo.videoInfo.BriefVideoInfoVO;
 import com.neon.nilocommon.entity.vo.videoInfo.CollectedVideoInfoVO;
 import com.neon.nilocommon.entity.vo.videoSeriesInfo.VideoSeriesWithVideosVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.nilocommon.repository.redis.SystemConfigRedisRepository;
 import com.neon.nilocommon.util.EnumFieldChecker;
 import com.neon.nilocommon.util.FileUtil;
 import com.neon.nilocommon.util.PageCalculator;
-import com.neon.niloweb.config.SystemConfig;
 import com.neon.niloweb.config.WebConfig;
 import com.neon.niloweb.mapper.*;
 import com.neon.niloweb.repository.redis.AccountRedisRepository;
@@ -60,7 +60,7 @@ public class UserHomeService
 
     private final WebConfig webConfig;
 
-    private final SystemConfig systemConfig;
+    private final SystemConfigRedisRepository systemConfigRedisRepository;
 
     /**
      * 获取用户主页信息
@@ -74,7 +74,7 @@ public class UserHomeService
         UserInfo userInfo = userInfoMapper.selectByUserId(hostUserId);
         if (userInfo == null)
         {
-            throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
+            throw new BusinessException(ResponseCode.NOT_FOUND);
         }
         BeanUtils.copyProperties(userInfo, userDetailVO);
 
@@ -168,7 +168,8 @@ public class UserHomeService
         // 检测是否有足够硬币
         if (nickNameChanged)
         {
-            Integer line = userInfoMapper.decreaseCoin(userId, systemConfig.getModifyNickNameCost());
+            Integer line = userInfoMapper.decreaseCoin(userId,
+                                                       systemConfigRedisRepository.getSystemConfig().getModifyNickNameCost());
             if (line < 1)
             {
                 throw new BusinessException(ResponseCode.INSUFFICIENT_COIN);

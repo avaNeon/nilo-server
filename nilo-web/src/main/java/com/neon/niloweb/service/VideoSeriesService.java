@@ -1,6 +1,7 @@
 package com.neon.niloweb.service;
 
 import cn.hutool.core.lang.Snowflake;
+import com.neon.nilocommon.config.SystemConfig;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.po.UserInfo;
 import com.neon.nilocommon.entity.po.VideoInfo;
@@ -14,6 +15,7 @@ import com.neon.nilocommon.entity.tmp.VideoSeriesVideoCountTMP;
 import com.neon.nilocommon.entity.vo.videoInfo.BasicVideoInfo;
 import com.neon.nilocommon.entity.vo.videoSeriesInfo.VideoSeriesInfoVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.nilocommon.repository.redis.SystemConfigRedisRepository;
 import com.neon.niloweb.config.WebConfig;
 import com.neon.niloweb.mapper.UserInfoMapper;
 import com.neon.niloweb.mapper.VideoInfoMapper;
@@ -46,6 +48,10 @@ public class VideoSeriesService
     private final Snowflake snowflake;
 
     private final WebConfig webConfig;
+
+    private final SystemConfig systemConfig;
+
+    private final SystemConfigRedisRepository systemConfigRedisRepository;
 
     /**
      * 获取所有系列信息
@@ -121,15 +127,16 @@ public class VideoSeriesService
         VideoSeriesInfoQuery query = new VideoSeriesInfoQuery();
         query.setUserId(userId);
         Integer count = videoSeriesInfoMapper.selectCount(query);
-        if (count >= webConfig.getMaxSeriesNumber())
+        if (count >= systemConfig.getMaxSeriesNumber())
         {
             throw new BusinessException("已经到达最大系列数量");
         }
 
         // 校验系列视频数量是否达到上限
-        if (videoIdList.size() > webConfig.getMaxSerieVideosNumber())
+        if (videoIdList.size() > systemConfigRedisRepository.getSystemConfig().getMaxSerieVideosNumber())
         {
-            throw new BusinessException("系列视频最大视频数不能超过" + webConfig.getMaxSerieVideosNumber());
+            throw new BusinessException("系列视频最大视频数不能超过" + systemConfigRedisRepository.getSystemConfig()
+                                                                                                  .getMaxSerieVideosNumber());
         }
 
         // 校验 videoIdList & 去重
@@ -180,9 +187,10 @@ public class VideoSeriesService
                                   List <Long> videoIdList)
     {
         // 校验系列视频数量是否达到上限
-        if (videoIdList.size() > webConfig.getMaxSerieVideosNumber())
+        if (videoIdList.size() > systemConfigRedisRepository.getSystemConfig().getMaxSerieVideosNumber())
         {
-            throw new BusinessException("系列视频最大视频数不能超过" + webConfig.getMaxSerieVideosNumber());
+            throw new BusinessException("系列视频最大视频数不能超过" + systemConfigRedisRepository.getSystemConfig()
+                                                                                                  .getMaxSerieVideosNumber());
         }
 
         // 校验 videoIdList & 去重
@@ -230,8 +238,7 @@ public class VideoSeriesService
         checkSeriesOwner(userId, seriesId);
 
         // videoId 不能含 null 值或重复值
-        if (videoIdList.stream().anyMatch(Objects::isNull)
-            || videoIdList.stream().distinct().count() != videoIdList.size())
+        if (videoIdList.stream().anyMatch(Objects::isNull) || videoIdList.stream().distinct().count() != videoIdList.size())
         {
             throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
         }
@@ -282,7 +289,7 @@ public class VideoSeriesService
 
         // 检查系列中视频数量是否达到上限
         Integer count = getSeriesVideoCount(seriesId);
-        if (count >= webConfig.getMaxSeriesNumber())
+        if (count >= systemConfigRedisRepository.getSystemConfig().getMaxSerieVideosNumber())
         {
             throw new BusinessException("系列中视频数量已经达到上限");
         }
@@ -508,8 +515,9 @@ public class VideoSeriesService
         Map <Long, Integer> seriesVideoCountMap = videoCountList.stream()
                                                                 .collect(Collectors.toMap(VideoSeriesVideoCountTMP::getSeriesId,
                                                                                           VideoSeriesVideoCountTMP::getVideoCount));
-        videoSeriesInfoVOList.forEach(videoSeriesInfoVO -> videoSeriesInfoVO.setVideoCount(
-                seriesVideoCountMap.getOrDefault(videoSeriesInfoVO.getSeriesId(), 0)));
+        videoSeriesInfoVOList.forEach(videoSeriesInfoVO -> videoSeriesInfoVO.setVideoCount(seriesVideoCountMap.getOrDefault(
+                videoSeriesInfoVO.getSeriesId(),
+                0)));
     }
 
     /**

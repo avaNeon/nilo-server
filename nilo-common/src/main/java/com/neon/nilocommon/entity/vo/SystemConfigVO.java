@@ -9,6 +9,8 @@ import lombok.*;
 @AllArgsConstructor
 public class SystemConfigVO
 {
+    // 文件大小限制
+
     /**
      * 视频大小上限，单位:MB
      */
@@ -20,24 +22,17 @@ public class SystemConfigVO
     private Integer imageMaxSize;
 
     /**
-     * 单个视频最大分P数
+     * 每日用户上传视频大小限额，单位：MB
      */
-    private Integer videoMaxEpisodes;
+    private Integer dailyVideoUploadSize;
 
     /**
-     * 注册用户初始赠送硬币数
+     * 每日用户上传图片大小限额，单位：MB
      */
-    private Integer registerCoin;
+    private Integer dailyImageUploadSize;
 
-    /**
-     * 每个上传的视频奖励硬币数
-     */
-    private Integer rewardsPreUpload;
 
-    /**
-     * 最大内容时长，单位:min
-     */
-    private Integer maxPartitionDuration;
+    // 视频格式限制
 
     /**
      * 最大分辨率支持
@@ -48,4 +43,35 @@ public class SystemConfigVO
      * 最大码率支持，单位:fps
      */
     private Integer maxBitRate;
+
+
+    // 其余数量限制
+
+    /**
+     * 单个视频最大分P数
+     */
+    private Integer videoMaxEpisodes;
+
+    /**
+     * 最大系列视频数量
+     */
+    private Short maxSerieVideosNumber;
+
+    /**
+     * 最大系列数量
+     */
+    private short maxSeriesNumber;
+
+
+    // 硬币奖励与消耗
+
+    /**
+     * 每个上传的视频奖励硬币数
+     */
+    private Integer rewardsPreUpload;
+
+    /**
+     * 修改昵称硬币花费
+     */
+    private Short modifyNickNameCost;
 }

@@ -19,6 +19,17 @@ public class RedisKey
     public static final String PRE_UPLOADED_VIDEO_TAG_PREFIX = REDIS_KEY_PREFIX + "video:pre-uploaded-tag:";
 
     /**
+     * 用户每日上传额度前缀<hr/>
+     * key: nilo:upload:quota:{image|video}:size:{userId}:{yyyyMMdd}
+     */
+    public static final String UPLOAD_QUOTA_PREFIX = REDIS_KEY_PREFIX + "upload:quota:";
+
+    /**
+     * 系统配置
+     */
+    public static final String SYSTEM_CONFIG = REDIS_KEY_PREFIX + "system:config";
+
+    /**
      * redis中保存分类信息的键名
      */
     public static final String CATEGORIES_INFO = REDIS_KEY_PREFIX + "category:info";
@@ -104,4 +115,5 @@ public class RedisKey
      * <b>视频历史播放记录统计（仅统计近2天）</b><hr/>
      */
     public static final String VIDEO_DAILY_PLAY_COUNT_PREFIX = REDIS_KEY_PREFIX + "{play-count}:daily:";
+
 }

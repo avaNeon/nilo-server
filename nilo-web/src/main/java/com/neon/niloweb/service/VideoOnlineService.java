@@ -2,6 +2,7 @@ package com.neon.niloweb.service;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.neon.niloweb.config.WebConfig;
 import com.neon.niloweb.repository.rabbitmq.VideoOnlineMqRepository;
 import com.neon.niloweb.repository.redis.VideoOnlineRedisRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,8 @@ public class VideoOnlineService
     private final VideoOnlineRedisRepository videoOnlineRedisRepository;
 
     private final VideoOnlineMqRepository videoOnlineMqRepository;
+
+    private final WebConfig webConfig;
 
     /**
      * Caffeine 本地缓存
@@ -72,7 +75,7 @@ public class VideoOnlineService
     /**
      * 定时将本地缓存心跳发送给MQ
      */
-    @Scheduled(fixedRateString = "#{@systemConfig.heartbeatSendInterval}")
+    @Scheduled(fixedRateString = "#{@webConfig.heartbeatSendInterval}")
     private void flushHeartbeatBuffer()
     {
         // 如果缓存没有数据，不用发送

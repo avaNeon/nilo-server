@@ -1,3 +1,4 @@
 com.neon.nilocommon.autoconfigure.redisCaptcha.RedisCaptchaAutoConfiguration
 com.neon.nilocommon.autoconfigure.serialization.GlobalSerializationAutoConfiguration
 com.neon.nilocommon.autoconfigure.log.ExceptionLogAutoConfiguration
+com.neon.nilocommon.autoconfigure.systemConfig.SystemConfigAutoConfiguration

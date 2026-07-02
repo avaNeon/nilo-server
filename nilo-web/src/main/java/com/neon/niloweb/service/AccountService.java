@@ -19,6 +19,7 @@ import com.neon.niloweb.loginState.LoginState;
 import com.neon.niloweb.mapper.FollowInfoMapper;
 import com.neon.niloweb.mapper.UserInfoMapper;
 import com.neon.niloweb.repository.redis.AccountRedisRepository;
+import com.neon.nilocommon.repository.redis.SystemConfigRedisRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -47,6 +48,8 @@ public class AccountService
 
     private final WebConfig webConfig;
 
+    private final SystemConfigRedisRepository systemConfigRedisRepository;
+
     private final LoginState loginState;
 
     private final static BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
@@ -74,7 +77,7 @@ public class AccountService
         userInfo.setGender(UserGender.UNKNOWN.gender);
 
         // 设置用户初始硬币数
-        userInfo.setTotalCoin(webConfig.getInitialTotalCoin());
+        userInfo.setTotalCoin(systemConfigRedisRepository.getSystemConfig().getRegisterCoin());
 
         userInfoMapper.insert(userInfo);
     }

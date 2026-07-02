@@ -69,6 +69,21 @@ public class WebConfig
      */
     private int playCountRefreshInterval = 5_000;
 
+    /**
+     * 心跳发送至MQ的周期，单位：毫秒
+     */
+    private int heartbeatSendInterval = 3_000;
+
+    /**
+     * 视频在线人数统计心跳过期时间，单位：毫秒
+     */
+    private int onlineExpireTimeMs = 30_000;
+
+    /**
+     * 统计视频在线人数的ZSET清理周期，单位：毫秒
+     */
+    private int onlineCountCleanUpTimeMs = 15_000;
+
     // ----- 热门视频相关配置 -----
 
     /**
@@ -116,23 +131,4 @@ public class WebConfig
      */
     private int playHistoryPageSize = 20;
 
-    /**
-     * 用户初始硬币数
-     */
-    private int initialTotalCoin = 10;
-
-    /**
-     * 发布视频奖励硬币数量（注意与Admin同步！）
-     */
-    private short coinBonusPerVideo = 10;
-
-    /**
-     * 最大系列数量
-     */
-    private short maxSeriesNumber = 50;
-
-    /**
-     * 最大系列视频数量
-     */
-    private short maxSerieVideosNumber = 100;
 }

@@ -88,13 +88,15 @@
 
     <!-- 通用查询条件列-->
     <sql id="query_condition">
+        <bind name="seriesNameFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.seriesNameFuzzy)"/>
+        <bind name="seriesDescriptionFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.seriesDescriptionFuzzy)"/>
         <where>
             <include refid="base_condition_filed"/>
             <if test="query.seriesNameFuzzy!= null  and query.seriesNameFuzzy!=''">
-                and v.series_name like concat('%', #{query.seriesNameFuzzy}, '%')
+                and v.series_name like concat('%', #{seriesNameFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.seriesDescriptionFuzzy!= null  and query.seriesDescriptionFuzzy!=''">
-                and v.series_description like concat('%', #{query.seriesDescriptionFuzzy}, '%')
+                and v.series_description like concat('%', #{seriesDescriptionFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.updateTimeStart!= null and query.updateTimeStart!=''">
                 <![CDATA[ and  v.update_time>=str_to_date(#{query.updateTimeStart}, '%Y-%m-%d') ]]>

@@ -1,7 +1,7 @@
 package com.neon.niloweb.task;
 
 import com.neon.nilocommon.entity.constants.RedisKey;
-import com.neon.niloweb.config.SystemConfig;
+import com.neon.niloweb.config.WebConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -23,7 +23,7 @@ public class VideoOnlineTask
 
     private final StringRedisTemplate stringRedisTemplate;
 
-    private final SystemConfig systemConfig;
+    private final WebConfig webConfig;
 
     private final int batchSize = 1000;
 
@@ -63,7 +63,7 @@ public class VideoOnlineTask
             return cleaned_count .. ':' .. deleted_count .. ':' .. failed_count
             """;
 
-    @Scheduled(fixedRateString = "#{@systemConfig.onlineCountCleanUpTimeMs}")
+    @Scheduled(fixedRateString = "#{@webConfig.onlineCountCleanUpTimeMs}")
     public void cleanUp()
     {
         // 1. 获取当前有活跃用户的视频ID集合
@@ -80,7 +80,7 @@ public class VideoOnlineTask
         // 分批清理
         for (int start = 0 ; start < size ; start += batchSize)
         {
-            long minValidTimestamp = System.currentTimeMillis() - systemConfig.getOnlineExpireTimeMs();
+            long minValidTimestamp = System.currentTimeMillis() - webConfig.getOnlineExpireTimeMs();
 
             int end = Math.min(start + batchSize, activeVideoList.size());
 

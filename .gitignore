@@ -68,6 +68,7 @@ Thumbs.db
 
 # Optional: 忽略本地用户特定的忽略文件（不提交）
 .gitignore_local
+.qoderignore
 
 ### Sensitive config files ###
 # Application configs may contain passwords, tokens, and other secrets

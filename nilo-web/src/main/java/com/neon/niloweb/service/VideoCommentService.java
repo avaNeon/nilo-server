@@ -190,7 +190,7 @@ public class VideoCommentService
 
     /**
      * 获取评论列表<hr/>
-     * 获取3层评论，分页大小为6条记录
+     * 获取3层评论，分页大小根据配置设置
      *
      * @param userId          当前登录用户ID（null 表示未登录）
      * @param videoId         视频ID
@@ -439,21 +439,25 @@ public class VideoCommentService
 
     /**
      * <b>分层批量查询评论（批量查询）</b><hr/>
+     * <b>旧方案1（递归，每节点单独查）：<br/>
      * <p>
-     * <b>旧方案（递归，每节点单独查）：<br/>
      * </b> 最多 1 + N + N² + ... + N^layer 条 SQL<br/>
      * 以 layer=4, pageSize=10 为例：最多 <b>1111条</b> SQL<br/>
      * </p>
+     * <b>旧方案2（分层批量 IN + JOIN）：</b><hr/>
+     * <em>置顶评论的特殊对待已经删除，因为现在限制最多置顶5条评论</em><br/>
      * <p>
-     * <b>新方案（分层批量 IN + JOIN）：<br/>
-     * </b> 每层只需 1 条 IN 查询（含 JOIN），第一层视情况最多 3 条<br/>
+     * 每个SQL通过IN所有父评论ID，一次性将这些父评论的下一层子评论都扫描出来，<br/>
+     * 然后通过窗口函数筛选出前若干条评论，<b>将IO时间复杂度降低为depth</b><br/>
+     * 代价是每次扫描出的子评论筛选率太低，<b>用空间换时间</b><br/>
      * </p>
+     * <br/>
+     *
+     * <b>最终方案（每层 LATERAL JOIN）：</b><hr/>
      * <p>
-     * <em>置顶评论的特殊对待已经删除，因为现在限制最多置顶5条评论</em>
-     * </p>
-     * <p>
-     * 每条 SQL 内部通过 JOIN user_info 和可选 LEFT JOIN user_comment_action（索引覆盖）
-     * 一次性取得评论者信息与当前用户操作记录，彻底消除应用层 N+1 查询。
+     * 每层只需 1 条 IN 查询，且MySQL只扫描所需行数，不会扫描出整层评论<br/>
+     * 每条 SQL 采用 LATERAL JOIN，只扫描每个父评论的前若干条子评论<br/>
+     * 不仅消除应用层 N+1 查询，还消除了对整层评论的扫描<br/>
      * </p>
      *
      * @param userId          当前登录用户 ID（null 表示未登录）

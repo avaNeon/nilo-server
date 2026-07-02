@@ -104,9 +104,6 @@ public interface VideoCommentMapper<T, P> extends BaseMapper <T, P>
 
     /**
      * 评论管理页面，查询多个视频的评论信息数量
-     *
-     * @param userId 视频ID列表
-     * @return 评论信息列表
      */
     Long selectCommentManagementVOCount(@Param("userId") Long userId,
                                         @Param("videoId") Long videoId,
@@ -114,11 +111,6 @@ public interface VideoCommentMapper<T, P> extends BaseMapper <T, P>
 
     /**
      * 评论管理页面，查询多个视频的评论信息
-     *
-     * @param userId   视频ID列表
-     * @param start    起始偏移量 (pageNo - 1) * pageSize
-     * @param pageSize 页大小
-     * @return 评论信息列表
      */
     List <CommentManagementVO> selectCommentManagementVO(@Param("userId") Long userId,
                                                          @Param("videoId") Long videoId,

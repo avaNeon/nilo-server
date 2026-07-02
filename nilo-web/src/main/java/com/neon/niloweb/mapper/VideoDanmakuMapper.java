@@ -13,12 +13,6 @@ public interface VideoDanmakuMapper<T, P> extends BaseMapper <T, P>
 
     /**
      * 获取弹幕管理信息统计
-     *
-     * @param userId
-     * @param videoId
-     * @param fileIndex
-     * @param nameFuzzy
-     * @return
      */
     Long selectDanmakuManagementVOCount(@Param("userId") Long userId,
                                         @Param("videoId") Long videoId,
@@ -27,14 +21,6 @@ public interface VideoDanmakuMapper<T, P> extends BaseMapper <T, P>
 
     /**
      * 获取弹幕管理信息
-     *
-     * @param userId
-     * @param videoId
-     * @param fileIndex
-     * @param nameFuzzy
-     * @param start
-     * @param pageSize
-     * @return
      */
     List <DanmakuManagementVO> selectDanmakuManagementVO(@Param("userId") Long userId,
                                                          @Param("videoId") Long videoId,

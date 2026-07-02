@@ -59,22 +59,27 @@
 
     <!-- 通用查询条件列-->
     <sql id="query_condition">
+        <bind name="categoryNumberFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.categoryNumberFuzzy)"/>
+        <bind name="categoryNameFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.categoryNameFuzzy)"/>
+        <bind name="iconFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.iconFuzzy)"/>
+        <bind name="backgroundFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.backgroundFuzzy)"/>
+        <bind name="colorFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.colorFuzzy)"/>
         <where>
             <include refid="base_condition_filed"/>
             <if test="query.categoryNumberFuzzy!= null  and query.categoryNumberFuzzy!=''">
-                and c.category_number like concat('%', #{query.categoryNumberFuzzy}, '%')
+                and c.category_number like concat('%', #{categoryNumberFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.categoryNameFuzzy!= null  and query.categoryNameFuzzy!=''">
-                and c.category_name like concat('%', #{query.categoryNameFuzzy}, '%')
+                and c.category_name like concat('%', #{categoryNameFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.iconFuzzy!= null  and query.iconFuzzy!=''">
-                and c.icon like concat('%', #{query.iconFuzzy}, '%')
+                and c.icon like concat('%', #{iconFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.backgroundFuzzy!= null  and query.backgroundFuzzy!=''">
-                and c.background like concat('%', #{query.backgroundFuzzy}, '%')
+                and c.background like concat('%', #{backgroundFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.colorFuzzy!= null  and query.colorFuzzy!=''">
-                and c.color like concat('%', #{query.colorFuzzy}, '%')
+                and c.color like concat('%', #{colorFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
         </where>
     </sql>

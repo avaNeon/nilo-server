@@ -62,7 +62,12 @@ public class GlobalStatisticsService
             }
         }
 
-        result.sort(Comparator.comparing(StatisticsInfoVO::getStatisticsDate));
+        // 不用传FOLLOW数据
+        List <StatisticsInfoVO> vos = new ArrayList <>(result.stream()
+                                                             .filter(vo -> !vo.getDataType().equals(DataType.FOLLOWER.getValue()))
+                                                             .toList());
+
+        vos.sort(Comparator.comparing(StatisticsInfoVO::getStatisticsDate));
 
         return result;
     }

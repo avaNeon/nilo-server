@@ -42,4 +42,34 @@ public class FileController
     {
         fileService.downloadImage(response, sourceName, tmp);
     }
+
+    @Operation(summary = "下载HLS主播放列表（master.m3u8）")
+    @GetMapping(path = "/video/hls/{videoId}/{index}/master.m3u8")
+    public void downloadVideoMasterM3u8(@PathVariable(name = "videoId") @NotNull Long videoId,
+                                        @PathVariable(name = "index") @NotNull Integer index,
+                                        @Parameter(hidden = true) HttpServletResponse response)
+    {
+        fileService.downloadVideoMasterM3u8(videoId, index, response);
+    }
+
+    @Operation(summary = "下载HLS分辨率播放列表（playlist.m3u8）")
+    @GetMapping(path = "/video/hls/{videoId}/{index}/playlist/{resolution}.m3u8")
+    public void downloadVideoPlaylistM3u8(@PathVariable(name = "videoId") @NotNull Long videoId,
+                                          @PathVariable(name = "index") @NotNull Integer index,
+                                          @PathVariable(name = "resolution") @NotNull Integer resolution,
+                                          @Parameter(hidden = true) HttpServletResponse response)
+    {
+        fileService.downloadVideoPlaylistM3u8(videoId, index, resolution, response);
+    }
+
+    @Operation(summary = "下载HLS分片（segment.ts）")
+    @GetMapping(path = "/video/hls/{videoId}/{index}/segment/{resolution}/{segment}")
+    public void downloadVideoSegmentTs(@PathVariable(name = "videoId") @NotNull Long videoId,
+                                       @PathVariable(name = "index") @NotNull Integer index,
+                                       @PathVariable(name = "resolution") @NotNull Integer resolution,
+                                       @PathVariable(name = "segment") @NotNull String segment,
+                                       @Parameter(hidden = true) HttpServletResponse response)
+    {
+        fileService.downloadVideoSegmentTs(videoId, index, resolution, segment, response);
+    }
 }

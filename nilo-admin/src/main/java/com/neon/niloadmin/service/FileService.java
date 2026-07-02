@@ -1,8 +1,13 @@
 package com.neon.niloadmin.service;
 
 import com.neon.niloadmin.config.AdminConfig;
+import com.neon.niloadmin.mapper.VideoInfoFileUploadMapper;
 import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.constants.DatePattern;
+import com.neon.nilocommon.entity.constants.VideoResolution;
+import com.neon.nilocommon.entity.enums.ResponseCode;
+import com.neon.nilocommon.entity.po.VideoInfoFileUpload;
+import com.neon.nilocommon.entity.query.VideoInfoFileUploadQuery;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.FfmpegUtil;
 import com.neon.nilocommon.util.StringUtil;
@@ -19,6 +24,7 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 
 @RequiredArgsConstructor
@@ -26,6 +32,8 @@ import java.time.format.DateTimeFormatter;
 public class FileService
 {
     private final AdminConfig adminConfig;
+
+    private final VideoInfoFileUploadMapper <VideoInfoFileUpload, VideoInfoFileUploadQuery> videoInfoFileUploadMapper;
 
     public String uploadImage(MultipartFile file, Boolean createThumbnail)
     {
@@ -63,12 +71,86 @@ public class FileService
         String coverRootPath = Paths.get(adminConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME, Constants.COVER_FOLDER_NAME)
                                     .toString();
         String absolutePath = Paths.get(coverRootPath, filePath).toString();
-        if (!StringUtil.isValidPath(absolutePath, coverRootPath)) throw new BusinessException("非法的文件路径");
+        if (!StringUtil.isValidPath(coverRootPath, absolutePath)) throw new BusinessException("非法的文件路径");
         String suffix = StringUtil.getSuffix(filePath);
         response.setContentType(resolveImageContentType(suffix));
         response.setHeader("Cache-Control", "max-age=2592000"); // 30天
         String folderName = tmp ? Constants.TMP_FOLDER_NAME : Constants.COVER_FOLDER_NAME;
         readFile(response, folderName + "/" + filePath);
+    }
+
+    public void downloadVideoMasterM3u8(Long videoId, Integer index, HttpServletResponse response)
+    {
+        String filePath = queryVideoUploadFilePath(videoId, index);
+
+        readFile(response, filePath + "/" + Constants.MASTER_M3U8_NAME);
+    }
+
+    public void downloadVideoPlaylistM3u8(Long videoId, Integer index, Integer resolution, HttpServletResponse response)
+    {
+        String filePath = queryVideoUploadFilePath(videoId, index);
+        String folder = resolveResolutionFolder(resolution);
+
+        readFile(response, filePath + "/" + folder + "/" + Constants.M3U8_NAME);
+    }
+
+    public void downloadVideoSegmentTs(Long videoId,
+                                       Integer index,
+                                       Integer resolution,
+                                       String segment,
+                                       HttpServletResponse response)
+    {
+        // 校验段名是否合法
+        if (!isValidSegmentName(segment))
+        {
+            throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
+        }
+
+        String filePath = queryVideoUploadFilePath(videoId, index);
+        String folder = resolveResolutionFolder(resolution);
+
+        readFile(response, filePath + "/" + folder + "/" + Constants.TS_FOLDER_NAME + "/" + segment);
+    }
+
+    /**
+     * 获取对应解析度的文件夹名
+     *
+     * @param resolution 解析度
+     * @return 文件夹名
+     */
+    private String resolveResolutionFolder(Integer resolution)
+    {
+        VideoResolution vr = VideoResolution.fromResolution(resolution);
+        if (vr == null)
+        {
+            throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
+        }
+        return vr.getFolderName();
+    }
+
+    private boolean isValidSegmentName(String segment)
+    {
+        return segment != null && segment.matches("^\\d{4}\\.ts$");
+    }
+
+    /**
+     * 查询单个视频文件路径
+     *
+     * @param videoId   视频ID
+     * @param fileIndex 文件序号
+     * @return 文件路径
+     */
+    private String queryVideoUploadFilePath(Long videoId, Integer fileIndex)
+    {
+        VideoInfoFileUploadQuery uploadQuery = new VideoInfoFileUploadQuery();
+        uploadQuery.setVideoId(videoId);
+        uploadQuery.setFileIndex(fileIndex);
+        List <VideoInfoFileUpload> uploadFiles = videoInfoFileUploadMapper.selectList(uploadQuery);
+        if (uploadFiles == null || uploadFiles.isEmpty() || uploadFiles.get(0).getFilePath() == null)
+        {
+            throw new BusinessException(ResponseCode.NOT_FOUND);
+        }
+        return uploadFiles.get(0).getFilePath();
     }
 
     /**

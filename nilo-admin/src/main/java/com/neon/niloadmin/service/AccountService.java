@@ -43,6 +43,14 @@ public class AccountService
     }
 
     /**
+     * 根据查询条件统计用户总数
+     */
+    public Integer countUserInfo(UserInfoQuery query)
+    {
+        return userInfoMapper.selectCount(query);
+    }
+
+    /**
      * 修改用户账户状态
      */
     @Transactional(rollbackFor = Exception.class)

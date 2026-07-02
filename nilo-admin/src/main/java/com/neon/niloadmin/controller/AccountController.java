@@ -31,6 +31,13 @@ public class AccountController
         return ResponseVO.success(accountService.loadUserInfoList(query));
     }
 
+    @Operation(summary = "查询用户账户总数")
+    @PostMapping(path = "/count")
+    public ResponseVO <Integer> countUserInfo(@RequestBody UserInfoQuery query)
+    {
+        return ResponseVO.success(accountService.countUserInfo(query));
+    }
+
     @Operation(summary = "修改用户账户状态")
     @PutMapping(path = "/status")
     public ResponseVO <Object> changeUserStatus(@RequestParam(name = "userId") @NotNull Long userId,

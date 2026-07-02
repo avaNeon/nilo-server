@@ -8,6 +8,10 @@ import lombok.Setter;
 public class TokenAdmin
 {
     private Integer level;
+
+    private String account;
+
     private Long expireTime;
+
     private String token;
 }

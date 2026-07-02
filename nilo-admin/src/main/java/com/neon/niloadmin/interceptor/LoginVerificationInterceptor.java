@@ -23,6 +23,7 @@ public class LoginVerificationInterceptor implements HandlerInterceptor
 {
     private static final String ACCOUNT_URI = "/account";
     private static final String FILE_URI = "/file";
+    private static final String ARCHIVE_URI = "/archive";
     private static final String DOC_URI = "/api-docs";
 
     private final RedisTemplate <String, Object> redisTemplate;
@@ -39,14 +40,24 @@ public class LoginVerificationInterceptor implements HandlerInterceptor
         if (request.getRequestURI().contains(DOC_URI)) return true;
 
         // 获取
-        String token = request.getHeader(Constants.ADMIN_COOKIE_TOKEN_KEY);
-        // 包含“/file”时，token不会从请求头传递
-        if (request.getRequestURI().contains(FILE_URI)) token = ServletUtil.getFromCookie(request, FILE_URI);
+        String token = request.getHeader("token");
+
+        // 包含“/file”或“/archive”时，token不会从请求头传递（HLS请求由播放器发起，通过cookie传递token）
+        if (request.getRequestURI().contains(FILE_URI) || request.getRequestURI().contains(ARCHIVE_URI))
+        {
+            token = ServletUtil.getFromCookie(request, Constants.ADMIN_COOKIE_TOKEN_KEY);
+        }
 
         // 校验
-        if (token == null || token.isBlank()) throw new BusinessException(ResponseCode.NOT_LOGIN);
-        if (redisTemplate.opsForValue().get(RedisKey.ADMIN_TOKEN_PREFIX + token) == null)
+        if (token == null || token.isBlank())
+        {
             throw new BusinessException(ResponseCode.NOT_LOGIN);
+        }
+
+        if (redisTemplate.opsForValue().get(RedisKey.ADMIN_TOKEN_PREFIX + token) == null)
+        {
+            throw new BusinessException(ResponseCode.NOT_LOGIN);
+        }
 
         return true;
     }

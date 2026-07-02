@@ -64,6 +64,8 @@
 
 	<!-- 通用查询条件列-->
 	<sql id="query_condition">
+		<bind name="contentFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.contentFuzzy)"/>
+		<bind name="colorFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.colorFuzzy)"/>
 	 <where>
 			<include refid="base_condition_filed" />
 			<if test="query.postTimeStart!= null and query.postTimeStart!=''">
@@ -73,10 +75,10 @@
 				 <![CDATA[ and  v.post_time< date_sub(str_to_date(#{query.postTimeEnd},'%Y-%m-%d'),interval -1 day) ]]>
 			</if>
 			<if test="query.contentFuzzy!= null  and query.contentFuzzy!=''">
-				 and  v.content like concat('%', #{query.contentFuzzy}, '%')
+				 and  v.content like concat('%', #{contentFuzzyEscaped}, '%') ESCAPE '\\'
 			</if>
 			<if test="query.colorFuzzy!= null  and query.colorFuzzy!=''">
-				 and  v.color like concat('%', #{query.colorFuzzy}, '%')
+				 and  v.color like concat('%', #{colorFuzzyEscaped}, '%') ESCAPE '\\'
 			</if>
 	 </where>
 	</sql>
@@ -88,7 +90,7 @@
 			 order by ${query.orderBy}
 		 </if>
 		 <if test="query.pageCalculator!=null">
-			 limit #{query.pageCalculator.start},#{query.pageCalculator.end}
+			 limit #{query.pageCalculator.start},#{query.pageCalculator.size}
 		 </if>
 	</select>
 

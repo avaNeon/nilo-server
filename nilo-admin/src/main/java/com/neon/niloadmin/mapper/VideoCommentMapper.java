@@ -1,6 +1,7 @@
 package com.neon.niloadmin.mapper;
 
 import com.neon.nilocommon.entity.po.VideoComment;
+import com.neon.nilocommon.entity.vo.comment.CommentManagementAdmin;
 import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDate;
@@ -43,5 +44,17 @@ public interface VideoCommentMapper<T, P> extends BaseMapper <T, P>
      * 根据CommentId逻辑删除（将 deleted 更新为 1）
      */
     Integer safeDeleteByCommentId(@Param("commentId") Long commentId, @Param("deletedType") Integer deletedType);
+
+    /**
+     * 评论管理页面，查询多个视频的评论信息数量，可以查询到被删除的评论
+     */
+    Long selectCommentManagementCount(@Param("nameFuzzy") String nameFuzzy);
+
+    /**
+     * 评论管理页面，查询多个视频的评论信息，可以查询到被删除的评论
+     */
+    List <CommentManagementAdmin> selectCommentManagement(@Param("nameFuzzy") String nameFuzzy,
+                                                          @Param("start") Integer start,
+                                                          @Param("pageSize") Integer pageSize);
 
 }

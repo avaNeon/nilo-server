@@ -19,6 +19,22 @@
         <result column="deleted" property="deleted"/>
     </resultMap>
 
+    <resultMap id="management_admin_result_map" type="com.neon.nilocommon.entity.vo.comment.CommentManagementAdmin">
+        <result column="comment_id" property="commentId"/>
+        <result column="user_id" property="userId"/>
+        <result column="reply_user_id" property="replyUserId"/>
+        <result column="content" property="content"/>
+        <result column="img_paths" property="imgPaths"/>
+        <result column="post_time" property="postTime"/>
+        <result column="video_id" property="videoId"/>
+        <result column="video_name" property="videoName"/>
+        <result column="video_cover" property="videoCover"/>
+        <result column="nick_name" property="nickName"/>
+        <result column="reply_nick_name" property="replyNickName"/>
+        <result column="avatar" property="avatar"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
     <sql id="base_column_list">
         v.comment_id,v.parent_comment_id,v.video_id,v.video_user_id,v.content,
         v.img_paths,v.user_id,v.reply_user_id,v.top_type,v.post_time,
@@ -68,13 +84,15 @@
     </sql>
 
     <sql id="query_condition">
+        <bind name="contentFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.contentFuzzy)"/>
+        <bind name="imgPathsFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.imgPathsFuzzy)"/>
         <where>
             <include refid="base_condition_field"/>
             <if test="query.contentFuzzy!= null  and query.contentFuzzy!=''">
-                and v.content like concat('%', #{query.contentFuzzy}, '%')
+                and v.content like concat('%', #{contentFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.imgPathsFuzzy!= null  and query.imgPathsFuzzy!=''">
-                and v.img_paths like concat('%', #{query.imgPathsFuzzy}, '%')
+                and v.img_paths like concat('%', #{imgPathsFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.postTimeStart!= null and query.postTimeStart!=''">
                 <![CDATA[ and v.post_time >= str_to_date(#{query.postTimeStart}, '%Y-%m-%d') ]]>
@@ -205,4 +223,47 @@
             #{commentId}
         </foreach>
     </select>
+
+    <select id="selectCommentManagementCount" resultType="long">
+        <bind name="nameFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(nameFuzzy)"/>
+        SELECT COUNT(1)
+        FROM video_comment vc
+        LEFT JOIN video_info v ON v.video_id = vc.video_id
+        LEFT JOIN user_info u1 ON vc.user_id = u1.user_id
+        LEFT JOIN user_info u2 ON vc.reply_user_id = u2.user_id
+        <where>
+            <if test="nameFuzzy != null and nameFuzzy != ''">
+                AND v.video_name LIKE CONCAT('%', #{nameFuzzyEscaped}, '%') ESCAPE '\\'
+            </if>
+        </where>
+    </select>
+
+    <select id="selectCommentManagement" resultMap="management_admin_result_map">
+        <bind name="nameFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(nameFuzzy)"/>
+        SELECT vc.comment_id,
+        vc.user_id,
+        vc.reply_user_id,
+        vc.content,
+        vc.img_paths,
+        vc.post_time,
+        vc.video_id,
+        vc.deleted,
+        v.video_name,
+        v.video_cover,
+        u1.nick_name as nick_name,
+        u2.nick_name as reply_nick_name,
+        u1.avatar
+        FROM video_comment vc
+        LEFT JOIN video_info v ON v.video_id = vc.video_id
+        LEFT JOIN user_info u1 ON vc.user_id = u1.user_id
+        LEFT JOIN user_info u2 ON vc.reply_user_id = u2.user_id
+        <where>
+            <if test="nameFuzzy != null and nameFuzzy != ''">
+                AND v.video_name LIKE CONCAT('%', #{nameFuzzyEscaped}, '%') ESCAPE '\\'
+            </if>
+        </where>
+        ORDER BY vc.post_time DESC
+        LIMIT #{start},#{pageSize}
+    </select>
+
 </mapper>

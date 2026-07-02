@@ -91,11 +91,13 @@
     <sql id="query_condition">
         <where>
             <include refid="base_condition_filed"/>
+            <bind name="contentFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.contentFuzzy)"/>
+            <bind name="imgPathsFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.imgPathsFuzzy)"/>
             <if test="query.contentFuzzy!= null  and query.contentFuzzy!=''">
-                and v.content like concat('%', #{query.contentFuzzy}, '%')
+                and v.content like concat('%', #{contentFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.imgPathsFuzzy!= null  and query.imgPathsFuzzy!=''">
-                and v.img_paths like concat('%', #{query.imgPathsFuzzy}, '%')
+                and v.img_paths like concat('%', #{imgPathsFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.postTimeStart!= null and query.postTimeStart!=''">
                 <![CDATA[ and  v.post_time>=str_to_date(#{query.postTimeStart}, '%Y-%m-%d') ]]>

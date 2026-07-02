@@ -7,8 +7,8 @@ import com.neon.nilocommon.entity.po.VideoDanmaku;
 import com.neon.nilocommon.entity.po.VideoInfo;
 import com.neon.nilocommon.entity.query.VideoDanmakuQuery;
 import com.neon.nilocommon.entity.query.VideoInfoQuery;
+import com.neon.nilocommon.entity.vo.danmaku.DanmakuManagementVO;
 import com.neon.nilocommon.exception.BusinessException;
-import com.neon.nilocommon.util.PageCalculator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,24 +25,15 @@ public class VideoDanmakuService
 
     private final VideoInfoDocRepository videoInfoDocRepository;
 
-    public List <VideoDanmaku> loadDanmakuList(VideoDanmakuQuery query)
+    public Long getDanmakuManagementInfoCount(String nameFuzzy)
     {
-        // 校验分页信息
-        if (query == null || query.getPageNo() == null || query.getPageSize() == null)
-        {
-            throw new BusinessException("pageNo和pageSize不能为空");
-        }
-        if (query.getPageSize() > 100)
-        {
-            throw new BusinessException("pageSize不能超过100");
-        }
+        return videoDanmakuMapper.selectDanmakuCount(nameFuzzy);
+    }
 
-        // 按照时间倒序排列
-        query.setOrderBy("v.post_time DESC");
-
-        query.setPageCalculator(new PageCalculator(query.getPageNo(), query.getPageSize()));
-
-        return videoDanmakuMapper.selectList(query);
+    public List <DanmakuManagementVO> getDanmakuManagementInfo(String nameFuzzy, Integer pageNo, Integer pageSize)
+    {
+        int start = (pageNo - 1) * pageSize;
+        return videoDanmakuMapper.selectDanmakuManagementVO(nameFuzzy, start, pageSize);
     }
 
     @Transactional(rollbackFor = Exception.class)

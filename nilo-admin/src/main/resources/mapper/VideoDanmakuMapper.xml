@@ -24,6 +24,20 @@
         <result column="display_moment" property="displayMoment"/>
     </resultMap>
 
+    <resultMap id="management_vo_result_map" type="com.neon.nilocommon.entity.vo.danmaku.DanmakuManagementVO">
+        <result column="danmaku_id" property="danmakuId"/>
+        <result column="video_id" property="videoId"/>
+        <result column="file_index" property="fileIndex"/>
+        <result column="user_id" property="userId"/>
+        <result column="post_time" property="postTime"/>
+        <result column="content" property="content"/>
+        <result column="position" property="position"/>
+        <result column="color" property="color"/>
+        <result column="display_moment" property="displayMoment"/>
+        <result column="nick_name" property="nickName"/>
+        <result column="video_name" property="videoName"/>
+    </resultMap>
+
 
     <!-- 通用查询结果列-->
     <sql id="base_column_list">
@@ -63,6 +77,8 @@
 
     <!-- 通用查询条件列-->
     <sql id="query_condition">
+        <bind name="contentFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.contentFuzzy)"/>
+        <bind name="colorFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.colorFuzzy)"/>
         <where>
             <include refid="base_condition_filed"/>
             <if test="query.postTimeStart!= null and query.postTimeStart!=''">
@@ -72,10 +88,10 @@
                 <![CDATA[ and  v.post_time< date_sub(str_to_date(#{query.postTimeEnd},'%Y-%m-%d'),interval -1 day) ]]>
             </if>
             <if test="query.contentFuzzy!= null  and query.contentFuzzy!=''">
-                and v.content like concat('%', #{query.contentFuzzy}, '%')
+                and v.content like concat('%', #{contentFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.colorFuzzy!= null  and query.colorFuzzy!=''">
-                and v.color like concat('%', #{query.colorFuzzy}, '%')
+                and v.color like concat('%', #{colorFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
         </where>
     </sql>
@@ -416,4 +432,44 @@
             #{fileId}
         </foreach>
     </delete>
+
+    <select id="selectDanmakuCount" resultType="java.lang.Long">
+        <bind name="nameFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(nameFuzzy)"/>
+        SELECT COUNT(1)
+        FROM video_danmaku vd
+        LEFT JOIN video_info v ON vd.video_id = v.video_id
+        LEFT JOIN video_info_file vf ON vd.file_id = vf.file_id
+        LEFT JOIN user_info u ON vd.user_id = u.user_id
+        <where>
+            <if test="nameFuzzy != null and nameFuzzy != ''">
+                AND v.video_name LIKE CONCAT('%', #{nameFuzzyEscaped}, '%') ESCAPE '\\'
+            </if>
+        </where>
+    </select>
+
+    <select id="selectDanmakuManagementVO" resultMap="management_vo_result_map">
+        <bind name="nameFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(nameFuzzy)"/>
+        SELECT vd.danmaku_id,
+        vd.video_id,
+        vf.file_index,
+        vd.user_id,
+        vd.post_time,
+        vd.content,
+        vd.position,
+        vd.color,
+        vd.display_moment,
+        u.nick_name,
+        v.video_name
+        FROM video_danmaku vd
+        LEFT JOIN video_info v ON vd.video_id = v.video_id
+        LEFT JOIN video_info_file vf ON vd.file_id = vf.file_id
+        LEFT JOIN user_info u ON vd.user_id = u.user_id
+        <where>
+            <if test="nameFuzzy != null and nameFuzzy != ''">
+                AND v.video_name LIKE CONCAT('%', #{nameFuzzyEscaped}, '%') ESCAPE '\\'
+            </if>
+        </where>
+        ORDER BY vd.post_time DESC
+        LIMIT #{start},#{pageSize}
+    </select>
 </mapper>

@@ -1,5 +1,6 @@
 package com.neon.niloadmin.mapper;
 
+import com.neon.nilocommon.entity.vo.danmaku.DanmakuManagementVO;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
@@ -9,9 +10,21 @@ import java.util.List;
  */
 public interface VideoDanmakuMapper<T, P> extends BaseMapper <T, P>
 {
+    /**
+     * 获取弹幕管理信息统计
+     */
+    Long selectDanmakuCount(@Param("nameFuzzy") String nameFuzzy);
+
+    /**
+     * 获取弹幕管理信息
+     */
+    List <DanmakuManagementVO> selectDanmakuManagementVO(@Param("nameFuzzy") String nameFuzzy,
+                                                         @Param("start") Integer start,
+                                                         @Param("pageSize") Integer pageSize);
 
     /**
      * 通过 fileId 列表批量删除弹幕
+     *
      * @param fileIdList fileId 列表
      * @return 删除行数
      */

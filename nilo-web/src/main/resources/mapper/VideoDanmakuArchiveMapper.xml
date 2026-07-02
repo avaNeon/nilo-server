@@ -71,11 +71,13 @@
             <if test="query.postTimeEnd!= null and query.postTimeEnd!=''">
                 <![CDATA[ and  v.post_time< date_sub(str_to_date(#{query.postTimeEnd},'%Y-%m-%d'),interval -1 day) ]]>
             </if>
+            <bind name="contentFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.contentFuzzy)"/>
+            <bind name="colorFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.colorFuzzy)"/>
             <if test="query.contentFuzzy!= null  and query.contentFuzzy!=''">
-                and v.content like concat('%', #{query.contentFuzzy}, '%')
+                and v.content like concat('%', #{contentFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.colorFuzzy!= null  and query.colorFuzzy!=''">
-                and v.color like concat('%', #{query.colorFuzzy}, '%')
+                and v.color like concat('%', #{colorFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
         </where>
     </sql>

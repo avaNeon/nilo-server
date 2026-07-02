@@ -7,8 +7,8 @@ import com.neon.nilocommon.entity.po.VideoComment;
 import com.neon.nilocommon.entity.po.VideoInfo;
 import com.neon.nilocommon.entity.query.VideoCommentQuery;
 import com.neon.nilocommon.entity.query.VideoInfoQuery;
+import com.neon.nilocommon.entity.vo.comment.CommentManagementAdmin;
 import com.neon.nilocommon.exception.BusinessException;
-import com.neon.nilocommon.util.PageCalculator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,24 +27,23 @@ public class VideoCommentService
     /**
      * 分页查询评论列表。
      */
-    public List <VideoComment> loadCommentList(VideoCommentQuery query)
+    public Long getCommentManagementInfoCount(String nameFuzzy)
     {
-        // 校验分页
-        if (query == null || query.getPageNo() == null || query.getPageSize() == null)
+        if (nameFuzzy == null || nameFuzzy.isBlank())
         {
-            throw new BusinessException("pageNo和pageSize不能为空");
+            nameFuzzy = null;
         }
-        if (query.getPageSize() > 100)
+        return videoCommentMapper.selectCommentManagementCount(nameFuzzy);
+    }
+
+    public List <CommentManagementAdmin> getCommentManagementInfo(String nameFuzzy, int pageNo, int pageSize)
+    {
+        if (nameFuzzy == null || nameFuzzy.isBlank())
         {
-            throw new BusinessException("pageSize不能超过100");
+            nameFuzzy = null;
         }
-
-        // 设置按照发布时间倒序排序
-        query.setOrderBy("v.post_time DESC");
-
-        query.setPageCalculator(new PageCalculator(query.getPageNo(), query.getPageSize()));
-
-        return videoCommentMapper.selectList(query);
+        int start = (pageNo - 1) * pageSize;
+        return videoCommentMapper.selectCommentManagement(nameFuzzy, start, pageSize);
     }
 
     /**

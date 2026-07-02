@@ -67,7 +67,7 @@
 			 order by ${query.orderBy}
 		 </if>
 		 <if test="query.pageCalculator!=null">
-			 limit #{query.pageCalculator.start},#{query.pageCalculator.end}
+			 limit #{query.pageCalculator.start},#{query.pageCalculator.size}
 		 </if>
 	</select>
 

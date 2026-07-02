@@ -103,25 +103,33 @@
 
     <!-- 通用查询条件列（包含模糊查询） -->
     <sql id="query_condition">
+        <bind name="nickNameFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.nickNameFuzzy)"/>
+        <bind name="emailFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.emailFuzzy)"/>
+        <bind name="passwordFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.passwordFuzzy)"/>
+        <bind name="birthdayFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.birthdayFuzzy)"/>
+        <bind name="schoolFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.schoolFuzzy)"/>
+        <bind name="personalIntroductionFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.personalIntroductionFuzzy)"/>
+        <bind name="lastLoginIpFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.lastLoginIpFuzzy)"/>
+        <bind name="noticeInfoFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.noticeInfoFuzzy)"/>
         <where>
             <include refid="base_condition_filed"/>
             <if test="query.nickNameFuzzy!= null  and query.nickNameFuzzy!=''">
-                and u.nick_name like concat('%', #{query.nickNameFuzzy}, '%')
+                and u.nick_name like concat('%', #{nickNameFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.emailFuzzy!= null  and query.emailFuzzy!=''">
-                and u.email like concat('%', #{query.emailFuzzy}, '%')
+                and u.email like concat('%', #{emailFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.passwordFuzzy!= null  and query.passwordFuzzy!=''">
-                and u.password like concat('%', #{query.passwordFuzzy}, '%')
+                and u.password like concat('%', #{passwordFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.birthdayFuzzy!= null  and query.birthdayFuzzy!=''">
-                and u.birthday like concat('%', #{query.birthdayFuzzy}, '%')
+                and u.birthday like concat('%', #{birthdayFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.schoolFuzzy!= null  and query.schoolFuzzy!=''">
-                and u.school like concat('%', #{query.schoolFuzzy}, '%')
+                and u.school like concat('%', #{schoolFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.personalIntroductionFuzzy!= null  and query.personalIntroductionFuzzy!=''">
-                and u.personal_introduction like concat('%', #{query.personalIntroductionFuzzy}, '%')
+                and u.personal_introduction like concat('%', #{personalIntroductionFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.registerTimeStart!= null and query.registerTimeStart!=''">
                 <![CDATA[ and  u.register_time>= #{query.registerTimeStart} ]]>
@@ -136,10 +144,10 @@
                 <![CDATA[ and  u.last_login_time< #{query.lastLoginTimeEnd} ]]>
             </if>
             <if test="query.lastLoginIpFuzzy!= null  and query.lastLoginIpFuzzy!=''">
-                and u.last_login_ip like concat('%', #{query.lastLoginIpFuzzy}, '%')
+                and u.last_login_ip like concat('%', #{lastLoginIpFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.noticeInfoFuzzy!= null  and query.noticeInfoFuzzy!=''">
-                and u.notice_info like concat('%', #{query.noticeInfoFuzzy}, '%')
+                and u.notice_info like concat('%', #{noticeInfoFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
         </where>
     </sql>
@@ -818,7 +826,7 @@
     <select id="selectByNickName" resultMap="base_result_map">
         select
         <include refid="base_column_list"/>
-        from user_info u where nick_name=#{nickName}
+        from user_info u where BINARY nick_name=#{nickName}
     </select>
 
     <!--  根据userId列表批量获取用户信息  -->

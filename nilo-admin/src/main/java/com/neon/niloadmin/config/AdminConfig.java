@@ -23,5 +23,5 @@ public class AdminConfig
     /**
      * 最大推荐视频数量
      */
-    private short maxRecommendVideoNumber = 10;
+    private short maxRecommendVideoNumber = 11;
 }

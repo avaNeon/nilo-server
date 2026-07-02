@@ -74,13 +74,15 @@
 
     <!-- 通用查询条件列-->
     <sql id="query_condition">
+        <bind name="fileNameFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.fileNameFuzzy)"/>
+        <bind name="filePathFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.filePathFuzzy)"/>
         <where>
             <include refid="base_condition_filed"/>
             <if test="query.fileNameFuzzy!= null  and query.fileNameFuzzy!=''">
-                and v.file_name like concat('%', #{query.fileNameFuzzy}, '%')
+                and v.file_name like concat('%', #{fileNameFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
             <if test="query.filePathFuzzy!= null  and query.filePathFuzzy!=''">
-                and v.file_path like concat('%', #{query.filePathFuzzy}, '%')
+                and v.file_path like concat('%', #{filePathFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
         </where>
     </sql>
@@ -95,7 +97,7 @@
             order by ${query.orderBy}
         </if>
         <if test="query.pageCalculator!=null">
-            limit #{query.pageCalculator.start},#{query.pageCalculator.end}
+            limit #{query.pageCalculator.start},#{query.pageCalculator.size}
         </if>
     </select>
 
@@ -504,12 +506,27 @@
     <!--  根据fileId批量删除出现在fileId的对象  -->
     <delete id="deleteBatchByFileId">
         delete from video_info_file_upload
-        where user_id = #{userId} and
+        where
         file_id in    <!-- 因为事先在java代码中检查过List，保证List不为空，所以这么写没关系 -->
         <foreach collection="fileIdList" item="fileId" separator="," open="(" close=")">
-            fileId
+            #{fileId}
         </foreach>
     </delete>
+
+    <update id="clearFilePathByVideoId">
+        update video_info_file_upload
+        set file_path = null
+        where video_id = #{videoId}
+    </update>
+
+    <update id="clearFilePathByFileIdBatch">
+        update video_info_file_upload
+        set file_path = null
+        where file_id in
+        <foreach collection="fileIdList" item="fileId" separator="," open="(" close=")">
+            #{fileId}
+        </foreach>
+    </update>
 
     <!-- 根据UploadIdAndUserId删除-->
     <delete id="deleteByUploadIdAndUserId">
@@ -529,7 +546,7 @@
     <select id="selectByVideoId" resultMap="base_result_map">
         select
         <include refid="base_column_list"/>
-        from video_info_file_upload
+        from video_info_file_upload v
         where video_id = #{videoId}
     </select>
 </mapper>

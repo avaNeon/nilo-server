@@ -39,16 +39,31 @@ public class VideoController
     @Operation(summary = "获取视频列表")
     @PostMapping(path = "/list")
     public ResponseVO <List <VideoInfoUploadAdminJoinDTO>> loadVideoList(
-            @RequestBody @Validated VideoInfoUploadAdminQueryDTO infoUploadQueryDTO)
+            @RequestBody @Validated VideoInfoUploadAdminQueryDTO infoUploadQueryDTO,
+            @RequestParam(name = "orderByLastUpdateTimeAsc", required = false) Boolean orderByLastUpdateTimeAsc,
+            @RequestParam(name = "orderByStatusAsc", required = false) Boolean orderByStatusAsc)
     {
         VideoInfoUploadQuery infoUploadQuery = new VideoInfoUploadQuery();
+
         BeanUtils.copyProperties(infoUploadQueryDTO, infoUploadQuery);
+
         if (infoUploadQuery.getPageSize() == null)
         {
             infoUploadQuery.setPageSize(10);
         }
-        List <VideoInfoUploadAdminJoinDTO> result = videoService.loadVideoList(infoUploadQuery);
+        List <VideoInfoUploadAdminJoinDTO> result = videoService.loadVideoList(infoUploadQuery,
+                                                                               orderByLastUpdateTimeAsc,
+                                                                               orderByStatusAsc);
         return ResponseVO.success(result);
+    }
+
+    @Operation(summary = "获取上传视频数量")
+    @PostMapping(path = "/count")
+    public ResponseVO <Integer> getVideoUploadCount(@RequestBody VideoInfoUploadAdminQueryDTO infoUploadQueryDTO)
+    {
+        VideoInfoUploadQuery infoUploadQuery = new VideoInfoUploadQuery();
+        BeanUtils.copyProperties(infoUploadQueryDTO, infoUploadQuery);
+        return ResponseVO.success(videoService.getVideoUploadCount(infoUploadQuery));
     }
 
     @Operation(summary = "获取视频分P列表")

@@ -9,6 +9,7 @@ import com.neon.niloadmin.repository.redis.AccountRedisRepository;
 import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.dto.VideoInfoUploadAdminJoinDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
+import com.neon.nilocommon.entity.enums.videoInfo.RecommendType;
 import com.neon.nilocommon.entity.enums.videoInfoArchive.DeleterType;
 import com.neon.nilocommon.entity.enums.videoInfoFileUpload.UpdateType;
 import com.neon.nilocommon.entity.enums.videoInfoFileUpload.VideoFileStatus;
@@ -28,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -103,13 +105,40 @@ public class VideoService
      *
      * @return 返回一个列表，审核成功的结果会有video_info的字段值
      */
-    public List <VideoInfoUploadAdminJoinDTO> loadVideoList(VideoInfoUploadQuery infoUploadQuery)
+    public List <VideoInfoUploadAdminJoinDTO> loadVideoList(VideoInfoUploadQuery infoUploadQuery,
+                                                            Boolean orderByLastUpdateTimeAsc,
+                                                            Boolean orderByStatusAsc)
     {
-        infoUploadQuery.setOrderBy("v.create_time desc");
+        StringBuilder orderBy = new StringBuilder();
+
+        if (orderByLastUpdateTimeAsc != null)
+        {
+            orderBy.append("v.last_update_time ").append(orderByLastUpdateTimeAsc ? "asc" : "desc");
+        }
+
+        if (orderByStatusAsc != null)
+        {
+            if (!orderBy.isEmpty()) orderBy.append(", ");
+            orderBy.append("v.status ").append(orderByStatusAsc ? "asc" : "desc");
+        }
+
+        // 如果都没有，默认按照创建时间排序
+        if (orderBy.isEmpty())
+        {
+            orderBy.append("v.create_time desc");
+        }
+
+        infoUploadQuery.setOrderBy(orderBy.toString());
+
         // 分页查询
         Integer count = videoInfoUploadMapper.selectCount(infoUploadQuery);
         infoUploadQuery.setPageCalculator(new PageCalculator(infoUploadQuery.getPageNo(), count, infoUploadQuery.getPageSize()));
         return videoInfoUploadMapper.selectListWithVideoInfoWithUserInfo(infoUploadQuery);
+    }
+
+    public Integer getVideoUploadCount(VideoInfoUploadQuery infoUploadQuery)
+    {
+        return videoInfoUploadMapper.selectCount(infoUploadQuery);
     }
 
     /**
@@ -129,7 +158,6 @@ public class VideoService
      * @param videoId      视频id
      * @param reviewResult 审核结果
      * @param refuseReason 拒绝原因
-     * @return 如果审核不通过，返回拒绝原因
      */
     @Transactional(rollbackFor = Exception.class)
     public void reviewVideo(long videoId, boolean reviewResult, String refuseReason)
@@ -158,8 +186,49 @@ public class VideoService
         // 如果审核不通过，就不继续将VideoInfoUpload移动到VideoInfo了
         if (!reviewResult)
         {
+            // 查询正常表中已存在的视频文件，用于状态隔离——不能删除正常表还在引用的文件
+            VideoInfoFileQuery infoFileQuery = new VideoInfoFileQuery();
+            infoFileQuery.setVideoId(videoId);
+
+            List <VideoInfoFile> activeFileList = videoInfoFileMapper.selectList(infoFileQuery);
+
+            // 未被修改的视频文件ID列表
+            List <Long> activeFileIdList = activeFileList.stream()
+                                                         .map(VideoInfoFile::getFileId)
+                                                         .filter(Objects::nonNull)
+                                                         .toList();
+
+            List <VideoInfoFileUpload> infoFileUploadList = videoInfoFileUploadMapper.selectByVideoId(videoId);
+
+            // 过滤出不在正常表中的上传文件记录（正常表已引用的文件不能删除）
+            List <VideoInfoFileUpload> orphanUploadList = infoFileUploadList.stream()
+                                                                            .filter(file -> !activeFileIdList.contains(file.getFileId()))
+                                                                            .toList();
+
+            List <String> deletePathList = buildDeletePathList(orphanUploadList);
+
+            // 只清空不在正常表中的上传文件记录，保证状态隔离
+            if (!orphanUploadList.isEmpty())
+            {
+                List <Long> deletedUploadFileIdList = orphanUploadList.stream()
+                                                                      .map(VideoInfoFileUpload::getFileId)
+                                                                      .filter(Objects::nonNull)
+                                                                      .toList();
+                if (!deletedUploadFileIdList.isEmpty())
+                {
+                    videoInfoFileUploadMapper.deleteBatchByFileId(deletedUploadFileIdList);
+                }
+            }
+
+            // 将视频文件交给负责删除的MQ
+            if (!deletePathList.isEmpty())
+            {
+                mqRepository.addPathList2DeleteQueue(deletePathList);
+            }
+
             // 向用户发送系统消息，通知用户视频审核状态
-            CompletableFuture <Void> completableFuture = userMessageService.sendVideoReviewMessage(videoId, refuseReason);
+            CompletableFuture <Void> completableFuture = userMessageService.sendVideoReviewMessage(videoId,
+                                                                                                   "您的视频未通过，原因:" + refuseReason);
             CompletableFuture.allOf(completableFuture).exceptionally(e ->
                                                                      {
                                                                          log.warn("发送审核不通过消息失败，异常信息：{}",
@@ -172,6 +241,10 @@ public class VideoService
         VideoInfoUpload infoUpload = videoInfoUploadMapper.selectByVideoId(videoId);
 
         VideoInfo videoInfo = videoInfoMapper.selectByVideoId(videoId);
+
+        // 提前拿出旧封面看看
+        String oldCover = videoInfo == null ? null : videoInfo.getVideoCover();
+
         if (videoInfo == null)
         {
             videoInfo = new VideoInfo();
@@ -199,14 +272,37 @@ public class VideoService
         videoInfoFileUploadQuery.setVideoId(videoId);
         List <VideoInfoFileUpload> infoFileUploadList = videoInfoFileUploadMapper.selectList(videoInfoFileUploadQuery);
 
+        // 检查空路径文件记录
+        List <Long> emptyPathFileIdList = infoFileUploadList.stream()
+                                                            .filter(file -> file.getFilePath() == null || file.getFilePath()
+                                                                                                              .isBlank())
+                                                            .map(VideoInfoFileUpload::getFileId)
+                                                            .filter(Objects::nonNull)
+                                                            .toList();
+        // 删除空路径文件记录
+        if (!emptyPathFileIdList.isEmpty())
+        {
+            videoInfoFileUploadMapper.deleteBatchByFileId(emptyPathFileIdList);
+        }
+
         // 将获取的记录转化之后插入到video_info_file表
-        List <VideoInfoFile> infoFileList = infoFileUploadList.stream().map(infoFileUpload ->
-                                                                            {
-                                                                                VideoInfoFile infoFile = new VideoInfoFile();
-                                                                                BeanUtils.copyProperties(infoFileUpload,
-                                                                                                         infoFile);
-                                                                                return infoFile;
-                                                                            }).toList();
+        List <VideoInfoFile> infoFileList = infoFileUploadList.stream()
+                                                              .filter(file -> file.getFilePath() != null && !file.getFilePath()
+                                                                                                                 .isBlank())
+                                                              .map(infoFileUpload ->
+                                                                   {
+                                                                       VideoInfoFile infoFile = new VideoInfoFile();
+                                                                       BeanUtils.copyProperties(infoFileUpload, infoFile);
+                                                                       return infoFile;
+                                                                   })
+                                                              .toList();
+
+        // 一个预防条件，如果审核通过发现并没有实际的视频文件，就抛出异常
+        if (infoFileList.isEmpty())
+        {
+            throw new BusinessException("没有可发布的视频文件");
+        }
+
         videoInfoFileMapper.insertBatch(infoFileList);
 
         // 删除不需要的视频（所有fileId不存在于新出现的文件中的视频文件）
@@ -215,14 +311,30 @@ public class VideoService
         List <VideoInfoFile> deleteFileList = oldFileList.stream()
                                                          .filter(oldFile -> !remainFileIdList.contains(oldFile.getFileId())) // 不在新文件列表中的文件
                                                          .toList();
-        List <String> deletePathList = deleteFileList.stream()
-                                                     .map(VideoInfoFile::getFilePath)
-                                                     .filter(filePath -> filePath != null && !filePath.isBlank())
-                                                     .map(filePath -> Path.of(rootFilePath, filePath).normalize().toString())
-                                                     .filter(absPath -> StringUtil.isValidPath(absPath, rootFilePath))
-                                                     .filter(FileUtil::fileExists)
-                                                     .distinct()
-                                                     .toList();
+
+        // toList() 返回不可变 List 类型，所以这里给它构造一下
+        List <String> deletePathList = new ArrayList <>(deleteFileList.stream()
+                                                                      .map(VideoInfoFile::getFilePath)
+                                                                      .filter(filePath -> filePath != null && !filePath.isBlank())
+                                                                      .map(filePath -> Path.of(rootFilePath, filePath)
+                                                                                           .normalize()
+                                                                                           .toString())
+                                                                      .filter(absPath -> StringUtil.isValidPath(rootFilePath,
+                                                                                                                absPath))
+                                                                      .filter(FileUtil::fileExists)
+                                                                      .distinct()
+                                                                      .toList());
+
+        // 如果封面有变动
+        if (oldCover != null && !oldCover.isBlank() && !Objects.equals(oldCover, infoUpload.getVideoCover()))
+        {
+            String oldCoverPath = Path.of(rootFilePath, Constants.COVER_FOLDER_NAME, oldCover).normalize().toString();
+            if (StringUtil.isValidPath(rootFilePath, oldCoverPath) && FileUtil.fileExists(oldCoverPath))
+            {
+                // 那么就删除旧封面
+                deletePathList.add(oldCoverPath);
+            }
+        }
 
         // 删除旧的视频文件的弹幕
         if (!deleteFileList.isEmpty())
@@ -433,13 +545,27 @@ public class VideoService
     @Transactional
     public void toggleVideoRecommend(long videoId)
     {
-        // 查询当前推荐视频数量有没有到最大值
+        VideoInfo videoInfo = videoInfoMapper.selectByVideoId(videoId);
+
+        if (videoInfo == null)
+        {
+            throw new BusinessException("没有该视频");
+        }
+
+        // 提前构建好查询推荐视频数量的条件
         VideoInfoQuery query = new VideoInfoQuery();
         query.setRecommendType(1);
-        Integer firstCount = videoInfoMapper.selectCount(query);
-        if (firstCount >= adminConfig.getMaxRecommendVideoNumber())
+
+        // 如果是推荐操作，需要查询有没有达到推荐上限
+        if (Objects.equals(videoInfo.getRecommendType(), (short) RecommendType.UNRECOMMENDED.getType()))
         {
-            throw new BusinessException("超过最大推荐视频数量：" + adminConfig.getMaxRecommendVideoNumber());
+            // 查询当前推荐视频数量有没有到最大值
+
+            Integer firstCount = videoInfoMapper.selectCount(query);
+            if (firstCount >= adminConfig.getMaxRecommendVideoNumber())
+            {
+                throw new BusinessException("超过最大推荐视频数量：" + adminConfig.getMaxRecommendVideoNumber());
+            }
         }
 
         // 修改
@@ -464,8 +590,15 @@ public class VideoService
     public void deleteVideo(long userId, long videoId, String detail)
     {
         VideoInfo videoInfo = videoInfoMapper.selectByVideoId(videoId);
-        // 如果 视频不存在 或者 视频不属于该用户
-        if (videoInfo == null || !Objects.equals(videoInfo.getUserId(), userId))
+        // 如果正式表没有数据，就删除上传表中的数据
+        if (videoInfo == null)
+        {
+            deleteUnpublishedVideo(videoId, detail);
+            return;
+        }
+
+        // 如果 视频不属于该用户
+        if (!Objects.equals(videoInfo.getUserId(), userId))
         {
             throw new BusinessException(ResponseCode.NOT_FOUND);
         }
@@ -574,6 +707,47 @@ public class VideoService
     }
 
     /**
+     * 删除未发布视频（正式表无数据时，清理上传表数据）
+     *
+     * @param videoId 视频ID
+     * @param detail  删除原因
+     */
+    private void deleteUnpublishedVideo(long videoId, String detail)
+    {
+        VideoInfoUpload videoInfoUpload = videoInfoUploadMapper.selectByVideoId(videoId);
+        if (videoInfoUpload == null)
+        {
+            return;
+        }
+
+        List <VideoInfoFileUpload> uploadFileList = videoInfoFileUploadMapper.selectByVideoId(videoId);
+        List <String> deletePathList = buildDeletePathList(uploadFileList);
+
+        VideoInfoFileUploadQuery videoInfoFileUploadQuery = new VideoInfoFileUploadQuery();
+        videoInfoFileUploadQuery.setVideoId(videoId);
+        videoInfoFileUploadMapper.deleteByParam(videoInfoFileUploadQuery);
+
+        VideoInfoUploadQuery videoInfoUploadQuery = new VideoInfoUploadQuery();
+        videoInfoUploadQuery.setVideoId(videoId);
+        videoInfoUploadMapper.deleteByParam(videoInfoUploadQuery);
+
+        if (!deletePathList.isEmpty())
+        {
+            mqRepository.addPathList2DeleteQueue(deletePathList);
+        }
+
+        // 通知用户视频被删除
+        CompletableFuture <Void> completableFuture = userMessageService.sendVideoRelatedMessage(videoInfoUpload.getUserId(),
+                                                                                                videoId,
+                                                                                                "您的视频：[" + videoInfoUpload.getVideoName() + "]已被管理员删除，原因：\n" + detail);
+        CompletableFuture.allOf(completableFuture).exceptionally(e ->
+                                                                 {
+                                                                     log.warn("发送删除视频消息失败，异常信息：{}", e.toString());
+                                                                     return null;
+                                                                 });
+    }
+
+    /**
      * 检查是否会从表中查询到空数据
      *
      * @param query        查询条件
@@ -611,6 +785,31 @@ public class VideoService
                                                            return target;
                                                        }).toList();
         archiveMapper.insertBatch(archiveList);
+    }
+
+    /**
+     * 抽取文件路径，转换为绝对路径列表
+     *
+     * @param infoFileUploadList 上传文件列表
+     * @return 绝对路径列表
+     */
+    private List <String> buildDeletePathList(List <VideoInfoFileUpload> infoFileUploadList)
+    {
+        if (infoFileUploadList == null || infoFileUploadList.isEmpty())
+        {
+            return List.of();
+        }
+
+        String rootFilePath = Path.of(adminConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME).normalize().toString();
+
+        return infoFileUploadList.stream()
+                                 .map(VideoInfoFileUpload::getFilePath)
+                                 .filter(filePath -> filePath != null && !filePath.isBlank())
+                                 .map(filePath -> Path.of(rootFilePath, filePath).normalize().toString())
+                                 .filter(absPath -> StringUtil.isValidPath(rootFilePath, absPath))
+                                 .filter(FileUtil::fileExists)
+                                 .distinct()
+                                 .toList();
     }
 
 }

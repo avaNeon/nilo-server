@@ -152,13 +152,20 @@ public class VideoTransCodingConsumer
         }
         finally
         {
+            // 将转码失败文件路径置为空
+            if (VideoFileStatus.TRANSCODING_FAIL.getStatus().equals(fileUpload.getTransferResult()))
+            {
+                fileUpload.setFilePath(null);
+            }
             // 将对VideoInfoFileUpload的修改保存到MySQL
             videoInfoFileUploadMapper.updateByUploadIdAndUserId(fileUpload, fileUpload.getUploadId(), fileUpload.getUserId());
+
             // 查询是否有文件转码失败
             VideoInfoFileUploadQuery query = new VideoInfoFileUploadQuery();
             query.setVideoId(fileUpload.getVideoId());
             query.setTransferResult(VideoFileStatus.TRANSCODING_FAIL.getStatus());
             Integer result = videoInfoFileUploadMapper.selectCount(query);
+
             // 如果有文件转码失败
             if (result != null && result > 0)
             {
@@ -171,6 +178,7 @@ public class VideoTransCodingConsumer
                 // 再检查是否有文件处于转码中
                 query.setTransferResult(VideoFileStatus.TRANSCODING.getStatus());
                 result = videoInfoFileUploadMapper.selectCount(query);
+
                 // 如果所有文件都转码成功
                 if (result != null && result == 0)
                 {

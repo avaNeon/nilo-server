@@ -82,6 +82,7 @@ public class UserMessageService
                                                  videoId,
                                                  MessageType.SYSTEM.getValue(),
                                                  null,
+                                                 null,
                                                  0,
                                                  createdTime,
                                                  extendJson));

@@ -31,6 +31,8 @@ import java.util.concurrent.CompletableFuture;
 @Service
 public class UserMessageService
 {
+    private static final int NOT_REPEATABLE_TYPE = 1;
+
     private final UserMessageMapper <UserMessage, UserMessageQuery> userMessageMapper;
 
     private final Snowflake snowflake;
@@ -122,6 +124,7 @@ public class UserMessageService
         UserMessageQuery query = new UserMessageQuery();
         query.setUserId(userId);
         query.setMessageType(messageType);
+        query.setOrderBy("create_time DESC");
         query.setPageCalculator(new PageCalculator(start, pageSize));
 
         return userMessageMapper.selectDtoList(query);
@@ -190,7 +193,7 @@ public class UserMessageService
             extendJson.setSubContent(replyCommentContent);
         }
 
-        insertUserMessage(receiverUserId, videoId, MessageType.COMMENT, senderUserId, serializeExtendJson(extendJson));
+        insertUserMessage(receiverUserId, videoId, MessageType.COMMENT, senderUserId, null, serializeExtendJson(extendJson));
 
         return CompletableFuture.completedFuture(null);
     }
@@ -198,13 +201,19 @@ public class UserMessageService
     /**
      * <b>插入一条用户信息</b><hr/>
      *
-     * @param userId       用户ID
-     * @param videoId      相关视频ID
-     * @param messageType  信息类型
-     * @param senderUserId 发送者用户ID
-     * @param extendJson   额外信息
+     * @param userId         用户ID
+     * @param videoId        相关视频ID
+     * @param messageType    信息类型
+     * @param senderUserId   发送者用户ID
+     * @param repeatableType 是否不可重复，null表示允许重复
+     * @param extendJson     额外信息
      */
-    private void insertUserMessage(long userId, long videoId, MessageType messageType, Long senderUserId, String extendJson)
+    private void insertUserMessage(long userId,
+                                   long videoId,
+                                   MessageType messageType,
+                                   Long senderUserId,
+                                   Integer repeatableType,
+                                   String extendJson)
     {
         long messageId = snowflake.nextId();
         LocalDate createdTime = LocalDate.now();
@@ -214,6 +223,7 @@ public class UserMessageService
                                                  videoId,
                                                  messageType.getValue(),
                                                  senderUserId,
+                                                 repeatableType,
                                                  0,
                                                  createdTime,
                                                  extendJson));
@@ -238,6 +248,7 @@ public class UserMessageService
                                                             videoId,
                                                             messageType.getValue(),
                                                             senderUserId,
+                                                            NOT_REPEATABLE_TYPE,
                                                             0,
                                                             createdTime,
                                                             null));

@@ -14,6 +14,8 @@
         <result column="message_type" property="messageType"/>
         <!--发送者用户ID-->
         <result column="sender_user_id" property="senderUserId"/>
+        <!--是否不可重复，null表示允许重复-->
+        <result column="repeatable_type" property="repeatableType"/>
         <!--0:未读 1:已读-->
         <result column="read_type" property="readType"/>
         <!--创建时间-->
@@ -41,14 +43,16 @@
 
     <!-- 通用查询结果列-->
     <sql id="base_column_list">
-        u.message_id,u.user_id,u.video_id,u.message_type,u.sender_user_id,
+        u.message_id,u.user_id,u.video_id,u.message_type,u.sender_user_id,u.repeatable_type,
 		 u.read_type,u.create_time,u.extend_json
     </sql>
 
     <!-- DTO查询结果列-->
     <sql id="dto_column_list">
         u.message_id,u.video_id,u.message_type,u.sender_user_id,
-		 u.read_type,u.create_time,u.extend_json,ui.nick_name,ui.avatar,v.video_cover,v.video_name
+		 u.read_type,u.create_time,u.extend_json,ui.nick_name,ui.avatar,
+		 COALESCE(v.video_cover, vu.video_cover) AS video_cover,
+		 COALESCE(v.video_name, vu.video_name) AS video_name
     </sql>
 
     <sql id="base_condition_filed">
@@ -80,6 +84,7 @@
 
     <!-- 通用查询条件列-->
     <sql id="query_condition">
+        <bind name="extendJsonFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.extendJsonFuzzy)"/>
         <where>
             <include refid="base_condition_filed"/>
             <if test="query.createTimeStart!= null and query.createTimeStart!=''">
@@ -89,7 +94,7 @@
                 <![CDATA[ and  u.create_time< date_sub(str_to_date(#{query.createTimeEnd},'%Y-%m-%d'),interval -1 day) ]]>
             </if>
             <if test="query.extendJsonFuzzy!= null  and query.extendJsonFuzzy!=''">
-                and u.extend_json like concat('%', #{query.extendJsonFuzzy}, '%')
+                and u.extend_json like concat('%', #{extendJsonFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
         </where>
     </sql>
@@ -133,6 +138,9 @@
             <if test="bean.senderUserId != null">
                 sender_user_id,
             </if>
+            <if test="bean.repeatableType != null">
+                repeatable_type,
+            </if>
             <if test="bean.readType != null">
                 read_type,
             </if>
@@ -158,6 +166,9 @@
             </if>
             <if test="bean.senderUserId!=null">
                 #{bean.senderUserId},
+            </if>
+            <if test="bean.repeatableType!=null">
+                #{bean.repeatableType},
             </if>
             <if test="bean.readType!=null">
                 #{bean.readType},
@@ -190,6 +201,9 @@
             <if test="bean.senderUserId != null">
                 sender_user_id,
             </if>
+            <if test="bean.repeatableType != null">
+                repeatable_type,
+            </if>
             <if test="bean.readType != null">
                 read_type,
             </if>
@@ -215,6 +229,9 @@
             </if>
             <if test="bean.senderUserId!=null">
                 #{bean.senderUserId},
+            </if>
+            <if test="bean.repeatableType!=null">
+                #{bean.repeatableType},
             </if>
             <if test="bean.readType!=null">
                 #{bean.readType},
@@ -243,6 +260,9 @@
             <if test="bean.senderUserId!=null">
                 sender_user_id = VALUES(sender_user_id),
             </if>
+            <if test="bean.repeatableType!=null">
+                repeatable_type = VALUES(repeatable_type),
+            </if>
             <if test="bean.readType!=null">
                 read_type = VALUES(read_type),
             </if>
@@ -263,6 +283,7 @@
         video_id,
         message_type,
         sender_user_id,
+        repeatable_type,
         read_type,
         create_time,
         extend_json
@@ -274,6 +295,7 @@
             #{item.videoId},
             #{item.messageType},
             #{item.senderUserId},
+            #{item.repeatableType},
             #{item.readType},
             #{item.createTime},
             #{item.extendJson}
@@ -289,6 +311,7 @@
         video_id,
         message_type,
         sender_user_id,
+        repeatable_type,
         read_type,
         create_time,
         extend_json
@@ -300,6 +323,7 @@
             #{item.videoId},
             #{item.messageType},
             #{item.senderUserId},
+            #{item.repeatableType},
             #{item.readType},
             #{item.createTime},
             #{item.extendJson}
@@ -311,6 +335,7 @@
         video_id = VALUES(video_id),
         message_type = VALUES(message_type),
         sender_user_id = VALUES(sender_user_id),
+        repeatable_type = VALUES(repeatable_type),
         read_type = VALUES(read_type),
         create_time = VALUES(create_time),
         extend_json = VALUES(extend_json)
@@ -334,6 +359,9 @@
             </if>
             <if test="bean.senderUserId != null">
                 sender_user_id = #{bean.senderUserId},
+            </if>
+            <if test="bean.repeatableType != null">
+                repeatable_type = #{bean.repeatableType},
             </if>
             <if test="bean.readType != null">
                 read_type = #{bean.readType},
@@ -370,6 +398,9 @@
             <if test="bean.senderUserId != null">
                 sender_user_id = #{bean.senderUserId},
             </if>
+            <if test="bean.repeatableType != null">
+                repeatable_type = #{bean.repeatableType},
+            </if>
             <if test="bean.readType != null">
                 read_type = #{bean.readType},
             </if>
@@ -403,6 +434,7 @@
                                          video_id,
                                          message_type,
                                          sender_user_id,
+                                         repeatable_type,
                                          read_type,
                                          create_time,
                                          extend_json)
@@ -411,6 +443,7 @@
                 #{userMessage.videoId},
                 #{userMessage.messageType},
                 #{userMessage.senderUserId},
+                #{userMessage.repeatableType},
                 #{userMessage.readType},
                 #{userMessage.createTime},
                 #{userMessage.extendJson})
@@ -453,7 +486,8 @@
         SELECT
         <include refid="dto_column_list"/>
         FROM user_message u LEFT JOIN user_info ui ON u.sender_user_id = ui.user_id
-        JOIN video_info v ON u.video_id = v.video_id
+        LEFT JOIN video_info v ON u.video_id = v.video_id
+        LEFT JOIN video_info_upload vu ON u.video_id = vu.video_id
         <include refid="query_condition"/>
         <if test="query.orderBy!=null">
             order by ${query.orderBy}

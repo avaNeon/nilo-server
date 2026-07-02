@@ -148,12 +148,13 @@ public class VideoCommentService
         if (parentCommentId != 0)
         {
             String replyCommentContent = formatReplyCommentContent(parentComment);
+            String postedCommentContent = formatPostedCommentContent(content, imgPaths);
 
             // 异步向父评论发布用户发送通知
             CompletableFuture <Void> replyCommentMessage = userMessageService.recordCommentMessage(videoComment.getReplyUserId(),
                                                                                                    userId,
                                                                                                    videoId,
-                                                                                                   content,
+                                                                                                   postedCommentContent,
                                                                                                    replyCommentContent);
 
             CompletableFuture.allOf(replyCommentMessage).exceptionally(e ->
@@ -167,11 +168,13 @@ public class VideoCommentService
         // 如果回复者就是视频发布者，没必要再给发布者发消息了
         if (!Objects.equals(videoComment.getReplyUserId(), videoInfo.getUserId()))
         {
+            String postedCommentContent = formatPostedCommentContent(content, imgPaths);
+
             // 异步向视频发布者发送新评论通知
             CompletableFuture <Void> videoCommentMessage = userMessageService.recordCommentMessage(videoInfo.getUserId(),
                                                                                                    userId,
                                                                                                    videoId,
-                                                                                                   content,
+                                                                                                   postedCommentContent,
                                                                                                    null);
 
             CompletableFuture.allOf(videoCommentMessage).exceptionally(e ->
@@ -417,6 +420,21 @@ public class VideoCommentService
         }
 
         return nickName + "：" + (content == null ? "" : content);
+    }
+
+    private String formatPostedCommentContent(String content, String imgPaths)
+    {
+        if (content != null && !content.isBlank())
+        {
+            return content;
+        }
+
+        if (imgPaths != null && !imgPaths.isBlank())
+        {
+            return "[图片]";
+        }
+
+        return "";
     }
 
     /**

@@ -43,6 +43,11 @@ public class UserMessage
     private Long senderUserId;
 
     /**
+     * 是否不可重复，null表示允许重复
+     */
+    private Integer repeatableType;
+
+    /**
      * 0:未读 1:已读
      */
     private Integer readType;

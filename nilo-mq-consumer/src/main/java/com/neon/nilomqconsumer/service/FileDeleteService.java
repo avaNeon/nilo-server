@@ -22,11 +22,17 @@ public class FileDeleteService
         this.rootFilePathStr = rootPathStr + "/" + Constants.FILE_FOLDER_NAME;
     }
 
+    /**
+     * 删除指定路径下的文件<hr/>
+     * 除非删除文件遇到操作系统级问题，否则不会报错
+     *
+     * @param filePathStr 文件路径
+     */
     public void delete(String filePathStr)
     {
         try
         {
-            if (!StringUtil.isValidPath(filePathStr, rootFilePathStr))
+            if (!StringUtil.isValidPath(rootFilePathStr, filePathStr))
             {
                 log.warn("此路径\"{}\"不合法", filePathStr);
                 return;

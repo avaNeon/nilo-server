@@ -5,12 +5,9 @@ import com.neon.nilocommon.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
-import java.util.Comparator;
-import java.util.stream.Stream;
 
 /**
  * 文件处理工具类
@@ -18,26 +15,6 @@ import java.util.stream.Stream;
 @Slf4j
 public class FileUtil
 {
-    /**
-     * 删除一个文件夹<hr/>
-     * 使用NIO的Files类，能够在删除失败时打印错误信息
-     *
-     * @param file 文件对象
-     */
-    public static void deleteFolder(File file)
-    {
-        Path path = file.toPath();
-        try (Stream <Path> stream = Files.walk(path))// 获得的Path stream是DFS顺序的各种Path，所以反序可以实现自底向上的删除操作
-        {
-            stream.sorted(Comparator.reverseOrder()).forEach(FileUtil::safeDelete);
-        }
-        catch (IOException e)
-        {
-            log.error("删除文件夹时错误");
-            throw new RuntimeException(e);
-        }
-    }
-
     /**
      * 判断文件是否合法且存在
      *
@@ -63,20 +40,20 @@ public class FileUtil
      * <p>需要传递一个<b>根路径</b>和<b>相对路径</b>，根路径和相对路径拼接后组成完整的路径</p>
      * <p>组成后的路径会被解析为目标路径，如果目标路径跳出根路径，则抛出异常</p>
      *
-     * @param rootPathStr 文件根路径
-     * @param filePathStr 文件相对路径
+     * @param rootPathStr     文件根路径
+     * @param relativePathStr 文件相对路径
      * @return 是否合法存在
      */
-    public static boolean fileExists(String rootPathStr, String filePathStr)
+    public static boolean fileExists(String rootPathStr, String relativePathStr)
     {
         // 首先，应该不是空
-        if (filePathStr == null || filePathStr.trim().isEmpty())
+        if (relativePathStr == null || relativePathStr.trim().isEmpty())
         {
             return false;
         }
-        Path path = Paths.get(rootPathStr, filePathStr);
+        Path path = Paths.get(rootPathStr, relativePathStr);
         // 然后，必须合法，不能离开指定目录
-        if (!StringUtil.isValidPath(path.toString(), Paths.get(rootPathStr).toString()))
+        if (!StringUtil.isValidPath(Paths.get(rootPathStr).toString(), path.toString()))
         {
             return false;
         }
@@ -125,25 +102,6 @@ public class FileUtil
     }
 
     /**
-     * 安全删除<hr/>
-     * 可以在删除失败时产生异常，并且内部捕获了异常
-     *
-     * @param path Path类型变量
-     */
-    private static void safeDelete(Path path)
-    {
-        try
-        {
-            Files.delete(path);
-        }
-        catch (IOException e)
-        {
-            log.error("删除文件时错误");
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
      * 验证图片是否存在，并将其移动 tmp -> cover
      *
      * @param rootPathStr  项目根路径
@@ -186,7 +144,6 @@ public class FileUtil
         }
         else
         {
-            // TODO TMP文件清理速度尽量快于预上传视频key的清理速度，因为预上传视频的key总比视频封面产生早，这样如果触发到这条异常说明用户正在做出不正常的行为
             throw new BusinessException("图片资源不存在");
         }
     }

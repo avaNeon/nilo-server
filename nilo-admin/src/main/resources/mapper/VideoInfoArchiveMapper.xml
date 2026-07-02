@@ -142,13 +142,20 @@
 
 	<!-- 通用查询条件列-->
 	<sql id="query_condition">
+		<bind name="videoCoverFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.videoCoverFuzzy)"/>
+		<bind name="videoNameFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.videoNameFuzzy)"/>
+		<bind name="deleteDetailFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.deleteDetailFuzzy)"/>
+		<bind name="originInfoFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.originInfoFuzzy)"/>
+		<bind name="tagsFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.tagsFuzzy)"/>
+		<bind name="introductionFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.introductionFuzzy)"/>
+		<bind name="interactionFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.interactionFuzzy)"/>
 	 <where>
 			<include refid="base_condition_filed" />
 			<if test="query.videoCoverFuzzy!= null  and query.videoCoverFuzzy!=''">
-				 and  v.video_cover like concat('%', #{query.videoCoverFuzzy}, '%')
+				 and  v.video_cover like concat('%', #{videoCoverFuzzyEscaped}, '%') ESCAPE '\\'
 			</if>
 			<if test="query.videoNameFuzzy!= null  and query.videoNameFuzzy!=''">
-				 and  v.video_name like concat('%', #{query.videoNameFuzzy}, '%')
+				 and  v.video_name like concat('%', #{videoNameFuzzyEscaped}, '%') ESCAPE '\\'
 			</if>
 			<if test="query.createTimeStart!= null and query.createTimeStart!=''">
 				 <![CDATA[ and  v.create_time>=str_to_date(#{query.createTimeStart}, '%Y-%m-%d') ]]>
@@ -169,19 +176,19 @@
 				 <![CDATA[ and  v.delete_time< date_sub(str_to_date(#{query.deleteTimeEnd},'%Y-%m-%d'),interval -1 day) ]]>
 			</if>
 			<if test="query.deleteDetailFuzzy!= null  and query.deleteDetailFuzzy!=''">
-				 and  v.delete_detail like concat('%', #{query.deleteDetailFuzzy}, '%')
+				 and  v.delete_detail like concat('%', #{deleteDetailFuzzyEscaped}, '%') ESCAPE '\\'
 			</if>
 			<if test="query.originInfoFuzzy!= null  and query.originInfoFuzzy!=''">
-				 and  v.origin_info like concat('%', #{query.originInfoFuzzy}, '%')
+				 and  v.origin_info like concat('%', #{originInfoFuzzyEscaped}, '%') ESCAPE '\\'
 			</if>
 			<if test="query.tagsFuzzy!= null  and query.tagsFuzzy!=''">
-				 and  v.tags like concat('%', #{query.tagsFuzzy}, '%')
+				 and  v.tags like concat('%', #{tagsFuzzyEscaped}, '%') ESCAPE '\\'
 			</if>
 			<if test="query.introductionFuzzy!= null  and query.introductionFuzzy!=''">
-				 and  v.introduction like concat('%', #{query.introductionFuzzy}, '%')
+				 and  v.introduction like concat('%', #{introductionFuzzyEscaped}, '%') ESCAPE '\\'
 			</if>
 			<if test="query.interactionFuzzy!= null  and query.interactionFuzzy!=''">
-				 and  v.interaction like concat('%', #{query.interactionFuzzy}, '%')
+				 and  v.interaction like concat('%', #{interactionFuzzyEscaped}, '%') ESCAPE '\\'
 			</if>
 	 </where>
 	</sql>
@@ -193,7 +200,7 @@
 			 order by ${query.orderBy}
 		 </if>
 		 <if test="query.pageCalculator!=null">
-			 limit #{query.pageCalculator.start},#{query.pageCalculator.end}
+			 limit #{query.pageCalculator.start},#{query.pageCalculator.size}
 		 </if>
 	</select>
 
@@ -866,9 +873,53 @@
 		delete from video_info_archive where video_id=#{videoId}
 	</delete>
 
-	<!-- 根据PrimaryKey获取对象-->
-	<select id="selectByVideoId" resultMap="base_result_map" >
-		select <include refid="base_column_list" /> from video_info_archive v where video_id=#{videoId}
-	</select>
+    <!-- 根据PrimaryKey获取对象-->
+    <select id="selectByVideoId" resultMap="base_result_map" >
+        select <include refid="base_column_list" /> from video_info_archive v where video_id=#{videoId}
+    </select>
+
+    <!-- 后台管理列表查询，关联UserInfo表 -->
+    <resultMap id="join_admin_result_map" type="com.neon.nilocommon.entity.dto.VideoInfoArchiveAdminJoinDTO">
+        <result column="video_id" property="videoId"/>
+        <result column="video_cover" property="videoCover"/>
+        <result column="video_name" property="videoName"/>
+        <result column="user_id" property="userId"/>
+        <result column="create_time" property="createTime"/>
+        <result column="last_update_time" property="lastUpdateTime"/>
+        <result column="delete_time" property="deleteTime"/>
+        <result column="deleter_type" property="deleterType"/>
+        <result column="delete_detail" property="deleteDetail"/>
+        <result column="p_category_id" property="pCategoryId"/>
+        <result column="category_id" property="categoryId"/>
+        <result column="post_type" property="postType"/>
+        <result column="origin_info" property="originInfo"/>
+        <result column="tags" property="tags"/>
+        <result column="introduction" property="introduction"/>
+        <result column="interaction" property="interaction"/>
+        <result column="duration" property="duration"/>
+        <result column="play_count" property="playCount"/>
+        <result column="like_count" property="likeCount"/>
+        <result column="danmaku_count" property="danmakuCount"/>
+        <result column="comment_count" property="commentCount"/>
+        <result column="coin_count" property="coinCount"/>
+        <result column="collect_count" property="collectCount"/>
+        <result column="nick_name" property="nickName"/>
+        <result column="avatar" property="avatar"/>
+    </resultMap>
+
+    <select id="selectListWithUserInfo" resultMap="join_admin_result_map">
+        SELECT
+        <include refid="base_column_list"/>,
+        u.nick_name, u.avatar
+        FROM video_info_archive v
+        LEFT JOIN user_info u ON v.user_id = u.user_id
+        <include refid="query_condition"/>
+        <if test="query.orderBy!=null">
+            order by ${query.orderBy}
+        </if>
+        <if test="query.pageCalculator!=null">
+            limit #{query.pageCalculator.start},#{query.pageCalculator.size}
+        </if>
+    </select>
 
 </mapper>

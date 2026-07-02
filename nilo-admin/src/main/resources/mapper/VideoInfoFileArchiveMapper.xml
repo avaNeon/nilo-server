@@ -59,13 +59,15 @@
 
 	<!-- 通用查询条件列-->
 	<sql id="query_condition">
+		<bind name="fileNameFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.fileNameFuzzy)"/>
+		<bind name="filePathFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.filePathFuzzy)"/>
 	 <where>
 			<include refid="base_condition_filed" />
 			<if test="query.fileNameFuzzy!= null  and query.fileNameFuzzy!=''">
-				 and  v.file_name like concat('%', #{query.fileNameFuzzy}, '%')
+				 and  v.file_name like concat('%', #{fileNameFuzzyEscaped}, '%') ESCAPE '\\'
 			</if>
 			<if test="query.filePathFuzzy!= null  and query.filePathFuzzy!=''">
-				 and  v.file_path like concat('%', #{query.filePathFuzzy}, '%')
+				 and  v.file_path like concat('%', #{filePathFuzzyEscaped}, '%') ESCAPE '\\'
 			</if>
 	 </where>
 	</sql>
@@ -77,7 +79,7 @@
 			 order by ${query.orderBy}
 		 </if>
 		 <if test="query.pageCalculator!=null">
-			 limit #{query.pageCalculator.start},#{query.pageCalculator.end}
+			 limit #{query.pageCalculator.start},#{query.pageCalculator.size}
 		 </if>
 	</select>
 

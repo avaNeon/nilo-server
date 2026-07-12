@@ -8,10 +8,10 @@
     <conversionRule conversionWord="wEx"
                     converterClass="org.springframework.boot.logging.logback.ExtendedWhitespaceThrowableProxyConverter"/>
 
-    <springProperty scope="context" name="log.path" source="project.rootFilePath"/>
-    <springProperty scope="context" name="log.root.level" source="log.root.level"/>
+    <!-- 相对工作目录下的 logs/，与 file/ 一样不再依赖绝对路径 project.rootFilePath -->
+    <property name="log.path" value="logs"/>
+    <springProperty scope="context" name="log.root.level" source="log.root.level" defaultValue="info"/>
     <springProperty scope="context" name="appname" source="spring.application.name"/>
-    <property name="LOG_FOLDER" value="logs"/>
 
     <!-- 控制台：彩色日志 -->
     <appender name="stdout" class="ch.qos.logback.core.ConsoleAppender">
@@ -23,10 +23,10 @@
     </appender>
 
     <appender name="file" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${log.path}/${LOG_FOLDER}/${appname}.log</file>
+        <file>${log.path}/${appname}.log</file>
 
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <FileNamePattern>${log.path}/${LOG_FOLDER}/${appname}.%d{yyyyMMdd}.%i.log</FileNamePattern>
+            <FileNamePattern>${log.path}/${appname}.%d{yyyyMMdd}.%i.log</FileNamePattern>
             <MaxFileSize>20MB</MaxFileSize>
             <maxHistory>30</maxHistory>
             <cleanHistoryOnStart>true</cleanHistoryOnStart>

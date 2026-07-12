@@ -1,0 +1,396 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neon.niloadmin.mapper.MediaOwnershipMapper">
+    <!--实体映射-->
+    <resultMap id="base_result_map" type="com.neon.nilocommon.entity.po.MediaOwnership">
+        <!--自增主键-->
+        <id column="id" property="id"/>
+        <!--minio key-->
+        <result column="object_key" property="objectKey"/>
+        <!--minio中的bucket-->
+        <result column="bucket" property="bucket"/>
+        <!--所有者用户ID-->
+        <result column="owner_id" property="ownerId"/>
+        <!--0表示已经用过，1表示尚未用过-->
+        <result column="used" property="used"/>
+        <!--创建时间-->
+        <result column="created_time" property="createdTime"/>
+        <!--使用时间-->
+        <result column="used_time" property="usedTime"/>
+    </resultMap>
+
+
+    <!-- 通用查询结果列-->
+    <sql id="base_column_list">
+        m.id,m.object_key,m.bucket,m.owner_id,m.used,m.created_time,
+		 m.used_time
+    </sql>
+
+    <sql id="base_condition_filed">
+        <if test="query.id != null">
+            and m.id = #{query.id}
+        </if>
+        <if test="query.objectKey != null and query.objectKey!=''">
+            and m.object_key = #{query.objectKey}
+        </if>
+        <if test="query.bucket != null and query.bucket!=''">
+            and m.bucket = #{query.bucket}
+        </if>
+        <if test="query.ownerId != null">
+            and m.owner_id = #{query.ownerId}
+        </if>
+        <if test="query.used != null">
+            and m.used = #{query.used}
+        </if>
+        <if test="query.createdTime != null and query.createdTime!=''">
+            <![CDATA[ and  m.created_time=str_to_date(#{query.createdTime}, '%Y-%m-%d') ]]>
+        </if>
+        <if test="query.usedTime != null and query.usedTime!=''">
+            <![CDATA[ and  m.used_time=str_to_date(#{query.usedTime}, '%Y-%m-%d') ]]>
+        </if>
+    </sql>
+
+    <!-- 通用查询条件列-->
+    <sql id="query_condition">
+        <bind name="objectKeyFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.objectKeyFuzzy)"/>
+        <bind name="bucketFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.bucketFuzzy)"/>
+        <where>
+            <include refid="base_condition_filed"/>
+            <if test="query.objectKeyFuzzy!= null  and query.objectKeyFuzzy!=''">
+                and m.object_key like concat('%', #{objectKeyFuzzyEscaped}, '%') ESCAPE '\\'
+            </if>
+            <if test="query.bucketFuzzy!= null  and query.bucketFuzzy!=''">
+                and m.bucket like concat('%', #{bucketFuzzyEscaped}, '%') ESCAPE '\\'
+            </if>
+            <if test="query.createdTimeStart!= null and query.createdTimeStart!=''">
+                <![CDATA[ and  m.created_time>=str_to_date(#{query.createdTimeStart}, '%Y-%m-%d') ]]>
+            </if>
+            <if test="query.createdTimeEnd!= null and query.createdTimeEnd!=''">
+                <![CDATA[ and  m.created_time< date_sub(str_to_date(#{query.createdTimeEnd},'%Y-%m-%d'),interval -1 day) ]]>
+            </if>
+            <if test="query.usedTimeStart!= null and query.usedTimeStart!=''">
+                <![CDATA[ and  m.used_time>=str_to_date(#{query.usedTimeStart}, '%Y-%m-%d') ]]>
+            </if>
+            <if test="query.usedTimeEnd!= null and query.usedTimeEnd!=''">
+                <![CDATA[ and  m.used_time< date_sub(str_to_date(#{query.usedTimeEnd},'%Y-%m-%d'),interval -1 day) ]]>
+            </if>
+        </where>
+    </sql>
+
+    <!-- 查询集合-->
+    <select id="selectList" resultMap="base_result_map">
+        SELECT
+        <include refid="base_column_list"/>
+        FROM media_ownership m
+        <include refid="query_condition"/>
+        <if test="query.orderBy!=null">
+            order by ${query.orderBy}
+        </if>
+        <if test="query.PageCalculator!=null">
+            limit #{query.PageCalculator.start},#{query.PageCalculator.size}
+        </if>
+    </select>
+
+    <!-- 查询数量-->
+    <select id="selectCount" resultType="java.lang.Integer">
+        SELECT count(1) FROM media_ownership m
+        <include refid="query_condition"/>
+    </select>
+
+    <!-- 插入 （匹配有值的字段）-->
+    <insert id="insert" parameterType="com.neon.nilocommon.entity.po.MediaOwnership">
+        INSERT INTO media_ownership
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="bean.id != null">
+                id,
+            </if>
+            <if test="bean.objectKey != null">
+                object_key,
+            </if>
+            <if test="bean.bucket != null">
+                bucket,
+            </if>
+            <if test="bean.ownerId != null">
+                owner_id,
+            </if>
+            <if test="bean.used != null">
+                used,
+            </if>
+            <if test="bean.createdTime != null">
+                created_time,
+            </if>
+            <if test="bean.usedTime != null">
+                used_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="bean.id!=null">
+                #{bean.id},
+            </if>
+            <if test="bean.objectKey!=null">
+                #{bean.objectKey},
+            </if>
+            <if test="bean.bucket!=null">
+                #{bean.bucket},
+            </if>
+            <if test="bean.ownerId!=null">
+                #{bean.ownerId},
+            </if>
+            <if test="bean.used!=null">
+                #{bean.used},
+            </if>
+            <if test="bean.createdTime!=null">
+                #{bean.createdTime},
+            </if>
+            <if test="bean.usedTime!=null">
+                #{bean.usedTime},
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 插入或者更新 （匹配有值的字段）-->
+    <insert id="insertOrUpdate" parameterType="com.neon.nilocommon.entity.po.MediaOwnership">
+        INSERT INTO media_ownership
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="bean.id != null">
+                id,
+            </if>
+            <if test="bean.objectKey != null">
+                object_key,
+            </if>
+            <if test="bean.bucket != null">
+                bucket,
+            </if>
+            <if test="bean.ownerId != null">
+                owner_id,
+            </if>
+            <if test="bean.used != null">
+                used,
+            </if>
+            <if test="bean.createdTime != null">
+                created_time,
+            </if>
+            <if test="bean.usedTime != null">
+                used_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="bean.id!=null">
+                #{bean.id},
+            </if>
+            <if test="bean.objectKey!=null">
+                #{bean.objectKey},
+            </if>
+            <if test="bean.bucket!=null">
+                #{bean.bucket},
+            </if>
+            <if test="bean.ownerId!=null">
+                #{bean.ownerId},
+            </if>
+            <if test="bean.used!=null">
+                #{bean.used},
+            </if>
+            <if test="bean.createdTime!=null">
+                #{bean.createdTime},
+            </if>
+            <if test="bean.usedTime!=null">
+                #{bean.usedTime},
+            </if>
+        </trim>
+        on DUPLICATE key update
+        <trim prefix="" suffix="" suffixOverrides=",">
+            <if test="bean.objectKey!=null">
+                object_key = VALUES(object_key),
+            </if>
+            <if test="bean.bucket!=null">
+                bucket = VALUES(bucket),
+            </if>
+            <if test="bean.ownerId!=null">
+                owner_id = VALUES(owner_id),
+            </if>
+            <if test="bean.used!=null">
+                used = VALUES(used),
+            </if>
+            <if test="bean.createdTime!=null">
+                created_time = VALUES(created_time),
+            </if>
+            <if test="bean.usedTime!=null">
+                used_time = VALUES(used_time),
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 添加 （批量插入）-->
+    <insert id="insertBatch" parameterType="com.neon.nilocommon.entity.po.MediaOwnership">
+        INSERT INTO media_ownership(
+        object_key,
+        bucket,
+        owner_id,
+        used,
+        created_time,
+        used_time
+        )values
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.objectKey},
+            #{item.bucket},
+            #{item.ownerId},
+            #{item.used},
+            #{item.createdTime},
+            #{item.usedTime}
+            )
+        </foreach>
+    </insert>
+
+    <!-- 批量新增修改 （批量插入）-->
+    <insert id="insertOrUpdateBatch" parameterType="com.neon.nilocommon.entity.po.MediaOwnership">
+        INSERT INTO media_ownership(
+        object_key,
+        bucket,
+        owner_id,
+        used,
+        created_time,
+        used_time
+        )values
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.objectKey},
+            #{item.bucket},
+            #{item.ownerId},
+            #{item.used},
+            #{item.createdTime},
+            #{item.usedTime}
+            )
+        </foreach>
+        on DUPLICATE key update
+        object_key = VALUES(object_key),
+        bucket = VALUES(bucket),
+        owner_id = VALUES(owner_id),
+        used = VALUES(used),
+        created_time = VALUES(created_time),
+        used_time = VALUES(used_time)
+    </insert>
+
+    <!--多条件修改-->
+    <update id="updateByParam" parameterType="com.neon.nilocommon.entity.query.MediaOwnershipQuery">
+        UPDATE media_ownership m
+        <set>
+            <if test="bean.id != null">
+                id = #{bean.id},
+            </if>
+            <if test="bean.objectKey != null">
+                object_key = #{bean.objectKey},
+            </if>
+            <if test="bean.bucket != null">
+                bucket = #{bean.bucket},
+            </if>
+            <if test="bean.ownerId != null">
+                owner_id = #{bean.ownerId},
+            </if>
+            <if test="bean.used != null">
+                used = #{bean.used},
+            </if>
+            <if test="bean.createdTime != null">
+                created_time = #{bean.createdTime},
+            </if>
+            <if test="bean.usedTime != null">
+                used_time = #{bean.usedTime},
+            </if>
+        </set>
+        <include refid="query_condition"/>
+    </update>
+
+    <!--多条件删除-->
+    <delete id="deleteByParam">
+        delete m from media_ownership m
+        <include refid="query_condition"/>
+    </delete>
+
+    <!-- 根据ObjectKey修改-->
+    <update id="updateByObjectKey" parameterType="com.neon.nilocommon.entity.po.MediaOwnership">
+        UPDATE media_ownership
+        <set>
+            <if test="bean.bucket != null">
+                bucket = #{bean.bucket},
+            </if>
+            <if test="bean.ownerId != null">
+                owner_id = #{bean.ownerId},
+            </if>
+            <if test="bean.used != null">
+                used = #{bean.used},
+            </if>
+            <if test="bean.createdTime != null">
+                created_time = #{bean.createdTime},
+            </if>
+            <if test="bean.usedTime != null">
+                used_time = #{bean.usedTime},
+            </if>
+        </set>
+        where object_key=#{objectKey}
+    </update>
+
+    <!-- 根据ObjectKey删除-->
+    <delete id="deleteByObjectKey">
+        delete
+        from media_ownership
+        where object_key = #{objectKey}
+    </delete>
+
+    <!-- 根据ObjectKey批量删除-->
+    <delete id="deleteBatchByObjectKey">
+        delete
+        from media_ownership
+        where object_key in
+        <foreach collection="objectKeys" item="objectKey" separator="," open="(" close=")">
+            #{objectKey}
+        </foreach>
+    </delete>
+
+    <!-- 根据PrimaryKey获取对象-->
+    <select id="selectByObjectKey" resultMap="base_result_map">
+        select
+        <include refid="base_column_list"/>
+        from media_ownership m where object_key=#{objectKey}
+    </select>
+
+    <!-- 根据Id修改-->
+    <update id="updateById" parameterType="com.neon.nilocommon.entity.po.MediaOwnership">
+        UPDATE media_ownership
+        <set>
+            <if test="bean.objectKey != null">
+                object_key = #{bean.objectKey},
+            </if>
+            <if test="bean.bucket != null">
+                bucket = #{bean.bucket},
+            </if>
+            <if test="bean.ownerId != null">
+                owner_id = #{bean.ownerId},
+            </if>
+            <if test="bean.used != null">
+                used = #{bean.used},
+            </if>
+            <if test="bean.createdTime != null">
+                created_time = #{bean.createdTime},
+            </if>
+            <if test="bean.usedTime != null">
+                used_time = #{bean.usedTime},
+            </if>
+        </set>
+        where id=#{id}
+    </update>
+
+    <!-- 根据Id删除-->
+    <delete id="deleteById">
+        delete
+        from media_ownership
+        where id = #{id}
+    </delete>
+
+    <!-- 根据Id获取对象-->
+    <select id="selectById" resultMap="base_result_map">
+        select
+        <include refid="base_column_list"/>
+        from media_ownership m where id=#{id}
+    </select>
+</mapper>

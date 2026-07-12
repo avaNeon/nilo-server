@@ -28,6 +28,8 @@
         <result column="file_name" property="fileName"/>
         <!--文件索引-->
         <result column="file_index" property="fileIndex"/>
+        <!--文件路径（plain baseKey）-->
+        <result column="file_path" property="filePath"/>
         <!--持续时间（秒）-->
         <result column="duration" property="duration"/>
     </resultMap>
@@ -40,7 +42,7 @@
 
     <!-- VO查询结果列-->
     <sql id="vo_column_list">
-        v.file_name,v.file_index,v.duration
+        v.file_name,v.file_index,v.file_path,v.duration
     </sql>
 
     <sql id="base_condition_filed">
@@ -400,5 +402,12 @@
         select
         <include refid="base_column_list"/>
         from video_info_file v where video_id=#{videoId} and file_index = #{fileIndex}
+    </select>
+
+    <select id="selectByVideoId" resultMap="base_result_map">
+        SELECT
+        <include refid="base_column_list"/>
+        FROM video_info_file v
+        WHERE video_id=#{videoId}
     </select>
 </mapper>

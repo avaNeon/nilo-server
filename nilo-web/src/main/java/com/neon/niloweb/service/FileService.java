@@ -1,381 +1,580 @@
 package com.neon.niloweb.service;
 
 
-import cn.hutool.core.lang.Snowflake;
-import com.neon.nilocommon.entity.constants.Constants;
-import com.neon.nilocommon.entity.constants.DatePattern;
-import com.neon.nilocommon.entity.constants.VideoResolution;
-import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
-import com.neon.nilocommon.entity.dto.UploadedVideoFileDTO;
+import com.neon.nilocommon.config.SystemConfig;
+import com.neon.nilocommon.entity.constants.*;
 import com.neon.nilocommon.entity.enums.ResponseCode;
-import com.neon.nilocommon.entity.po.VideoInfoFile;
-import com.neon.nilocommon.entity.query.VideoInfoFileQuery;
+import com.neon.nilocommon.entity.po.MediaOwnership;
+import com.neon.nilocommon.entity.po.VideoInfoFileUpload;
+import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
+import com.neon.nilocommon.entity.query.MediaOwnershipQuery;
+import com.neon.nilocommon.entity.query.VideoInfoFileUploadQuery;
+import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.nilocommon.repository.redis.SystemConfigRedisRepository;
 import com.neon.nilocommon.util.FfmpegUtil;
 import com.neon.nilocommon.util.FileUtil;
-import com.neon.nilocommon.util.StringUtil;
-import com.neon.niloweb.config.WebConfig;
-import com.neon.niloweb.mapper.VideoInfoFileMapper;
-import com.neon.nilocommon.repository.redis.SystemConfigRedisRepository;
-import com.neon.niloweb.repository.redis.UploadRedisRepository;
-import jakarta.servlet.ServletOutputStream;
+import com.neon.nilocommon.util.TimeUtil;
+import com.neon.niloweb.enums.UploadQuotaType;
+import com.neon.niloweb.feign.storage.ImageFeignClient;
+import com.neon.niloweb.feign.storage.VideoFileFeignClient;
+import com.neon.niloweb.mapper.MediaOwnershipMapper;
+import com.neon.niloweb.mapper.VideoInfoFileUploadMapper;
+import com.neon.niloweb.repository.redis.FileRedisRepository;
+import com.neon.niloweb.util.PathResolver;
+import io.minio.CopyObjectArgs;
+import io.minio.MinioClient;
+import io.minio.PutObjectArgs;
+import io.minio.SourceObject;
+import io.minio.errors.MinioException;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class FileService
 {
-    private final WebConfig webConfig;
+    /**
+     * 预签名URL过期时间（秒），与Redis缓存TTL保持一致
+     */
+    private static final int PRESIGNED_URL_EXPIRE_SECONDS = 3600;
+
+    private final SystemConfig systemConfig;
+
+    private final PathResolver pathResolver;
+
+    private final UploadQuotaService uploadQuotaService;
+
+    private final UploadService uploadService;
+
+    private final MediaOwnershipMapper <MediaOwnership, MediaOwnershipQuery> mediaOwnershipMapper;
+
+    private final VideoInfoFileUploadMapper <VideoInfoFileUpload, VideoInfoFileUploadQuery> videoInfoFileUploadMapper;
 
     private final SystemConfigRedisRepository systemConfigRedisRepository;
 
-    private final Snowflake snowflake;
+    private final FileRedisRepository fileRedisRepository;
 
-    private final UploadRedisRepository uploadRedisRepository;
+    private final ImageFeignClient imageFeignClient;
 
-    private final VideoInfoFileMapper <VideoInfoFile, VideoInfoFileQuery> videoInfoFileMapper;
+    private final VideoFileFeignClient videoFileFeignClient;
+
+    private final MinioClient minioClient;
+
+    // 图片和视频保存路径（相对路径）：file/tmp/<datetime>/<name>
 
     /**
-     * 上传视频封面（分类的封面和视频封面都是放在file/cover下的，但是视频的cover按天保存，分类的cover按月保存）<hr/>
-     * 保存路径：/root/file/cover
+     * 上传图片<hr/>
      *
-     * @param file            图片文件
-     * @param createThumbnail 是否创建缩略图
-     * @return 文件相对路径（工作路径为 &lt;项目路径/file&gt;）
+     * @param userId 用户ID
+     * @param file   图片文件
+     * @return 文件在minIO中的key（不含tmp前缀，不包含缩略图）
      */
-    public String uploadImage(MultipartFile file, Boolean createThumbnail)
+    @Transactional(rollbackFor = Exception.class)
+    public String uploadImage(long userId, MultipartFile file)
     {
+        // --- 校验 ---
+
+        // 不能超过大小限制
         if (file.getSize() > (long) systemConfigRedisRepository.getSystemConfig().getImageMaxSize() * Constants.Mebibyte)
         {
             throw new BusinessException("文件大小超过限制");
         }
 
-        validateImage(file);
-
-        String dateName = LocalDate.now().format(DateTimeFormatter.ofPattern(DatePattern.DATE)); // 目录按日划分
-        // 现在上传到的图片先放在临时文件夹中
-        String folderPath = webConfig.getRootFilePath() + "/" + Constants.FILE_FOLDER_NAME + "/" + Constants.TMP_FOLDER_NAME + "/" + dateName;
-
-        File folderFile = new File(folderPath);
-        if (!folderFile.exists()) folderFile.mkdirs();
-
-        String fileName = file.getOriginalFilename();
-        String suffix = StringUtil.getSuffix(fileName);
-        String savedFileName = RandomStringUtils.randomAlphanumeric(30) + suffix; // 给上传的视频封面改名
-
-        String filePath = folderPath + "/" + savedFileName; // 将文件拷贝至指定位置
-        try
-        {
-            file.transferTo(new File(filePath));
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-
-        // 生成缩略图
-        if (createThumbnail)
-        {
-            FfmpegUtil.creatImgThumbnail(filePath, false);
-        }
-
-        return dateName + "/" + savedFileName;
-    }
-
-    /**
-     * 下载图片
-     *
-     * @param response HttpServletResponse
-     * @param filePath 文件路径
-     * @param tmp
-     */
-    public void downloadImage(HttpServletResponse response, String filePath, boolean tmp)
-    {
-        String coverRootPath;
-        if (tmp)
-        {
-            coverRootPath = Paths.get(webConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME, Constants.TMP_FOLDER_NAME)
-                                 .toString();
-        }
-        else
-        {
-            coverRootPath = Paths.get(webConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME, Constants.COVER_FOLDER_NAME)
-                                 .toString();
-        }
-
-        String absolutePath = Paths.get(coverRootPath, filePath).toString();
-        if (!StringUtil.isValidPath(coverRootPath, absolutePath)) throw new BusinessException("非法的文件路径");
-        String suffix = StringUtil.getSuffix(filePath);
-        response.setContentType(resolveImageContentType(suffix));
-        response.setHeader("Cache-Control", "max-age=2592000"); // 30天
-        String folderName = tmp ? Constants.TMP_FOLDER_NAME : Constants.COVER_FOLDER_NAME;
-        readFile(response, folderName + "/" + filePath);
-    }
-
-    /**
-     * 预上传视频<hr/>
-     * 文件路径：/&lt;root&gt;/file/tmp
-     *
-     * @param chunkSize     （视频文件）分块大小
-     * @param tokenUserInfo 用户信息DTO（带token）
-     * @return uploadId
-     */
-    public Long preUploadVideo(Integer chunkSize, TokenUserInfo tokenUserInfo)
-    {
-        UploadedVideoFileDTO video = new UploadedVideoFileDTO();
-        Long uploadId = snowflake.nextId();
-        video.setUploadId(uploadId);
-        video.setChunkSize(chunkSize);
-        video.setChunkIndex(0); // 设置初始的chunkIndex
-        uploadRedisRepository.addPreUploadKey(video, tokenUserInfo.getUserInfo().getUserId());
-        return uploadId;
-    }
-
-    /**
-     * 上传视频（的一块）
-     *
-     * @param chunkFile  单个分块视频文件
-     * @param chunkIndex 分块索引
-     * @param userId     用户id
-     * @param uploadId   上传id
-     */
-    public void uploadVideo(MultipartFile chunkFile, int chunkIndex, long userId, long uploadId)
-    {
-        UploadedVideoFileDTO videoFileDTO = uploadRedisRepository.getPreUploadKey(userId, uploadId);
-        if (videoFileDTO == null) throw new BusinessException("文件不存在，请重新上传");
-        // 查看视频文件是否超过限制
-        if (videoFileDTO.getFileSize() + chunkFile.getSize() > systemConfigRedisRepository.getSystemConfig()
-                                                                                          .getVideoFileMaxSize() * Constants.Mebibyte)
-        {
-            throw new BusinessException("文件大小超过限制");
-        }
-        // 块号必须是：≥1，上一个块号+1，并且不能超过总块数
-        if (chunkIndex < 1 || chunkIndex != videoFileDTO.getChunkIndex() + 1 || chunkIndex > videoFileDTO.getChunkSize())
+        // 先校验下图片是否合法，顺便获取图片的contentType
+        String contentType = FileUtil.validateImageFile(file);
+        String suffix = FileUtil.getImageSuffixByContentType(contentType);
+        if (suffix == null)
         {
             throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
         }
 
-        File targetFile = new File(webConfig.getRootFilePath() + "/" + Constants.FILE_FOLDER_NAME + "/" + Constants.TMP_FOLDER_NAME + "/" + videoFileDTO.getFilePath() + "/" + chunkIndex);
-        try
+        // 获取日期
+        String dateName = LocalDate.now().format(DateTimeFormatter.ofPattern(DatePattern.DATE));
+
+        // 给上传的图片改名（后缀按真实格式，不信任用户文件名）
+        String savedFileName = RandomStringUtils.insecure().nextAlphanumeric(30) + suffix;
+
+        // 设置好在minio储存的key
+        String plainImgKey = String.join("/", dateName, savedFileName);
+        String plainThumbnailKey = String.join("/", dateName, FileUtil.constructThumbnailName(savedFileName));
+        String imgKey = MinioKey.TMP_PREFIX + plainImgKey;
+
+        // 构建图片所有权信息
+        MediaOwnership imgOwnership = new MediaOwnership();
+        imgOwnership.setOwnerId(userId);
+        imgOwnership.setObjectKey(plainImgKey);
+        imgOwnership.setBucket(MinioBucket.MINIO_IMAGE_BUCKET);
+        imgOwnership.setCreatedTime(LocalDateTime.now());
+        imgOwnership.setUsed(0);
+        MediaOwnership thumbnailOwnership = new MediaOwnership();
+        thumbnailOwnership.setOwnerId(userId);
+        thumbnailOwnership.setObjectKey(plainThumbnailKey);
+        thumbnailOwnership.setBucket(MinioBucket.MINIO_IMAGE_BUCKET);
+        thumbnailOwnership.setCreatedTime(LocalDateTime.now());
+        thumbnailOwnership.setUsed(0);
+
+        // 将图片所有权信息批量插入数据库
+        mediaOwnershipMapper.insertBatch(List.of(imgOwnership, thumbnailOwnership));
+
+        // 直接上传到 MinIO
+        upload(file, contentType, plainImgKey, imgKey);
+
+        // 将key返回给调用者，注意：返回非TMP的key
+        return plainImgKey;
+    }
+
+    /**
+     * 获取图片预签名URL<hr/>
+     * 仅用于pending状态的图片，属主访问自己的待审核资源
+     *
+     * @param userId 用户ID
+     * @param imgKey 图片key（不含前缀）
+     * @return 预签名URL
+     */
+    public String downloadImage(long userId, String imgKey)
+    {
+        // 校验归属权（必须是属主且used=1）
+        MediaOwnership ownership = mediaOwnershipMapper.selectByObjectKeyAndOwnerIdAndUsed(imgKey, userId, 1);
+        if (ownership == null)
         {
-            chunkFile.transferTo(targetFile);
-            videoFileDTO.setChunkIndex(chunkIndex); // 更新了chunkIndex信息
-            videoFileDTO.addFileSize(chunkFile.getSize());
-            // 更新Redis中存储的视频信息
-            uploadRedisRepository.updatePreUploadKey(videoFileDTO, userId);
+            throw new BusinessException(ResponseCode.NOT_FOUND);
         }
-        catch (IOException e)
+
+        // 查Redis缓存
+        String cached = fileRedisRepository.getPresignedUrlCache(imgKey);
+        if (cached != null)
         {
-            throw new RuntimeException(e);
+            return cached;
         }
+
+        // 向nilo-storage请求预签名URL（pending前缀）
+        String minioKey = MinioKey.PENDING_PREFIX + imgKey;
+        ResponseVO <String> result = imageFeignClient.downloadImage(minioKey, PRESIGNED_URL_EXPIRE_SECONDS);
+        if (!result.getCode().equals(ResponseCode.SUCCESS.getCode()))
+        {
+            throw new BusinessException("获取图片下载地址失败");
+        }
+
+        String presignedUrl = result.getData();
+
+        // 缓存到Redis，TTL比预签名URL短一点
+        fileRedisRepository.setPresignedUrlCache(imgKey, presignedUrl, PRESIGNED_URL_EXPIRE_SECONDS - 60);
+
+        return presignedUrl;
+    }
+
+    /**
+     * 获取上传视频文件的预签名form
+     *
+     * @param userId   用户id
+     * @param fileSize 用户声明的文件大小（单位：字节）
+     */
+    public Map <String, String> uploadVideo(long userId, long fileSize)
+    {
+        // 预先记录时间
+        LocalDateTime now = LocalDateTime.now();
+
+        // 接下来进入临界区
+        // 由于这个方法需要加锁，并且需要单独加上事务，所以放到衍生类中调用，防止调用本类下的方法没有Spring代理
+        String key = uploadService.getUploadKey(now, userId);
+
+        // 接下来生成 presigned post form 并传给用户
+
+        // 给用户的限额应该是 min(用户当天剩余用量、每个视频文件最大大小、用户声明的大小、这样保证不超用量)
+
+        long remainingQuota = uploadQuotaService.getRemainingQuota(userId, UploadQuotaType.VIDEO, now.toLocalDate());
+
+        long maxVideoSize = (long) systemConfig.getVideoFileMaxSize() * Constants.Mebibyte;
+
+        // 限定好时间，只能在今日使用，因为created_time里的时间就是今日
+        long secondsUntilTomorrow = TimeUtil.getSecondsUntilTomorrow(now);
+
+        // 如果现在距离明天还有30s，就不让用户上传文件了，容易导致文件限额记错日期
+        if (secondsUntilTomorrow < 30)
+        {
+            throw new BusinessException("服务器忙，请稍后再试");
+        }
+
+        // 减少30s，防止用户拖到一天的最后30s才提交，彻底消灭卡时间的可能
+        secondsUntilTomorrow -= 30;
+
+        // 申请一个 presigned post form
+        // MinIO getPresignedPostFormData 只返回签名字段，不含 key / Content-Type，需由调用方补上
+        String objectKey = MinioKey.TMP_PREFIX + key;
+        ResponseVO <Map <String, String>> responseVO = videoFileFeignClient.upload(objectKey,
+                                                                                   secondsUntilTomorrow,
+                                                                                   Math.min(fileSize,
+                                                                                            Math.min(maxVideoSize,
+                                                                                                     remainingQuota)));
+
+        if (!responseVO.getCode().equals(ResponseCode.SUCCESS.getCode()))
+        {
+            throw new BusinessException("网络异常");
+        }
+
+        Map <String, String> formData = responseVO.getData();
+        if (formData == null)
+        {
+            throw new BusinessException("网络异常");
+        }
+        // 前端直传 MinIO 时必须带上 key（与 PostPolicy 中的 eq 条件一致）
+        formData.put("key", objectKey);
+        return formData;
     }
 
     /**
      * 获取主M3U8
      *
+     * @param userId  当前登录用户ID
      * @param videoId 视频ID
      * @param index   文件序号
      */
-    public void downloadVideoMasterM3u8(Long videoId, Integer index, HttpServletResponse response)
+    public void downloadVideoMasterM3u8(long userId, Long videoId, Integer index, HttpServletResponse response)
     {
-        VideoInfoFile infoFile = queryOneVideoInfoFile(videoId, index);
-        readFile(response, infoFile.getFilePath() + "/" + Constants.MASTER_M3U8_NAME);
+        VideoInfoFileUpload uploadFile = selectOwnedVideoInfoFileUpload(userId, videoId, index);
+        serveMasterM3u8(response, uploadFile.getFilePath());
     }
 
     /**
      * 获取指定分辨率的M3U8
      *
-     * @param videoId    视频ID
-     * @param index      文件序号
-     * @param resolution 分辨率
+     * @param userId  当前登录用户ID
+     * @param videoId 视频ID
+     * @param index   文件序号
+     * @param folder  清晰度目录名（720P / 480P）
      */
-    public void downloadVideoPlaylistM3u8(Long videoId, Integer index, Integer resolution, HttpServletResponse response)
+    public void downloadVideoPlaylistM3u8(long userId, Long videoId, Integer index, String folder, HttpServletResponse response)
     {
-        VideoInfoFile infoFile = queryOneVideoInfoFile(videoId, index);
-        String folder = resolveResolutionFolder(resolution);
-        readFile(response, infoFile.getFilePath() + "/" + folder + "/" + Constants.M3U8_NAME);
+        VideoInfoFileUpload uploadFile = selectOwnedVideoInfoFileUpload(userId, videoId, index);
+        servePlaylistM3u8(response, uploadFile.getFilePath(), folder);
     }
 
     /**
-     * 获取指定TS切片
+     * 清理过期的文件所有权信息<hr/>
+     * <ul>
+     *     <li>清理超时expireHour且未被使用的文件所有权信息</li>
+     *     <li>由于{@link CreativeCenterService#videoUpload(Long, String, String, Integer, Integer, Short, String, String, String, String, List, List, List, TokenUserInfo)}方法可能会导致部分文件上传失败，部分文件成功的情况。<br/>
+     *     所以未启用的文件可能是pending状态，此时清理时必须注意同时清除这种文件</li>
+     * </ul>
      *
-     * @param videoId    视频ID
-     * @param index      文件序号
-     * @param resolution 分辨率
-     * @param segment    TS切片名
+     * @param expireHour 过期小时数
      */
-    public void downloadVideoSegmentTs(Long videoId,
-                                       Integer index,
-                                       Integer resolution,
-                                       String segment,
-                                       HttpServletResponse response)
+    @Transactional(rollbackFor = Exception.class)
+    public void clearExpiredOwnership(int expireHour)
     {
-        if (!isValidSegmentName(segment))
-        {
-            throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
-        }
-        VideoInfoFile infoFile = queryOneVideoInfoFile(videoId, index);
-        String folder = resolveResolutionFolder(resolution);
-        readFile(response, infoFile.getFilePath() + "/" + folder + "/" + Constants.TS_FOLDER_NAME + "/" + segment);
-    }
+        LocalDateTime now = LocalDateTime.now();
 
-    private String resolveResolutionFolder(Integer resolution)
-    {
-        VideoResolution vr = VideoResolution.fromResolution(resolution);
-        if (vr == null)
+        // 先查一下过期记录，用X锁锁定
+        List <MediaOwnership> expiredRecords = mediaOwnershipMapper.selectExpiredForUpdate(now, expireHour);
+        // 没有过期记录就直接返回
+        if (expiredRecords == null || expiredRecords.isEmpty())
         {
-            throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
+            return;
         }
-        return vr.getFolderName();
-    }
 
-    private boolean isValidSegmentName(String segment)
-    {
-        return segment != null && segment.matches("^\\d{4}\\.ts$");
+        // 删除这些记录
+        mediaOwnershipMapper.deleteExpiredRecord(now, expireHour);
+
+        // 将过期记录按bucket分类，方便之后调用nilo-storage的批量删除接口
+        List <String> imageKeys = new ArrayList <>();
+        List <String> videoKeys = new ArrayList <>();
+        for (MediaOwnership record : expiredRecords)
+        {
+            if (MinioBucket.MINIO_IMAGE_BUCKET.equals(record.getBucket()))
+            {
+                imageKeys.add(record.getObjectKey());
+                // 以防万一，把略缩图也加上
+                imageKeys.add(FileUtil.constructThumbnailName(record.getObjectKey()));
+            }
+            else if (MinioBucket.MINIO_VIDEO_BUCKET.equals(record.getBucket()))
+            {
+                videoKeys.add(record.getObjectKey());
+            }
+        }
+
+        // --- 删除文件 ---
+
+        if (!imageKeys.isEmpty())
+        {
+            ResponseVO <Void> responseVO = imageFeignClient.batchDelete(imageKeys);
+            if (!responseVO.getCode().equals(ResponseCode.SUCCESS.getCode()))
+            {
+                log.error("删除图片失败");
+            }
+        }
+
+        if (!videoKeys.isEmpty())
+        {
+            ResponseVO <Void> responseVO = videoFileFeignClient.batchDeleteRecursively(videoKeys);
+            if (!responseVO.getCode().equals(ResponseCode.SUCCESS.getCode()))
+            {
+                log.error("删除视频失败");
+            }
+        }
     }
 
     /**
-     * 查询唯一视频文件记录
+     * 查询当前用户拥有的唯一视频上传文件记录
      */
-    private VideoInfoFile queryOneVideoInfoFile(Long videoId, Integer index)
+    private VideoInfoFileUpload selectOwnedVideoInfoFileUpload(long userId, Long videoId, Integer index)
     {
-        VideoInfoFileQuery infoFileQuery = new VideoInfoFileQuery();
-        infoFileQuery.setVideoId(videoId);
-        infoFileQuery.setFileIndex(index);
-        List <VideoInfoFile> videoInfoFiles = videoInfoFileMapper.selectList(infoFileQuery);
-        if (videoInfoFiles == null || videoInfoFiles.size() != 1)
+        VideoInfoFileUpload uploadFile = videoInfoFileUploadMapper.selectByVideoIdAndFileIndex(videoId, index);
+
+        // 校验
+        if (uploadFile == null)
         {
             throw new BusinessException(ResponseCode.NOT_FOUND);
         }
-        return videoInfoFiles.get(0);
-    }
-
-
-    /**
-     * 从系统中读取文件，写出到response中
-     *
-     * @param response HttpServletResponse
-     * @param filePath 相对于 根路径/file 下的文件路径
-     */
-    private void readFile(HttpServletResponse response, String filePath)
-    {
-        Path rootPath = Paths.get(webConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME).normalize();
-        Path targetPath = rootPath.resolve(filePath).normalize();
-
-        if (!StringUtil.isValidPath(rootPath.toString(), targetPath.toString()))
+        if (uploadFile.getFilePath() == null || uploadFile.getFilePath().isBlank())
         {
-            throw new BusinessException("非法的文件路径");
+            throw new BusinessException(ResponseCode.NOT_FOUND);
         }
-
-        if (!Files.exists(targetPath) || !Files.isRegularFile(targetPath))
+        if (!Objects.equals(uploadFile.getUserId(), userId))
         {
             throw new BusinessException(ResponseCode.NOT_FOUND);
         }
 
-        // 如果外部没有提前设置 contentType ，这里按后缀补齐
-        if (response.getContentType() == null)
-        {
-            response.setContentType(resolveContentTypeBySuffix(filePath));
-        }
-
-        String fileName = targetPath.getFileName() == null ? "file" : targetPath.getFileName().toString();
-        response.setHeader("Content-Disposition", "inline; filename=\"" + fileName + "\"");
-
-        try (ServletOutputStream outputStream = response.getOutputStream())
-        {
-            Files.copy(targetPath, outputStream);
-            outputStream.flush();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return uploadFile;
     }
 
     /**
-     * 将图像格式转换为对应的格式
+     * 从 MinIO 拉取 master.m3u8 并写入响应<hr/>
+     * master.m3u8 中的相对路径 {720P|480P}/index.m3u8 会自然解析到服务端端点，无需重写
+     */
+    private void serveMasterM3u8(HttpServletResponse response, String baseKey)
+    {
+        // 先校验key
+        String minioKey = MinioKey.PENDING_PREFIX + baseKey + "/" + Constants.MASTER_M3U8_NAME;
+        if (!FileUtil.isValidVideoHlsObjectKey(minioKey))
+        {
+            throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
+        }
+
+        // 获取m3u8
+        String content = fetchTextFromMinio(minioKey);
+
+        // 写入响应
+        FileUtil.writeM3u8Response(response, content);
+    }
+
+    /**
+     * 从 MinIO 拉取分辨率 playlist（index.m3u8），将 TS 相对路径重写为 MinIO presigned URL，写入响应<hr/>
+     * 重写后前端将直接从 MinIO 下载 TS 分片，不再经过服务端
+     */
+    private void servePlaylistM3u8(HttpServletResponse response, String baseKey, String folderName)
+    {
+        // 先校验key
+        String folder = FileUtil.resolveResolutionFolder(folderName);
+        String minioKey = MinioKey.PENDING_PREFIX + baseKey + "/" + folder + "/" + Constants.M3U8_NAME;
+        if (!FileUtil.isValidVideoHlsObjectKey(minioKey))
+        {
+            throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
+        }
+
+        // 获取m3u8并重写
+        String content = fetchTextFromMinio(minioKey);
+        String rewritten = rewriteTsPathsToPresignedUrls(content, baseKey, folder);
+
+        // 写入响应
+        FileUtil.writeM3u8Response(response, rewritten);
+    }
+
+    /**
+     * 获取预签名URL
      *
-     * @param suffix 图像格式后缀名
-     * @return 转换后的格式名
+     * @param minioKey 完整的minio key（含前缀）
+     * @return 预签名URL
      */
-    private String resolveImageContentType(String suffix)
+    private String getPresignedUrl(String minioKey)
     {
-        if (suffix == null) return "application/octet-stream";
-        return switch (suffix.toLowerCase())
+        String cached = fileRedisRepository.getPresignedUrlCache(minioKey);
+        if (cached != null)
         {
-            case ".jpg", ".jpeg" -> "image/jpeg";
-            case ".png" -> "image/png";
-            case ".gif" -> "image/gif";
-            case ".webp" -> "image/webp";
-            case ".avif" -> "image/avif";
-            case ".svg" -> "image/svg+xml";
-            default -> "application/octet-stream";
-        };
-    }
-
-    /**
-     * 根据文件路径后缀推断响应 Content-Type
-     */
-    private String resolveContentTypeBySuffix(String filePath)
-    {
-        String suffix = StringUtil.getSuffix(filePath);
-        if (suffix == null)
-        {
-            return "application/octet-stream";
+            return cached;
         }
 
-        return switch (suffix.toLowerCase())
+        ResponseVO <String> result;
+        if (minioKey.contains(".m3u8") || minioKey.endsWith(".ts"))
         {
-            case ".m3u8" -> "application/vnd.apple.mpegurl;charset=UTF-8";
-            case ".ts" -> "video/mp2t";
-            case ".mp4" -> "video/mp4";
-            case ".webm" -> "video/webm";
-            case ".mp3" -> "audio/mpeg";
-            case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif", ".svg" -> resolveImageContentType(suffix);
-            case ".json" -> "application/json;charset=UTF-8";
-            case ".txt" -> "text/plain;charset=UTF-8";
-            default -> "application/octet-stream";
-        };
+            result = videoFileFeignClient.downloadVideo(minioKey, PRESIGNED_URL_EXPIRE_SECONDS);
+        }
+        else
+        {
+            result = imageFeignClient.downloadImage(minioKey, PRESIGNED_URL_EXPIRE_SECONDS);
+        }
+
+        if (!result.getCode().equals(ResponseCode.SUCCESS.getCode()))
+        {
+            throw new BusinessException(ResponseCode.NOT_FOUND);
+        }
+
+        String presignedUrl = result.getData();
+        fileRedisRepository.setPresignedUrlCache(minioKey, presignedUrl, PRESIGNED_URL_EXPIRE_SECONDS - 60);
+        return presignedUrl;
     }
 
     /**
-     * 校验上传文件是否为真实图片（通过文件头魔数），防止伪造 Content-Type 上传恶意文件
+     * 从 MinIO 通过 presigned URL 拉取文本文件内容
      */
-    private void validateImage(MultipartFile file)
+    private String fetchTextFromMinio(String minioKey)
     {
-        byte[] header = new byte[512];
-        try (java.io.InputStream in = file.getInputStream())
+        String presignedUrl = getPresignedUrl(minioKey);
+        try (InputStream is = URI.create(presignedUrl).toURL().openStream())
         {
-            int totalRead = 0;
-            while (totalRead < header.length)
-            {
-                int read = in.read(header, totalRead, header.length - totalRead);
-                if (read == -1) break;
-                totalRead += read;
-            }
-            if (!FileUtil.isImage(header, totalRead))
-            {
-                throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
-            }
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
         }
         catch (IOException e)
         {
-            throw new BusinessException("文件读取失败");
+            throw new RuntimeException("从MinIO拉取文件失败: " + minioKey, e);
         }
     }
+
+    /**
+     * 将 playlist m3u8 中的 TS 相对路径重写为 MinIO presigned URL
+     */
+    private String rewriteTsPathsToPresignedUrls(String m3u8Content, String baseKey, String folder)
+    {
+        // 写个正则表达式用于匹配
+        Pattern tsPattern = Pattern.compile("^" + Pattern.quote(Constants.TS_FOLDER_NAME) + "/(\\d{4}\\.ts)$", Pattern.MULTILINE);
+        Matcher matcher = tsPattern.matcher(m3u8Content);
+
+        StringBuilder output = new StringBuilder();
+
+        // 开始匹配并替换
+        while (matcher.find())
+        {
+            String segName = matcher.group(1);
+            String tsMinioKey = MinioKey.PENDING_PREFIX + baseKey + "/" + folder + "/" + Constants.TS_FOLDER_NAME + "/" + segName;
+            String presignedUrl = getPresignedUrl(tsMinioKey);
+            matcher.appendReplacement(output, Matcher.quoteReplacement(presignedUrl));
+        }
+        matcher.appendTail(output);
+        return output.toString();
+    }
+
+    /**
+     * 上传图片至MinIO
+     *
+     * @param file        图片文件
+     * @param contentType 文件类型
+     * @param baseKey
+     * @param key         文件在MinIO中的key
+     */
+    private void upload(MultipartFile file, String contentType, String baseKey, String key)
+    {
+        // 小图：原图即缩略图，不落本地、不跑 ffmpeg
+        if (file.getSize() <= Threshold.IMAGE_ZIP_THRESHOLD)
+        {
+            try
+            {
+                try (InputStream imageStream = file.getInputStream())
+                {
+                    minioClient.putObject(PutObjectArgs.builder()
+                                                       .bucket(MinioBucket.MINIO_IMAGE_BUCKET)
+                                                       .object(key)
+                                                       .stream(imageStream, file.getSize(), -1L)
+                                                       .contentType(contentType)
+                                                       .build());
+                }
+
+                // 缩略图与原图内容相同，用 copy 避免二次读流 / 落盘
+                minioClient.copyObject(CopyObjectArgs.builder()
+                                                     .bucket(MinioBucket.MINIO_IMAGE_BUCKET)
+                                                     .object(FileUtil.constructThumbnailName(key))
+                                                     .source(SourceObject.builder()
+                                                                         .bucket(MinioBucket.MINIO_IMAGE_BUCKET)
+                                                                         .object(key)
+                                                                         .build())
+                                                     .build());
+            }
+            catch (IOException | MinioException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+        // 大图：落本地后用 ffmpeg 生成缩略图再上传
+        else
+        {
+            // 相对路径经 PathResolver 落到应用目录（IDE 下多为 target/classes）
+            Path relativePath = Path.of(Constants.FILE_FOLDER_NAME, Constants.TMP_FOLDER_NAME, baseKey);
+            Path absDest = pathResolver.resolve(relativePath.toString());
+            String thumbnailPathStr = null;
+
+            try (InputStream imageStream = file.getInputStream())
+            {
+                // 必须对绝对路径建目录；对相对路径 createDirectories 建的不是 absDest 的父目录
+                Files.createDirectories(absDest.getParent());
+                Files.copy(imageStream, absDest, StandardCopyOption.REPLACE_EXISTING);
+
+                // 生成缩略图（ffmpeg 需要真实可读路径）
+                thumbnailPathStr = FfmpegUtil.creatImgThumbnail(absDest.toString(), false);
+                Path thumbnailPath = Path.of(thumbnailPathStr);
+
+                // 上传原图和缩略图到MinIO中
+                try (InputStream localImageStream = Files.newInputStream(absDest) ;
+                     InputStream thumbnailStream = Files.newInputStream(thumbnailPath))
+                {
+                    minioClient.putObject(PutObjectArgs.builder()
+                                                       .bucket(MinioBucket.MINIO_IMAGE_BUCKET)
+                                                       .object(key)
+                                                       .stream(localImageStream, Files.size(absDest), -1L)
+                                                       .contentType(contentType)
+                                                       .build());
+
+                    minioClient.putObject(PutObjectArgs.builder()
+                                                       .bucket(MinioBucket.MINIO_IMAGE_BUCKET)
+                                                       .object(FileUtil.constructThumbnailName(key))
+                                                       .stream(thumbnailStream, Files.size(thumbnailPath), -1L)
+                                                       .contentType(contentType)
+                                                       .build());
+                }
+            }
+            catch (IOException | MinioException e)
+            {
+                throw new RuntimeException(e);
+            }
+            finally
+            {
+                try
+                {
+                    Files.deleteIfExists(absDest);
+                    if (thumbnailPathStr != null)
+                    {
+                        Files.deleteIfExists(Path.of(thumbnailPathStr));
+                    }
+                }
+                catch (IOException e)
+                {
+                    log.warn("删除文件失败，文件路径：{}，异常信息：{}",
+                             List.of(absDest.toString(), thumbnailPathStr),
+                             e.toString());
+                }
+            }
+        }
+    }
+
 }

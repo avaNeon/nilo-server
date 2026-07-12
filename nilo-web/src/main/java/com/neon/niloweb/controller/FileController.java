@@ -1,10 +1,11 @@
 package com.neon.niloweb.controller;
 
 
-import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
+import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.nilocommon.util.ServletUtil;
 import com.neon.niloweb.annotation.Authorized;
 import com.neon.niloweb.annotation.UploadQuota;
 import com.neon.niloweb.enums.UploadQuotaType;
@@ -13,12 +14,18 @@ import com.neon.niloweb.service.FileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Map;
 
 @Tag(name = "文件管理")
 @RequiredArgsConstructor
@@ -28,106 +35,113 @@ import org.springframework.web.multipart.MultipartFile;
 public class FileController
 {
     private final FileService fileService;
+
     private final LoginState loginState;
 
     /**
-     * 上传图片，可以选择是否生成缩略图
+     * 上传图片<hr/>
+     * 自动生成缩略图
      *
-     * @return 图片文件相对路径
+     * @return 图片文件在MinIO的key
      */
-    @Operation(summary = "上传图片")
-    @PutMapping("/image")
+    @Operation(summary = "上传图片", description = "上传图片，自动生成缩略图")
     @Authorized
+    @PutMapping("/image")
     @UploadQuota(type = UploadQuotaType.IMAGE)
-    public ResponseVO <String> uploadImage(@RequestParam(name = "file") @NotNull MultipartFile file,
-                                           @RequestParam(name = "createThumbnail") @NotNull Boolean createThumbnail,
-                                           @RequestHeader(name = "token") String token)
-    {
-        return ResponseVO.success(fileService.uploadImage(file, createThumbnail));
-    }
-
-    /**
-     * 通过一个相对文件路径获取图片文件
-     *
-     * @param sourcePath 相对路径（必须是 xxx/xx 格式）
-     */
-    @Operation(summary = "获取图片")
-    @GetMapping("/image")
-    public void downloadImage(@Parameter(hidden = true) HttpServletResponse response,
-                              @RequestParam(name = "sourcePath") @Parameter(description = "必须是 xxx/ xx 格式") @NotNull
-                              String sourcePath,
-                              @RequestParam(name = "tmp", required = false, defaultValue = "false") Boolean tmp)
-    {
-        if (tmp == null)
-        {
-            throw new BusinessException(ResponseCode.UNKNOWN_ERROR);
-        }
-        fileService.downloadImage(response, sourcePath, tmp);
-    }
-
-    /**
-     * 预上传视频文件<hr/>
-     * 上传视频文件名称，分块数，以及验证用户token<br/>
-     * 会在redis里保存一个临时的记录
-     *
-     * @return uploadId，用于指定唯一视频文件（一个视频文件可能被分为多个块）
-     */
-    @Operation(summary = "预上传视频文件", description = "上传视频文件分块数")
-    @PostMapping("/videoTag")
-    public ResponseVO <Long> preUploadVideo(@NotNull @RequestParam(name = "chunkSize") Integer chunkSize,
-                                            @RequestHeader(name = "token") String token)
-    {
-        TokenUserInfo tokenUserInfo = loginState.getLoginState(token);
-        Long uploadId = fileService.preUploadVideo(chunkSize, tokenUserInfo);
-        return ResponseVO.success(uploadId);
-    }
-
-    /**
-     * 上传视频文件（的一块）<hr/>
-     * 上传具体视频文件，通过uploadId指明所属具体视频，通过chunkIndex指明是第几块，同时还要用token验证用户身份<br/>
-     * 会将视频文件临时保存在服务器中，同时更新redis中的记录
-     */
-    @Operation(summary = "上传单块视频文件")
-    @PostMapping("/video")
-    @UploadQuota(type = UploadQuotaType.VIDEO)
-    public ResponseVO <Object> uploadVideo(@RequestParam(name = "chunkFile") @NotNull MultipartFile chunkFile,
-                                           @RequestParam(name = "chunkIndex") @NotNull Integer chunkIndex,
-                                           @RequestParam(name = "uploadId") @NotNull Long uploadId,
-                                           @RequestHeader(name = "token") String token)
+    public ResponseVO <String> uploadImage(@RequestHeader(name = "token") @NotEmpty String token,
+                                           @RequestParam(name = "file") @NotNull MultipartFile file)
     {
         long userId = loginState.getLoginUserId(token);
-        fileService.uploadVideo(chunkFile, chunkIndex, userId, uploadId);
-        return ResponseVO.success(null);
+
+        return ResponseVO.success(fileService.uploadImage(userId, file));
     }
 
-    @Operation(summary = "下载HLS主播放列表（master.m3u8）")
+    /**
+     * 获取图片预签名URL<hr/>
+     * 仅用于pending状态的图片，属主访问自己的待审核资源
+     *
+     * @param imgKey 图片key
+     * @return 预签名URL
+     */
+    @Operation(summary = "获取图片预签名URL")
+    @Authorized
+    @GetMapping("/image")
+    public ResponseVO <String> downloadImage(@RequestHeader(name = "token") @NotEmpty String token,
+                                             @RequestParam(name = "imgKey") @NotEmpty String imgKey)
+    {
+        long userId = loginState.getLoginUserId(token);
+
+        return ResponseVO.success(fileService.downloadImage(userId, imgKey));
+    }
+
+    /**
+     * 上传视频文件<hr/>
+     * <p>获取上传视频文件的 presigned post form</p>
+     * <ul>
+     *     <li>幂等性：每次调用都会返回一个可用key</li>
+     *     <li>延迟计算：每次调用计算最后一次上传文件的配额</li>
+     *     <li>严格控制key：如果有没用完的key，会复用并返回，最多有一个还没使用的key，天生防止多个key并发操作越过配额</li>
+     *     <li>配额控制：每次调用都会限制配额，严格限制上传大小超出配额</li>
+     * </ul>
+     *
+     * @return presigned post form
+     */
+    @Operation(summary = "获取 presigned post form", description = "获取上传视频文件的 presigned post form")
+    @Authorized
+    @PostMapping("/video")
+    public ResponseVO <Map <String, String>> uploadVideo(@RequestHeader(name = "token") @NotEmpty String token,
+                                                         @Parameter(description = "视频文件大小，单位：字节")
+                                                         @RequestParam(name = "fileSize") @NotNull Long fileSize)
+    {
+        long userId = loginState.getLoginUserId(token);
+
+        return ResponseVO.success(fileService.uploadVideo(userId, fileSize));
+    }
+
+    @Operation(summary = "下载未公开视频的HLS主播放列表（master.m3u8）", description = "仅限视频发布者自己观看pending类型的视频")
     @GetMapping(path = "/video/hls/{videoId}/{index}/master.m3u8")
-    public void downloadVideoMasterM3u8(@PathVariable(name = "videoId") @NotNull Long videoId,
-                                        @PathVariable(name = "index") @NotNull Integer index,
-                                        @Parameter(hidden = true) HttpServletResponse response)
+    public void downloadVideoMasterM3u8(@Parameter(hidden = true) HttpServletRequest request,
+                                        @Parameter(hidden = true) HttpServletResponse response,
+                                        @RequestHeader(name = "token", required = false) String token,
+                                        @PathVariable(name = "videoId") @NotNull Long videoId,
+                                        @PathVariable(name = "index") @NotNull Integer index)
     {
-        fileService.downloadVideoMasterM3u8(videoId, index, response);
+        long userId = loginState.getLoginUserId(resolveWebToken(token, request));
+        fileService.downloadVideoMasterM3u8(userId, videoId, index, response);
     }
 
-    @Operation(summary = "下载HLS分辨率播放列表（playlist.m3u8）")
-    @GetMapping(path = "/video/hls/{videoId}/{index}/playlist/{resolution}.m3u8")
-    public void downloadVideoPlaylistM3u8(@PathVariable(name = "videoId") @NotNull Long videoId,
+    @Operation(summary = "下载未公开视频的HLS分辨率播放列表（index.m3u8）",
+               description = "仅限视频发布者自己观看pending类型的视频；folder 为 720P 或 480P")
+    @GetMapping(path = "/video/hls/{videoId}/{index}/{folder}/index.m3u8")
+    public void downloadVideoPlaylistM3u8(@Parameter(hidden = true) HttpServletRequest request,
+                                          @Parameter(hidden = true) HttpServletResponse response,
+                                          @RequestHeader(name = "token", required = false) String token,
+                                          @PathVariable(name = "videoId") @NotNull Long videoId,
                                           @PathVariable(name = "index") @NotNull Integer index,
-                                          @PathVariable(name = "resolution") @NotNull Integer resolution,
-                                          @Parameter(hidden = true) HttpServletResponse response)
+                                          @PathVariable(name = "folder") @NotEmpty String folder)
     {
-        fileService.downloadVideoPlaylistM3u8(videoId, index, resolution, response);
+        long userId = loginState.getLoginUserId(resolveWebToken(token, request));
+        fileService.downloadVideoPlaylistM3u8(userId, videoId, index, folder, response);
     }
 
-    @Operation(summary = "下载HLS分片（segment.ts）")
-    @GetMapping(path = "/video/hls/{videoId}/{index}/segment/{resolution}/{segment}")
-    public void downloadVideoSegmentTs(@PathVariable(name = "videoId") @NotNull Long videoId,
-                                       @PathVariable(name = "index") @NotNull Integer index,
-                                       @PathVariable(name = "resolution") @NotNull Integer resolution,
-                                       @PathVariable(name = "segment") @NotNull String segment,
-                                       @Parameter(hidden = true) HttpServletResponse response)
+    /**
+     * 解析Cookie中的token<hr/>
+     * HLS 请求由播放器发起，通常无法携带请求头 token，需回退到 cookie
+     */
+    private String resolveWebToken(String headerToken, HttpServletRequest request)
     {
-        fileService.downloadVideoSegmentTs(videoId, index, resolution, segment, response);
+        if (StringUtils.hasText(headerToken))
+        {
+            return headerToken;
+        }
+
+        String cookieToken = ServletUtil.getFromCookie(request, Constants.WEB_COOKIE_TOKEN_KEY);
+        if (StringUtils.hasText(cookieToken))
+        {
+            return cookieToken;
+        }
+
+        throw new BusinessException(ResponseCode.NOT_LOGIN);
     }
 
 }

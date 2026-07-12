@@ -12,6 +12,14 @@ import java.util.List;
 public interface VideoInfoFileMapper<T, P> extends BaseMapper <T, P>
 {
     /**
+     * 根据视频ID获取文件信息
+     *
+     * @param videoId 视频ID
+     * @return 文件信息列表
+     */
+    List <T> selectByVideoId(@Param("videoId") Long videoId);
+
+    /**
      * 根据videoId获取视频文件VO对象
      *
      * @param videoId 视频ID

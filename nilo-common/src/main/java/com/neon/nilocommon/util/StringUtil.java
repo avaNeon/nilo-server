@@ -42,4 +42,24 @@ public class StringUtil
         if (str == null || str.lastIndexOf(".") == -1) return null;
         return str.substring(str.lastIndexOf("."));
     }
+
+    /**
+     * 删除字符串的扩展名（最后一个"."及其后的部分）
+     *
+     * @return 不含扩展名的字符串；若无"."则返回原字符串；str 为 null 时返回 null
+     */
+    public static String removeSuffix(String str)
+    {
+        if (str == null)
+        {
+            return null;
+        }
+        int lastDotIndex = str.lastIndexOf(".");
+        if (lastDotIndex == -1)
+        {
+            return str;
+        }
+        return str.substring(0, lastDotIndex);
+    }
+
 }

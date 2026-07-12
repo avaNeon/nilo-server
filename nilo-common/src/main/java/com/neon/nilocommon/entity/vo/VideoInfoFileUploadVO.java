@@ -8,9 +8,9 @@ import lombok.Setter;
 public class VideoInfoFileUploadVO
 {
     /**
-     * 上传ID
+     * 文件ID
      */
-    private Long uploadId;
+    private Long fileId;
 
     /**
      * 文件名

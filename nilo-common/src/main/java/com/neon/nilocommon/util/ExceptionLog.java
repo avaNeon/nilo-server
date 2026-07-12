@@ -138,10 +138,8 @@ public class ExceptionLog
     private boolean isUsefulFrame(StackTraceElement element)
     {
         String className = element.getClassName();
-        return className.startsWith(APPLICATION_PACKAGE_PREFIX) ||
-               className.startsWith("org.springframework.data") ||
-               className.startsWith("org.springframework.beans") ||
-               className.startsWith("org.springframework.transaction");
+        return className.startsWith(APPLICATION_PACKAGE_PREFIX) || className.startsWith("org.springframework.data") || className.startsWith(
+                "org.springframework.beans") || className.startsWith("org.springframework.transaction");
     }
 
     private String formatStackTraceElement(StackTraceElement element)

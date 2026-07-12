@@ -73,7 +73,7 @@ public class SystemConfig
      * 最大系列数量
      */
     @Min(1)
-    private short maxSeriesNumber = 100;
+    private Short maxSeriesNumber = 100;
 
 
     // 硬币奖励与消耗

@@ -23,6 +23,7 @@ public class ProcessUtil
 
         Runtime runtime = Runtime.getRuntime();
         Process process = null;
+
         try
         {
             //判断操作系统
@@ -34,6 +35,7 @@ public class ProcessUtil
             {
                 process = Runtime.getRuntime().exec(new String[]{"/bin/sh", "-c", cmd});
             }
+
             // 执行ffmpeg指令
             // 取出输出流和错误流的信息
             // 注意：必须要取出ffmpeg在执行命令过程中产生的输出信息，如果不取的话当输出流信息填满jvm存储输出留信息的缓冲区时，线程就回阻塞住
@@ -41,12 +43,18 @@ public class ProcessUtil
             PrintStream inputStream = new PrintStream(process.getInputStream());
             errorStream.start();
             inputStream.start();
+
             // 等待ffmpeg命令执行完
             process.waitFor();
+
             // 获取执行结果字符串
             String result = errorStream.stringBuffer.append(inputStream.stringBuffer).append("\n").toString();
+
             // 输出执行的命令信息
-            if (showLog) log.info("执行命令{}结果{}", cmd, result);
+            if (showLog)
+            {
+                log.info("执行命令{}结果{}", cmd, result);
+            }
             return result;
         }
         catch (Exception e)

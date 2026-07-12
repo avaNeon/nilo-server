@@ -24,4 +24,20 @@ public enum VideoResolution
         }
         return null;
     }
+
+    public static VideoResolution fromFolderName(String folderName)
+    {
+        if (folderName == null)
+        {
+            return null;
+        }
+        for (VideoResolution value : values())
+        {
+            if (value.folderName.equalsIgnoreCase(folderName))
+            {
+                return value;
+            }
+        }
+        return null;
+    }
 }

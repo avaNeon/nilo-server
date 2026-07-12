@@ -17,11 +17,6 @@ public class VideoInfoFileUpload
     private Long fileId;
 
     /**
-     * 上传ID
-     */
-    private Long uploadId;
-
-    /**
      * 用户ID
      */
     private Long userId;

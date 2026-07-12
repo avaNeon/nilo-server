@@ -2,11 +2,6 @@ package com.neon.nilocommon.util;
 
 public final class SqlUtil
 {
-
-    private SqlUtil()
-    {
-    }
-
     public static String escapeLike(String value)
     {
         if (value == null)

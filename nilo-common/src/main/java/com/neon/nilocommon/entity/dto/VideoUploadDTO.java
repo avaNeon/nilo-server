@@ -1,7 +1,7 @@
 package com.neon.nilocommon.entity.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import com.neon.nilocommon.entity.vo.VideoFileUploadDTO;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -20,9 +20,9 @@ public class VideoUploadDTO
     private Long videoId;
 
     /**
-     * 封面在服务器的相对地址
+     * 封面文件key
      */
-    @Schema(description = "封面相对地址", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "封面文件key", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotEmpty(message = "封面不能为空")
     private String coverPath;
 
@@ -78,7 +78,8 @@ public class VideoUploadDTO
     /**
      * 视频文件列表
      */
-    @Schema(description = "视频文件列表 (包含uploadId和用户自定义文件名)", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "视频文件列表，旧文件只传fileId和文件名；新文件只传key和文件名", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Valid
     @NotEmpty(message = "没有视频文件")
     private List <VideoFileUploadDTO> videoFileUploadList;
 }

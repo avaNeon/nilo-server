@@ -20,6 +20,11 @@ public class VideoInfoFileVO
     private Integer fileIndex;
 
     /**
+     * 文件路径
+     */
+    private String filePath;
+
+    /**
      * 持续时间（秒）
      */
     private Integer duration;

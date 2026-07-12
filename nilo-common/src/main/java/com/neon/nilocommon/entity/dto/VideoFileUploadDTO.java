@@ -1,14 +1,14 @@
-package com.neon.nilocommon.entity.vo;
+package com.neon.nilocommon.entity.dto;
 
 import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
 public class VideoFileUploadDTO
 {
-    @NotNull(message = "uploadId不能为空")
-    private Long uploadId;
+    private Long fileId;
+
+    private String key;
 
     @NotEmpty(message = "文件名不能为空")
     private String filename;

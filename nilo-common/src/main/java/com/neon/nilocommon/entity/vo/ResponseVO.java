@@ -12,15 +12,34 @@ import lombok.Setter;
 public class ResponseVO<T>
 {
     public static final String STATUS_SUCCESS = "success";
+
     public static final String STATUS_ERROR = "error";
+
     @Schema(name = "状态")
     private String status;
+
     @Schema(name = "响应码")
     private Integer code;
+
     @Schema(name = "响应信息")
     private String info;
+
     @Schema(name = "详细信息或数据")
     private T data;
+
+    /**
+     * 获取无data的成功VO对象
+     *
+     * @return 无data的成功VO对象
+     */
+    public static ResponseVO <Void> success()
+    {
+        ResponseVO <Void> responseVO = new ResponseVO <>();
+        responseVO.setStatus(STATUS_SUCCESS);
+        responseVO.setCode(ResponseCode.SUCCESS.getCode());
+        responseVO.setInfo(ResponseCode.SUCCESS.getMsg());
+        return responseVO;
+    }
 
     /**
      * 获取成功VO对象
@@ -59,6 +78,28 @@ public class ResponseVO<T>
     /**
      * 创建业务异常VO对象
      *
+     * @param e 业务异常
+     * @return 业务异常VO对象
+     */
+    public static ResponseVO <Void> error(BusinessException e)
+    {
+        ResponseVO <Void> vo = new ResponseVO <>();
+        vo.setStatus(STATUS_ERROR);
+        if (e.getCode() == null)
+        {
+            vo.setCode(ResponseCode.UNKNOWN_ERROR.getCode());
+        }
+        else
+        {
+            vo.setCode(e.getCode());
+        }
+        vo.setInfo(e.getMessage());
+        return vo;
+    }
+
+    /**
+     * 创建业务异常VO对象
+     *
      * @param e   业务异常
      * @param t   数据信息
      * @param <T> 数据信息类型
@@ -68,8 +109,14 @@ public class ResponseVO<T>
     {
         ResponseVO <T> vo = new ResponseVO <>();
         vo.setStatus(STATUS_ERROR);
-        if (e.getCode() == null) vo.setCode(ResponseCode.UNKNOWN_ERROR.getCode());
-        else vo.setCode(e.getCode());
+        if (e.getCode() == null)
+        {
+            vo.setCode(ResponseCode.UNKNOWN_ERROR.getCode());
+        }
+        else
+        {
+            vo.setCode(e.getCode());
+        }
         vo.setInfo(e.getMessage());
         vo.setData(t);
         return vo;

@@ -1,5 +1,6 @@
 package com.neon.niloweb.controller;
 
+import com.neon.nilocommon.entity.dto.VideoFileUploadDTO;
 import com.neon.nilocommon.entity.dto.VideoInfoUploadJoinDTO;
 import com.neon.nilocommon.entity.dto.VideoUploadDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
@@ -7,15 +8,15 @@ import com.neon.nilocommon.entity.po.CategoryInfo;
 import com.neon.nilocommon.entity.po.VideoInfoFileUpload;
 import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
 import com.neon.nilocommon.entity.vo.ResponseVO;
-import com.neon.nilocommon.entity.vo.VideoFileUploadDTO;
 import com.neon.nilocommon.entity.vo.VideoInfoFileUploadVO;
 import com.neon.nilocommon.entity.vo.VideoStatusCountVO;
 import com.neon.nilocommon.entity.vo.comment.CommentManagementVO;
 import com.neon.nilocommon.entity.vo.danmaku.DanmakuManagementVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.niloweb.annotation.Authorized;
 import com.neon.niloweb.enums.UploadQuotaType;
 import com.neon.niloweb.loginState.LoginState;
-import com.neon.niloweb.repository.redis.CategoryRedisRepository;
+import com.neon.niloweb.service.CategoryService;
 import com.neon.niloweb.service.CreativeCenterService;
 import com.neon.niloweb.service.UploadQuotaService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,7 +30,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Tag(name = "创作中心视频管理")
 @RequestMapping(path = "/creativeCenter")
@@ -40,7 +45,7 @@ public class CreativeCenterController
 {
     private final CreativeCenterService creativeCenterService;
 
-    private final CategoryRedisRepository categoryRedisRepository;
+    private final CategoryService categoryService;
 
     private final LoginState loginState;
 
@@ -48,48 +53,29 @@ public class CreativeCenterController
 
     /**
      * 上传/修改视频<hr/>
-     * 上传的视频文件只包含uploadId和fileName
+     * 上传的视频文件：保留文件只包含fileId和fileName，新文件只包含key和fileName
      *
      * @param token          验证用户身份
      * @param videoUploadDTO 视频上传信息DTO
      */
+    @Authorized
     @Operation(summary = "上传/修改视频")
     @PostMapping(path = "/video")
-    public ResponseVO <Object> videoUpload(@RequestHeader(name = "token") @NotEmpty String token,
-                                           @RequestBody @Valid @NotNull VideoUploadDTO videoUploadDTO)
+    public ResponseVO <Void> videoUpload(@RequestHeader(name = "token") @NotEmpty String token,
+                                         @RequestBody @Valid @NotNull VideoUploadDTO videoUploadDTO)
     {
+        // 获取用户信息
         TokenUserInfo tokenUserInfo = loginState.getLoginState(token);
-        List <VideoFileUploadDTO> uploadIdList = videoUploadDTO.getVideoFileUploadList();
-        if (uploadIdList == null || uploadIdList.isEmpty())
-        {
-            throw new BusinessException(ResponseCode.SERVER_ERROR); // 文件为什么是空的！
-        }
 
-        String categoryNumber = videoUploadDTO.getCategoryNumber();
-        List <CategoryInfo> categories = categoryRedisRepository.getCategoryInfo();
-        if (categories == null || categories.isEmpty())
-        {
-            throw new BusinessException(ResponseCode.SERVER_ERROR); // 分类数据不可用
-        }
-        CategoryInfo matchedCategory = categories.stream()
-                                                 .flatMap(c ->
-                                                          {
-                                                              List <CategoryInfo> all = new java.util.ArrayList <>();
-                                                              all.add(c);
-                                                              if (c.getChildren() != null) all.addAll(c.getChildren());
-                                                              return all.stream();
-                                                          })
-                                                 .filter(c -> categoryNumber.equals(c.getCategoryNumber()))
-                                                 .findFirst()
-                                                 .orElseThrow(() -> new BusinessException(ResponseCode.SERVER_ERROR)); // 无效的分类编码
+        // 提取上传文件列表，并转化为VideoInfoFileUpload对象
+        // 这一步已经只保留了只有fileId或者key的文件，且已经去重
+        List <VideoInfoFileUpload> uploadFileList = extractUploadFileList(videoUploadDTO);
 
-        List <VideoInfoFileUpload> uploadFileList = uploadIdList.stream().map(vo ->
-                                                                              {
-                                                                                  VideoInfoFileUpload fileUpload = new VideoInfoFileUpload();
-                                                                                  fileUpload.setUploadId(vo.getUploadId());
-                                                                                  fileUpload.setFileName(vo.getFilename());
-                                                                                  return fileUpload;
-                                                                              }).toList();
+        // 根据 categoryNumber 查询分类信息
+        CategoryInfo matchedCategory = categoryService.findByCategoryNumber(videoUploadDTO.getCategoryNumber());
+
+
+        // 调用服务层方法上传视频
         creativeCenterService.videoUpload(videoUploadDTO.getVideoId(),
                                           videoUploadDTO.getCoverPath(),
                                           videoUploadDTO.getVideoTitle(),
@@ -101,12 +87,15 @@ public class CreativeCenterController
                                           videoUploadDTO.getInteraction(),
                                           videoUploadDTO.getOriginInfo(),
                                           uploadFileList,
+                                          uploadFileList.stream().filter(item -> item.getFileId() != null).toList(),
+                                          uploadFileList.stream().filter(item -> item.getFileId() == null).toList(),
                                           tokenUserInfo);
 
-        return ResponseVO.success(null);
+        return ResponseVO.success();
     }
 
     @Operation(summary = "获取今日剩余视频上传额度", description = "返回单位：byte")
+    @Authorized
     @GetMapping(path = "/video/uploadQuota")
     public ResponseVO <Long> getRemainingVideoUploadQuota(@RequestHeader(name = "token") @NotEmpty String token)
     {
@@ -115,6 +104,7 @@ public class CreativeCenterController
     }
 
     @Operation(summary = "获取今日剩余图片上传额度", description = "返回单位：byte")
+    @Authorized
     @GetMapping(path = "/image/uploadQuota")
     public ResponseVO <Long> getRemainingImageUploadQuota(@RequestHeader(name = "token") @NotEmpty String token)
     {
@@ -134,6 +124,7 @@ public class CreativeCenterController
      * @return 查询结果（视频列表）
      */
     @Operation(summary = "获取视频列表")
+    @Authorized
     @GetMapping(path = "/video/list")
     public ResponseVO <List <VideoInfoUploadJoinDTO>> loadVideoList(@RequestHeader(name = "token") @NotEmpty String token,
                                                                     @RequestParam(name = "status", required = false) Short status,
@@ -159,6 +150,7 @@ public class CreativeCenterController
      * @return 三种状态视频的数量
      */
     @Operation(summary = "获取视频数量")
+    @Authorized
     @GetMapping(path = "/video/count")
     public ResponseVO <VideoStatusCountVO> getVideoStatusCount(@RequestHeader(name = "token") String token,
                                                                @RequestParam(name = "nameFuzzy", required = false)
@@ -171,6 +163,7 @@ public class CreativeCenterController
 
     @Operation(summary = "获取视频上传文件信息",
                description = "获取指定视频文件的所有上传文件的简单信息，包括文件名、文件索引、持续时间、文件大小、上传ID")
+    @Authorized
     @GetMapping(path = "/file/{videoId}")
     public ResponseVO <List <VideoInfoFileUploadVO>> loadVideoFileUpload(@RequestHeader(name = "token") @NotEmpty String token,
                                                                          @PathVariable(name = "videoId") @NotNull Long videoId)
@@ -180,28 +173,31 @@ public class CreativeCenterController
     }
 
     @Operation(summary = "更改视频互动权限")
+    @Authorized
     @PostMapping("/video/interaction/{videoId}")
-    public ResponseVO <Object> setInteraction(@RequestHeader(name = "token") @NotEmpty String token,
+    public ResponseVO <Void> setInteraction(@RequestHeader(name = "token") @NotEmpty String token,
                                               @PathVariable(name = "videoId") @NotNull Long videoId,
                                               @RequestParam(name = "interaction") String interaction)
     {
         long userId = loginState.getLoginUserId(token);
         creativeCenterService.setInteraction(userId, videoId, interaction);
-        return ResponseVO.success(null);
+        return ResponseVO.success();
     }
 
     @Operation(summary = "用户删除视频")
+    @Authorized
     @DeleteMapping(path = "/video/{videoId}")
-    public ResponseVO <Object> deleteVideo(@RequestHeader(name = "token") @NotEmpty String token,
-                                           @PathVariable(name = "videoId") @NotNull Long videoId,
-                                           @RequestParam(name = "detail") @NotEmpty String detail)
+    public ResponseVO <Void> deleteVideo(@RequestHeader(name = "token") @NotEmpty String token,
+                                         @PathVariable(name = "videoId") @NotNull Long videoId,
+                                         @RequestParam(name = "detail") @NotEmpty String detail)
     {
         long userId = loginState.getLoginUserId(token);
         creativeCenterService.deleteVideo(userId, videoId, detail);
-        return ResponseVO.success(null);
+        return ResponseVO.success();
     }
 
     @Operation(summary = "获取评论管理信息数量")
+    @Authorized
     @GetMapping(path = "/comment/count")
     public ResponseVO <Long> getCommentManagementInfoCount(@RequestHeader(name = "token") @NotEmpty String token,
                                                            @RequestParam(name = "videoId", required = false) Long videoId,
@@ -212,6 +208,7 @@ public class CreativeCenterController
     }
 
     @Operation(summary = "获取评论管理信息")
+    @Authorized
     @GetMapping(path = "/comment/{pageNo}/{pageSize}")
     public ResponseVO <List <CommentManagementVO>> getCommentManagementInfo(@RequestHeader(name = "token") @NotEmpty String token,
                                                                             @RequestParam(name = "videoId", required = false)
@@ -228,6 +225,7 @@ public class CreativeCenterController
     }
 
     @Operation(summary = "获取弹幕管理信息数量")
+    @Authorized
     @GetMapping(path = "/danmaku")
     public ResponseVO <Long> getDanmakuManagementInfoCount(@RequestHeader(name = "token") @NotEmpty String token,
                                                            @RequestParam(name = "videoId", required = false) Long videoId,
@@ -244,6 +242,7 @@ public class CreativeCenterController
     }
 
     @Operation(summary = "获取弹幕管理信息")
+    @Authorized
     @GetMapping(path = "/danmaku/{pageNo}/{pageSize}")
     public ResponseVO <List <DanmakuManagementVO>> getDanmakuManagementInfo(@RequestHeader(name = "token") @NotEmpty String token,
                                                                             @RequestParam(name = "videoId", required = false)
@@ -271,4 +270,49 @@ public class CreativeCenterController
                                                                                  pageSize));
     }
 
+    /**
+     * 从DTO中提取有效视频文件列表，保留请求顺序并重新标记fileIndex
+     *
+     * @param videoUploadDTO 视频上传DTO
+     * @return 提取合并后的视频文件上传列表
+     */
+    private List <VideoInfoFileUpload> extractUploadFileList(VideoUploadDTO videoUploadDTO)
+    {
+        List <VideoFileUploadDTO> videoFileUploadList = videoUploadDTO.getVideoFileUploadList() == null ? Collections.emptyList() : videoUploadDTO.getVideoFileUploadList();
+
+        // 只保留fileId/key二选一的记录，旧文件按fileId去重，新文件按key去重
+        // 不会改变上传时的相对顺序
+        List <VideoInfoFileUpload> uploadFileList = videoFileUploadList.stream()
+                                                                       .filter(Objects::nonNull)
+                                                                       .filter(item -> (item.getFileId() == null) != (item.getKey() == null)) // 只能二选一
+                                                                       .map(item ->
+                                                                            {
+                                                                                VideoInfoFileUpload uploadFile = new VideoInfoFileUpload();
+                                                                                uploadFile.setFileId(item.getFileId());
+                                                                                uploadFile.setFileName(item.getFilename());
+                                                                                uploadFile.setFilePath(item.getKey());
+                                                                                return uploadFile;
+                                                                            })
+                                                                       .collect(Collectors.toMap(item -> item.getFileId() != null ? "fileId:" + item.getFileId() : "key:" + item.getFilePath(),
+                                                                                                 item -> item,
+                                                                                                 (existing, replacement) -> existing,
+                                                                                                 LinkedHashMap::new)) // 去重
+                                                                       .values()
+                                                                       .stream()
+                                                                       .toList();
+
+        // 上传文件列表不能为空
+        if (uploadFileList.isEmpty())
+        {
+            throw new BusinessException(ResponseCode.NOT_FOUND);
+        }
+
+        // 标好顺序
+        for (int i = 0 ; i < uploadFileList.size() ; i++)
+        {
+            uploadFileList.get(i).setFileIndex(i + 1);
+        }
+
+        return uploadFileList;
+    }
 }

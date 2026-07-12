@@ -13,6 +13,11 @@ public interface VideoInfoUploadMapper<T, P> extends BaseMapper <T, P>
 {
 
     /**
+     * 根据VideoId和UserId获取对象
+     */
+    T selectByVideoIdAndUserId(@Param("videoId") Long videoId, @Param("userId") Long userId);
+
+    /**
      * 根据VideoId更新
      */
     Integer updateByVideoId(@Param("bean") T t, @Param("videoId") Long videoId);

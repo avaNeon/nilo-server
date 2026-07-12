@@ -698,4 +698,11 @@
         <include refid="base_column_list"/>
         from video_info_upload v where video_id=#{videoId}
     </select>
+
+    <select id="selectByVideoIdAndUserId" resultMap="base_result_map">
+        SELECT
+        <include refid="base_column_list"/>
+        FROM video_info_upload v
+        WHERE video_id = #{videoId} AND user_id = #{userId}
+    </select>
 </mapper>

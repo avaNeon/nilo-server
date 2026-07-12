@@ -14,7 +14,6 @@ import com.neon.nilocommon.util.EnumFieldChecker;
 import com.neon.niloweb.mapper.UserInfoMapper;
 import com.neon.niloweb.mapper.UserVideoActionMapper;
 import com.neon.niloweb.mapper.VideoInfoMapper;
-import com.neon.niloweb.repository.elasticsearch.VideoInfoDocRepository;
 import com.neon.niloweb.repository.redis.AccountRedisRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,8 +38,6 @@ public class UserVideoActionService
     private final UserVideoActionMapper <UserVideoAction, UserVideoActionQuery> userVideoActionMapper;
 
     private final AccountRedisRepository accountRedisRepository;
-
-    private final VideoInfoDocRepository videoInfoDocRepository;
 
     private final UserMessageService userMessageService;
 
@@ -135,15 +132,10 @@ public class UserVideoActionService
                                                                                         });
                 }
                 // COLLECT
-                // todo添加到收藏夹操作
                 case COLLECT ->
                 {
-                    /* 更新mysql */
                     // 更新收藏数
                     videoInfoMapper.increaseCollectCount(videoId);
-
-                    /* 更新ES */
-                    videoInfoDocRepository.increaseCollectCountByVideoId(videoId, 1);
 
                     // 向用户异步发送消息
                     CompletableFuture <Void> collectMessageCompletableFuture = userMessageService.recordVideoActionMessage(
@@ -228,14 +220,7 @@ public class UserVideoActionService
                     // CANCEL THE LIKE
                     case 1 -> videoInfoMapper.decreaseLikeCount(videoId);
                     // CANCEL THE COLLECT
-                    // todo 添加到收藏夹
-                    case 2 ->
-                    {
-                        // 更新mysql
-                        videoInfoMapper.decreaseCollectCount(videoId);
-                        // 更新ES
-                        videoInfoDocRepository.decreaseCollectCountByVideoId(videoId, 1);
-                    }
+                    case 2 -> videoInfoMapper.decreaseCollectCount(videoId);
                     // CANCEL THE REQUEST!!!
                     default -> throw new BusinessException(ResponseCode.UNKNOWN_ERROR);
                 }

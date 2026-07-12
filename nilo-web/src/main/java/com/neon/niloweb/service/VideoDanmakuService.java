@@ -14,7 +14,6 @@ import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.mapper.VideoDanmakuMapper;
 import com.neon.niloweb.mapper.VideoInfoFileMapper;
 import com.neon.niloweb.mapper.VideoInfoMapper;
-import com.neon.niloweb.repository.elasticsearch.VideoInfoDocRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
@@ -37,8 +36,6 @@ public class VideoDanmakuService
     private final VideoDanmakuMapper <VideoDanmaku, VideoDanmakuQuery> videoDanmakuMapper;
 
     private final VideoInfoFileMapper <VideoInfoFile, VideoInfoFileQuery> videoInfoFileMapper;
-
-    private final VideoInfoDocRepository videoInfoDocRepository;
 
     private final Snowflake snowflake;
 
@@ -95,9 +92,6 @@ public class VideoDanmakuService
 
         // 更新弹幕数量
         videoInfoMapper.increaseByField(videoId, "danmaku_count", 1);
-
-        // 更新ES弹幕数量
-        videoInfoDocRepository.increaseDanmakuCountByVideoId(videoId, 1);
     }
 
     /**
@@ -172,7 +166,6 @@ public class VideoDanmakuService
         if (deletedCount != null && deletedCount > 0)
         {
             videoInfoMapper.decreaseByField(videoDanmaku.getVideoId(), "danmaku_count", 1);
-            videoInfoDocRepository.decreaseDanmakuCountByVideoId(videoDanmaku.getVideoId(), 1);
         }
         else
         {

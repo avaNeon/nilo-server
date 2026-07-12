@@ -4,6 +4,7 @@ package com.neon.niloweb.service;
 import com.neon.nilocommon.entity.po.CategoryInfo;
 import com.neon.nilocommon.entity.query.CategoryInfoQuery;
 import com.neon.nilocommon.entity.vo.CategoryInfoVO;
+import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.mapper.CategoryInfoMapper;
 import com.neon.niloweb.repository.redis.CategoryRedisRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,11 +19,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static com.neon.nilocommon.entity.constants.RedisKey.CATEGORY_UPDATE_LOCK;
+import static com.neon.nilocommon.entity.enums.ResponseCode.SERVER_ERROR;
 
 
-/**
- * 分类信息 业务接口实现
- */
 @Slf4j
 @RequiredArgsConstructor
 @Service
@@ -36,25 +35,61 @@ public class CategoryService
     private final CategoryRedisRepository categoryRedisRepository;
 
     /**
+     * 根据分类编码查询分类信息
+     *
+     * @param categoryNumber 分类编码
+     * @return 分类信息
+     * @throws BusinessException 分类不存在时抛出
+     */
+    public CategoryInfo findByCategoryNumber(String categoryNumber)
+    {
+        List <CategoryInfo> categories = findAll();
+        if (categories == null || categories.isEmpty())
+        {
+            throw new BusinessException(SERVER_ERROR);
+        }
+        return categories.stream()
+                         .filter(c -> categoryNumber.equals(c.getCategoryNumber()))
+                         .findFirst()
+                         .orElseThrow(() -> new BusinessException(SERVER_ERROR));
+    }
+
+    /**
+     * 查询所有分类
+     *
+     * @return 展平分类列表
+     */
+    public List <CategoryInfo> findAll()
+    {
+        checkCache();
+
+        List <CategoryInfo> list = categoryRedisRepository.getCategoryInfo();
+
+        // 如果还是没有，兜底扫描一遍mapper
+        if (list == null)
+        {
+            list = mapper.selectList(new CategoryInfoQuery());
+        }
+
+        return list;
+    }
+
+    /**
      * 查询所有分类，分类下一级的子分类会被加入children属性中
      */
     public List <CategoryInfoVO> findAllWithChildren()
     {
         checkCache();
+
         List <CategoryInfo> list = categoryRedisRepository.getCategoryInfo();
+
+        // 如果还是没有，兜底扫描一遍mapper
         if (list == null)
         {
             list = mapper.selectList(new CategoryInfoQuery());
         }
-        return convertToVOList(buildTree(list, 0));
-    }
 
-    /**
-     * 新增
-     */
-    public Integer add(CategoryInfo bean)
-    {
-        return this.mapper.insert(bean);
+        return convertToVOList(buildTree(list, 0));
     }
 
     /**
@@ -83,7 +118,10 @@ public class CategoryService
      */
     private List <CategoryInfoVO> convertToVOList(List <CategoryInfo> list)
     {
-        if (list == null) return new ArrayList <>();
+        if (list == null)
+        {
+            return new ArrayList <>();
+        }
         return list.stream().map(this::convertToVO).collect(Collectors.toList());
     }
 
@@ -109,7 +147,7 @@ public class CategoryService
     /**
      * 检查分类缓存是否存在，如果不存在则刷新缓存
      */
-    private void checkCache()
+    public void checkCache()
     {
         if (categoryRedisRepository.getCategoryInfo() == null)
         {

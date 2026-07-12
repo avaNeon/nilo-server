@@ -71,7 +71,10 @@ public class UserHomeController
         TokenUserInfo loginState = this.loginState.getLoginState(token);
         // 检查下 userId 是否存在
         this.loginState.getLoginUserId(token);
+
+        // 更新用户信息，如果需要更新token信息，这里会返回新的token信息
         TokenUserInfoVO tokenUserInfoVO = userHomeService.updateUserInfo(loginState, updatedUserInfoDTO);
+
         if (tokenUserInfoVO != null)
         {
             ServletUtil.removeCookie(request, response, Constants.WEB_COOKIE_TOKEN_KEY);
@@ -81,6 +84,7 @@ public class UserHomeController
                                   webConfig.getUserInfoExpireDays(),
                                   TimeUnit.DAYS);
         }
+
         return ResponseVO.success(tokenUserInfoVO);
     }
 

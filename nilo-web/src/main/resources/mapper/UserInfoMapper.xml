@@ -863,11 +863,7 @@
 
     <update id="decreaseCoinForVideoDelete">
         UPDATE user_info
-        <set>
-            current_coin = GREATEST(current_coin - #{coinAmount}, 0)
-        </set>
-        <where>
-            user_id = #{userId}
-        </where>
+        SET current_coin = current_coin - #{coinAmount}
+        WHERE user_id = #{userId}
     </update>
 </mapper>

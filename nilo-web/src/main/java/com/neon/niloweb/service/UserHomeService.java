@@ -1,6 +1,6 @@
 package com.neon.niloweb.service;
 
-import com.neon.nilocommon.entity.constants.Constants;
+import com.neon.nilocommon.entity.constants.MinioKey;
 import com.neon.nilocommon.entity.dto.UpdatedUserInfoDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.userInfo.UserGender;
@@ -11,10 +11,7 @@ import com.neon.nilocommon.entity.po.*;
 import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
 import com.neon.nilocommon.entity.query.*;
 import com.neon.nilocommon.entity.tmp.VideoSeriesVideoCountTMP;
-import com.neon.nilocommon.entity.vo.PaginationResponseVO;
-import com.neon.nilocommon.entity.vo.TokenUserInfoVO;
-import com.neon.nilocommon.entity.vo.UserDetailVO;
-import com.neon.nilocommon.entity.vo.VideoSeriesVideoVO;
+import com.neon.nilocommon.entity.vo.*;
 import com.neon.nilocommon.entity.vo.userInfo.BriefUserInfoVO;
 import com.neon.nilocommon.entity.vo.videoInfo.BriefVideoInfoVO;
 import com.neon.nilocommon.entity.vo.videoInfo.CollectedVideoInfoVO;
@@ -25,6 +22,7 @@ import com.neon.nilocommon.util.EnumFieldChecker;
 import com.neon.nilocommon.util.FileUtil;
 import com.neon.nilocommon.util.PageCalculator;
 import com.neon.niloweb.config.WebConfig;
+import com.neon.niloweb.feign.storage.ImageFeignClient;
 import com.neon.niloweb.mapper.*;
 import com.neon.niloweb.repository.redis.AccountRedisRepository;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +31,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -42,6 +40,10 @@ import java.util.stream.Collectors;
 @Service
 public class UserHomeService
 {
+    private final AccountService accountService;
+
+    private final MediaOwnershipMapper <MediaOwnership, MediaOwnershipQuery> mediaOwnershipMapper;
+
     private final UserInfoMapper <UserInfo, UserInfoQuery> userInfoMapper;
 
     private final FollowInfoMapper <FollowInfo, FollowInfoQuery> followInfoMapper;
@@ -54,13 +56,12 @@ public class UserHomeService
 
     private final VideoSeriesInfoMapper <VideoSeriesInfo, VideoSeriesInfoQuery> videoSeriesInfoMapper;
 
-    private final AccountService accountService;
-
     private final AccountRedisRepository accountRedisRepository;
 
-    private final WebConfig webConfig;
-
     private final SystemConfigRedisRepository systemConfigRedisRepository;
+
+    private final WebConfig webConfig;
+    private final ImageFeignClient imageFeignClient;
 
     /**
      * 获取用户主页信息
@@ -115,7 +116,7 @@ public class UserHomeService
         long userId = loginState.getUserInfo().getUserId();
 
         UserInfo dbUserInfo = userInfoMapper.selectByUserId(userId);
-        // 如果用户仅有缓存，在数据库层面被删除
+        // 如果用户仅有缓存，在数据库层面被删除，说明用户账号可能被注销了，不提供服务
         if (dbUserInfo == null || !dbUserInfo.getUserId().equals(userId))
         {
             throw new BusinessException(ResponseCode.UNKNOWN_ERROR);
@@ -138,16 +139,23 @@ public class UserHomeService
 
         // 校验头像图片是否存在
         boolean avatarChanged = false;
+        String oldAvatar = dbUserInfo.getAvatar();
+        String newAvatar = updatedUserInfoDTO.getAvatar();
         // 如果头像更改
-        if (!Objects.equals(dbUserInfo.getAvatar(), updatedUserInfoDTO.getAvatar()))
+        if (!Objects.equals(oldAvatar, newAvatar))
         {
             avatarChanged = true;
-            Path tmpPath = Path.of(webConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME, Constants.TMP_FOLDER_NAME);
-            if (!FileUtil.fileExists(tmpPath.toString(), updatedUserInfoDTO.getAvatar()))
+
+            // 校验图片归属（原图+缩略图强绑定校验）
+            String newAvatarThumbnail = FileUtil.constructThumbnailName(newAvatar);
+            List <String> newAvatarKeys = List.of(newAvatar, newAvatarThumbnail);
+            int count = mediaOwnershipMapper.selectCountByObjectKeysAndOwnerIdAndUsed(newAvatarKeys, userId, 0);
+            if (count != newAvatarKeys.size())
             {
                 throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
             }
         }
+
         // 校验性别是否合法
         if (updatedUserInfoDTO.getGender() != null && !EnumFieldChecker.containsFieldValue(UserGender.class,
                                                                                            "gender",
@@ -191,7 +199,7 @@ public class UserHomeService
             TokenUserInfo tokenUserInfo = new TokenUserInfo();
             tokenUserInfo.setUserInfo(new BriefUserInfoVO(userId,
                                                           updatedUserInfoDTO.getNickName(),
-                                                          updatedUserInfoDTO.getAvatar(),
+                                                          newAvatar,
                                                           updatedUserInfoDTO.getPersonalIntroduction()));
             accountService.generateAndSaveToken(tokenUserInfo, webConfig.getUserInfoExpireDays());
 
@@ -209,10 +217,47 @@ public class UserHomeService
                 }
             }
 
-            // 文件系统
+            // 移动新头像，删除旧头像
             if (avatarChanged)
             {
-                safelyMoveFile(updatedUserInfoDTO.getAvatar(), tokenUserInfoVO.getToken());
+                String newAvatarThumbnail = FileUtil.constructThumbnailName(newAvatar);
+                List <String> newAvatarKeys = List.of(newAvatar, newAvatarThumbnail);
+
+                // 启动新头像及缩略图
+                // 执行后要检查下实际更改行数，否则可能出现TOCTOU（就是用户在上次检查和这次更改之间启用文件）
+                int affected = mediaOwnershipMapper.markAsUsedBatch(newAvatarKeys, userId, LocalDateTime.now());
+                if (affected != newAvatarKeys.size())
+                {
+                    throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
+                }
+
+                // 删除旧头像及缩略图记录
+                if (oldAvatar != null && !oldAvatar.isBlank())
+                {
+                    String oldAvatarThumbnail = FileUtil.constructThumbnailName(oldAvatar);
+                    mediaOwnershipMapper.deleteByObjectKey(oldAvatar);
+                    mediaOwnershipMapper.deleteByObjectKey(oldAvatarThumbnail);
+                }
+
+                // 这一步如果成功，就确定了用新的头像替代旧头像
+                safelyMoveAvatarKey(newAvatar, tokenUserInfoVO.getToken());
+                safelyMoveAvatarKey(newAvatarThumbnail, tokenUserInfoVO.getToken());
+
+                // 接下来就不能回滚了（只能在失败时打日志了）
+                if (oldAvatar != null && !oldAvatar.isBlank())
+                {
+                    String oldAvatarThumbnail = FileUtil.constructThumbnailName(oldAvatar);
+                    ResponseVO <Void> oldAvatarDeleted = imageFeignClient.delete(oldAvatar);
+                    if (oldAvatarDeleted == null || !oldAvatarDeleted.getStatus().equals(ResponseVO.STATUS_SUCCESS))
+                    {
+                        log.error("删除旧头像{}失败！", oldAvatar);
+                    }
+                    ResponseVO <Void> oldAvatarThumbnailDeleted = imageFeignClient.delete(oldAvatarThumbnail);
+                    if (oldAvatarThumbnailDeleted == null || !oldAvatarThumbnailDeleted.getStatus().equals(ResponseVO.STATUS_SUCCESS))
+                    {
+                        log.error("删除旧头像缩略图{}失败！", oldAvatarThumbnail);
+                    }
+                }
             }
 
             // 如果修改了昵称，会消耗硬币，所以还需要修改UserState
@@ -449,16 +494,17 @@ public class UserHomeService
     }
 
     /**
-     * 安全移动文件（出现异常时，帮助Redis回滚）
+     * 安全移动头像key（出现异常时，帮助Redis回滚）
      *
-     * @param fileRelativePathStr 需要安全移动的文件的相对路径
-     * @param rollBackToken       回滚时需要删除的token
+     * @param key           需要安全移动的key（不含前缀）
+     * @param rollBackToken 回滚时需要删除的token
      */
-    private void safelyMoveFile(String fileRelativePathStr, String rollBackToken)
+    private void safelyMoveAvatarKey(String key, String rollBackToken)
     {
         try
         {
-            FileUtil.verifyAndMoveCover(webConfig.getRootFilePath(), fileRelativePathStr);
+            // 这里的移动操作是幂等的，如果已经移动到目标位置了，再次移动不会有任何影响
+            imageFeignClient.move(MinioKey.TMP_PREFIX + key, MinioKey.PUBLIC_PREFIX + key);
         }
         catch (Exception e)
         {

@@ -5,6 +5,7 @@ import com.neon.nilocommon.exception.BusinessException;
 import com.neon.niloweb.annotation.UploadQuota;
 import com.neon.niloweb.loginState.LoginState;
 import com.neon.niloweb.service.UploadQuotaService;
+import com.neon.niloweb.service.UploadService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -28,6 +29,8 @@ public class UploadQuotaAspect
 
     private final LoginState loginState;
 
+    private final UploadService uploadService;
+
     private final UploadQuotaService uploadQuotaService;
 
     /**
@@ -46,7 +49,7 @@ public class UploadQuotaAspect
         long fileSize = file.getSize();
 
         // 消耗用户额度
-        String quotaKey = uploadQuotaService.reserve(userId, uploadQuota.type(), fileSize);
+        String quotaKey = uploadService.reserve(userId, uploadQuota.type(), fileSize, true);
 
         try
         {

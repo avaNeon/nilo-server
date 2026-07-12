@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neon.niloweb.mapper.UserUploadVideoLockMapper">
+    <!--实体映射-->
+    <resultMap id="base_result_map" type="com.neon.nilocommon.entity.po.UserUploadVideoLock">
+        <!---->
+        <result column="user_id" property="userId"/>
+    </resultMap>
+
+
+    <!-- 通用查询结果列-->
+    <sql id="base_column_list">
+        u.user_id
+    </sql>
+
+    <sql id="base_condition_filed">
+        <if test="query.userId != null">
+            and u.user_id = #{query.userId}
+        </if>
+    </sql>
+
+    <!-- 通用查询条件列-->
+    <sql id="query_condition">
+        <where>
+            <include refid="base_condition_filed"/>
+        </where>
+    </sql>
+
+    <!-- 查询集合-->
+    <select id="selectList" resultMap="base_result_map">
+        SELECT
+        <include refid="base_column_list"/>
+        FROM user_upload_video_lock u
+        <include refid="query_condition"/>
+        <if test="query.orderBy!=null">
+            order by ${query.orderBy}
+        </if>
+        <if test="query.pageCalculator!=null">
+            limit #{query.pageCalculator.start},#{query.pageCalculator.size}
+        </if>
+    </select>
+
+    <!-- 查询数量-->
+    <select id="selectCount" resultType="java.lang.Integer">
+        SELECT count(1) FROM user_upload_video_lock u
+        <include refid="query_condition"/>
+    </select>
+
+    <!-- 插入 （匹配有值的字段）-->
+    <insert id="insert" parameterType="com.neon.nilocommon.entity.po.UserUploadVideoLock">
+        INSERT INTO user_upload_video_lock
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="bean.userId != null">
+                user_id,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="bean.userId!=null">
+                #{bean.userId},
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 插入或者更新 （匹配有值的字段）-->
+    <insert id="insertOrUpdate" parameterType="com.neon.nilocommon.entity.po.UserUploadVideoLock">
+        INSERT INTO user_upload_video_lock
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="bean.userId != null">
+                user_id,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="bean.userId!=null">
+                #{bean.userId},
+            </if>
+        </trim>
+        on DUPLICATE key update
+        <trim prefix="" suffix="" suffixOverrides=",">
+            <if test="bean.userId!=null">
+                user_id = VALUES(user_id),
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 添加 （批量插入）-->
+    <insert id="insertBatch" parameterType="com.neon.nilocommon.entity.po.UserUploadVideoLock">
+        INSERT INTO user_upload_video_lock(
+        user_id
+        )values
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.userId}
+            )
+        </foreach>
+    </insert>
+
+    <!-- 批量新增修改 （批量插入）-->
+    <insert id="insertOrUpdateBatch" parameterType="com.neon.nilocommon.entity.po.UserUploadVideoLock">
+        INSERT INTO user_upload_video_lock(
+        user_id
+        )values
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.userId}
+            )
+        </foreach>
+        on DUPLICATE key update
+        user_id = VALUES(user_id)
+    </insert>
+
+    <!--多条件修改-->
+    <update id="updateByParam" parameterType="com.neon.nilocommon.entity.query.UserUploadVideoLockQuery">
+        UPDATE user_upload_video_lock u
+        <set>
+            <if test="bean.userId != null">
+                user_id = #{bean.userId},
+            </if>
+        </set>
+        <include refid="query_condition"/>
+    </update>
+
+    <!--多条件删除-->
+    <delete id="deleteByParam">
+        delete u from user_upload_video_lock u
+        <include refid="query_condition"/>
+    </delete>
+
+    <insert id="tryLock">
+        INSERT INTO user_upload_video_lock (user_id)
+        VALUES (#{userId})
+        ON DUPLICATE KEY UPDATE user_id = user_id
+    </insert>
+
+    <select id="selectInnodbLockWaitTimeout" resultType="java.lang.Integer">
+        SELECT @@session.innodb_lock_wait_timeout
+    </select>
+
+    <update id="setSessionInnodbLockWaitTimeout">
+        <!-- 这里用“${}”，防止解析出问题 -->
+        SET SESSION innodb_lock_wait_timeout = ${timeout}
+    </update>
+</mapper>

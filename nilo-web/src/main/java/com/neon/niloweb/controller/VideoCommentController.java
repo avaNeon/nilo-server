@@ -1,6 +1,5 @@
 package com.neon.niloweb.controller;
 
-import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.constants.RedisKey;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.videoComment.CommentOrderType;
@@ -8,10 +7,9 @@ import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.entity.vo.comment.VideoCommentVO;
 import com.neon.nilocommon.exception.BusinessException;
-import com.neon.niloweb.loginState.LoginState;
 import com.neon.nilocommon.util.EnumFieldChecker;
-import com.neon.nilocommon.util.FileUtil;
 import com.neon.niloweb.config.WebConfig;
+import com.neon.niloweb.loginState.LoginState;
 import com.neon.niloweb.service.VideoCommentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -21,7 +19,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
-import java.nio.file.Paths;
 import java.util.List;
 
 @Tag(name = "视频评论接口", description = "视频评论相关接口")
@@ -30,13 +27,13 @@ import java.util.List;
 @RestController
 public class VideoCommentController
 {
-    private final WebConfig webConfig;
+    private final VideoCommentService videoCommentService;
 
     private final RedisTemplate <String, Object> redisTemplate;
 
-    private final LoginState loginState;
+    private final WebConfig webConfig;
 
-    private final VideoCommentService videoCommentService;
+    private final LoginState loginState;
 
     @Operation(summary = "发布视频评论", description = "发布视频评论接口，登录状态通过token传递")
     @PostMapping("/comment")
@@ -47,22 +44,12 @@ public class VideoCommentController
                                          @RequestParam(name = "repliedCommentId", required = false) Long repliedCommentId)
     {
         long userId = loginState.getLoginUserId(token);
-        String tmpRootPath = Paths.get(webConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME, Constants.TMP_FOLDER_NAME)
-                                  .toString();
-        boolean imgValid = imgPaths != null && !imgPaths.isBlank();
-        if (imgValid)
-        {
-            for (String imgPathStr : imgPaths.split(","))
-            {
-                if (!FileUtil.fileExists(tmpRootPath, imgPathStr))
-                {
-                    imgValid = false;
-                    break;
-                }
-            }
-        }
+
+        boolean hasContent = content != null && !content.isBlank();
+        boolean hasImg = imgPaths != null && !imgPaths.isBlank();
+
         // 如果既没有内容也没图片就是空白评论，不合法
-        if ((content == null || content.isBlank()) && !imgValid)
+        if (!hasContent && !hasImg)
         {
             throw new BusinessException(ResponseCode.WRONG_ARGUMENTS);
         }

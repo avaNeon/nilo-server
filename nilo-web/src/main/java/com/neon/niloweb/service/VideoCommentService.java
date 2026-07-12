@@ -1,26 +1,26 @@
 package com.neon.niloweb.service;
 
 import cn.hutool.core.lang.Snowflake;
-import com.neon.nilocommon.entity.constants.RedisKey;
+import com.neon.nilocommon.entity.constants.MinioKey;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.userCommentAction.CommentActionType;
 import com.neon.nilocommon.entity.enums.videoComment.CommentOrderType;
 import com.neon.nilocommon.entity.enums.videoComment.CommentTopType;
 import com.neon.nilocommon.entity.enums.videoComment.DeleteType;
 import com.neon.nilocommon.entity.enums.videoInfo.InteractionType;
-import com.neon.nilocommon.entity.po.UserCommentAction;
-import com.neon.nilocommon.entity.po.UserInfo;
-import com.neon.nilocommon.entity.po.VideoComment;
-import com.neon.nilocommon.entity.po.VideoInfo;
+import com.neon.nilocommon.entity.po.*;
+import com.neon.nilocommon.entity.query.MediaOwnershipQuery;
 import com.neon.nilocommon.entity.query.UserInfoQuery;
 import com.neon.nilocommon.entity.query.VideoCommentQuery;
 import com.neon.nilocommon.entity.query.VideoInfoQuery;
+import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.entity.vo.comment.VideoCommentVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.FileUtil;
 import com.neon.nilocommon.util.PageCalculator;
-import com.neon.nilocommon.util.StringUtil;
 import com.neon.niloweb.config.WebConfig;
+import com.neon.niloweb.feign.storage.ImageFeignClient;
+import com.neon.niloweb.mapper.MediaOwnershipMapper;
 import com.neon.niloweb.mapper.UserInfoMapper;
 import com.neon.niloweb.mapper.VideoCommentMapper;
 import com.neon.niloweb.mapper.VideoInfoMapper;
@@ -59,6 +59,10 @@ public class VideoCommentService
     private final Snowflake snowflake;
 
     private final WebConfig webConfig;
+
+    private final ImageFeignClient imageFeignClient;
+
+    private final MediaOwnershipMapper <MediaOwnership, MediaOwnershipQuery> mediaOwnershipMapper;
     /**
      * 最大置顶评论条数
      */
@@ -70,12 +74,12 @@ public class VideoCommentService
      * @param userId          用户ID
      * @param videoId         视频ID
      * @param content         内容
-     * @param imgPaths        图片路径
+     * @param imgKeys         图片keys
      * @param parentCommentId 父级评论ID，如果自己就是顶级评论，则为0
      * @return 评论ID
      */
     @Transactional(rollbackFor = Exception.class)
-    public Long postComment(long userId, long videoId, String content, String imgPaths, long parentCommentId)
+    public Long postComment(long userId, long videoId, String content, String imgKeys, long parentCommentId)
     {
         VideoInfo videoInfo = getVideoInfo(videoId);
 
@@ -108,15 +112,33 @@ public class VideoCommentService
         {
             videoComment.setContent(content);
         }
-        if (imgPaths != null)
+        if (imgKeys != null)
         {
-            videoComment.setImgPaths(imgPaths);
+            videoComment.setImgPaths(imgKeys);
         }
         videoComment.setParentCommentId(parentCommentId);
         videoComment.setUserId(userId);
         videoComment.setPostTime(LocalDateTime.now());
         Long commentId = snowflake.nextId();
         videoComment.setCommentId(commentId);
+
+        // 校验图片归属权
+        if (imgKeys != null)
+        {
+            String[] imgKeyArray = imgKeys.split(",");
+            List <String> allKeys = new ArrayList <>();
+            for (String imgKey : imgKeyArray)
+            {
+                allKeys.add(imgKey);
+                allKeys.add(FileUtil.constructThumbnailName(imgKey));
+            }
+
+            int count = mediaOwnershipMapper.selectCountByObjectKeysAndOwnerIdAndUsed(allKeys, userId, 0);
+            if (count != allKeys.size())
+            {
+                throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
+            }
+        }
 
         /* 校验完成，插入数据 */
         // video_comment
@@ -132,23 +154,47 @@ public class VideoCommentService
         // 视频的评论数+1
         videoInfoMapper.increaseByField(videoId, "comment_count", 1);
 
-        // 最后把图片移动到COVER中
-        if (imgPaths != null)
+        // 标记图片资源为已使用并移动到public
+        if (imgKeys != null)
         {
-            for (String imgPathStr : imgPaths.split(","))
+            String[] imgKeyArray = imgKeys.split(",");
+            LocalDateTime curDate = LocalDateTime.now();
+
+            // 收集所有需要标记的key（图片+缩略图）
+            List <String> allKeys = new ArrayList <>();
+            for (String imgKey : imgKeyArray)
             {
-                FileUtil.verifyAndMoveCover(webConfig.getRootFilePath(), imgPathStr);
-                String suffix = StringUtil.getSuffix(imgPathStr);
-                String thumbnailImgPathStr = imgPathStr.substring(0,
-                                                                  imgPathStr.lastIndexOf('.')) + RedisKey.THUMBNAIL_SUFFIX + suffix;
-                FileUtil.verifyAndMoveCover(webConfig.getRootFilePath(), thumbnailImgPathStr);
+                allKeys.add(imgKey);
+                allKeys.add(FileUtil.constructThumbnailName(imgKey));
+            }
+
+            // 批量标记为已使用
+            int affected = mediaOwnershipMapper.markAsUsedBatch(allKeys, userId, curDate);
+            if (affected != allKeys.size())
+            {
+                throw new BusinessException("部分图片资源不存在或已被使用");
+            }
+
+            // 再移动图片和缩略图到public
+            for (String imgKey : imgKeyArray)
+            {
+                String thumbnailKey = FileUtil.constructThumbnailName(imgKey);
+                ResponseVO <Void> imgResult = imageFeignClient.move(MinioKey.TMP_PREFIX + imgKey,
+                                                                    MinioKey.PUBLIC_PREFIX + imgKey);
+                ResponseVO <Void> thumbResult = imageFeignClient.move(MinioKey.TMP_PREFIX + thumbnailKey,
+                                                                      MinioKey.PUBLIC_PREFIX + thumbnailKey);
+                if (!imgResult.getCode().equals(ResponseCode.SUCCESS.getCode()) || !thumbResult.getCode()
+                                                                                               .equals(ResponseCode.SUCCESS.getCode()))
+                {
+                    throw new BusinessException("图片移动失败");
+                }
             }
         }
 
         if (parentCommentId != 0)
         {
             String replyCommentContent = formatReplyCommentContent(parentComment);
-            String postedCommentContent = formatPostedCommentContent(content, imgPaths);
+            String postedCommentContent = formatPostedCommentContent(content, imgKeys);
 
             // 异步向父评论发布用户发送通知
             CompletableFuture <Void> replyCommentMessage = userMessageService.recordCommentMessage(videoComment.getReplyUserId(),
@@ -168,7 +214,7 @@ public class VideoCommentService
         // 如果回复者就是视频发布者，没必要再给发布者发消息了
         if (!Objects.equals(videoComment.getReplyUserId(), videoInfo.getUserId()))
         {
-            String postedCommentContent = formatPostedCommentContent(content, imgPaths);
+            String postedCommentContent = formatPostedCommentContent(content, imgKeys);
 
             // 异步向视频发布者发送新评论通知
             CompletableFuture <Void> videoCommentMessage = userMessageService.recordCommentMessage(videoInfo.getUserId(),

@@ -9,7 +9,6 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.stereotype.Repository;
 
-import javax.annotation.Nullable;
 import java.util.List;
 
 @RequiredArgsConstructor
@@ -34,7 +33,7 @@ public class HeartbeatRedisRepository
 
         redisTemplate.executePipelined(new SessionCallback <Object>()
         {
-            @Nullable
+
             @Override
             public <K, V> Object execute(RedisOperations <K, V> operations) throws DataAccessException
             {

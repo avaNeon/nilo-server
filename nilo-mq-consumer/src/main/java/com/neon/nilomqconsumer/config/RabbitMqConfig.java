@@ -2,8 +2,6 @@ package com.neon.nilomqconsumer.config;
 
 import com.neon.nilocommon.entity.constants.MqInfo;
 import org.springframework.amqp.core.*;
-import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
-import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -23,16 +21,32 @@ public class RabbitMqConfig
     @Bean
     public Queue storageDeleteQueue()
     {
-        return QueueBuilder.durable(MqInfo.STORAGE_DELETE_QUEUE).quorum() // 声明为仲裁队列
+        return QueueBuilder.durable(MqInfo.STORAGE_VIDEO_DELETE_QUEUE).quorum() // 声明为仲裁队列
                            .deadLetterExchange(MqInfo.STORAGE_DLX)        // 绑定死信交换机
-                           .deadLetterRoutingKey(MqInfo.STORAGE_DELETE_DLK)   // 绑定死信路由键
+                           .deadLetterRoutingKey(MqInfo.STORAGE_VIDEO_DELETE_DLK)   // 绑定死信路由键
                            .build();
     }
 
     @Bean
     public Binding bindingStorageDelete()
     {
-        return BindingBuilder.bind(storageDeleteQueue()).to(storageExchange()).with(MqInfo.STORAGE_DELETE_ROUTING_KEY);
+        return BindingBuilder.bind(storageDeleteQueue()).to(storageExchange()).with(MqInfo.STORAGE_VIDEO_DELETE_ROUTING_KEY);
+    }
+
+    /* --图片删除队列-- */
+    @Bean
+    public Queue storageImageDeleteQueue()
+    {
+        return QueueBuilder.durable(MqInfo.STORAGE_IMAGE_DELETE_QUEUE).quorum()
+                           .deadLetterExchange(MqInfo.STORAGE_DLX)
+                           .deadLetterRoutingKey(MqInfo.STORAGE_IMAGE_DELETE_DLK)
+                           .build();
+    }
+
+    @Bean
+    public Binding bindingStorageImageDelete()
+    {
+        return BindingBuilder.bind(storageImageDeleteQueue()).to(storageExchange()).with(MqInfo.STORAGE_IMAGE_DELETE_ROUTING_KEY);
     }
 
     /* --转码队列-- */
@@ -62,14 +76,28 @@ public class RabbitMqConfig
     @Bean
     public Queue dlqStorageDeleteQueue()
     {
-        return QueueBuilder.durable(MqInfo.STORAGE_DELETE_DLQ).quorum() // 死信队列也用仲裁队列保证高可用
+        return QueueBuilder.durable(MqInfo.STORAGE_VIDEO_DELETE_DLQ).quorum() // 死信队列也用仲裁队列保证高可用
                            .build();
     }
 
     @Bean
     public Binding bindingStorageDeleteDlq()
     {
-        return BindingBuilder.bind(dlqStorageDeleteQueue()).to(dlxStorageExchange()).with(MqInfo.STORAGE_DELETE_DLK);
+        return BindingBuilder.bind(dlqStorageDeleteQueue()).to(dlxStorageExchange()).with(MqInfo.STORAGE_VIDEO_DELETE_DLK);
+    }
+
+    /* --[死信]图片删除队列-- */
+    @Bean
+    public Queue dlqStorageImageDeleteQueue()
+    {
+        return QueueBuilder.durable(MqInfo.STORAGE_IMAGE_DELETE_DLQ).quorum()
+                           .build();
+    }
+
+    @Bean
+    public Binding bindingStorageImageDeleteDlq()
+    {
+        return BindingBuilder.bind(dlqStorageImageDeleteQueue()).to(dlxStorageExchange()).with(MqInfo.STORAGE_IMAGE_DELETE_DLK);
     }
 
     /* --[死信]转码队列-- */

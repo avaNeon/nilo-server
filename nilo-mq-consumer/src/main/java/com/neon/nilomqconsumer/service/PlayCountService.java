@@ -20,10 +20,10 @@ public class PlayCountService
             return;
         }
 
+        // ES 播放量由 Canal 同步 MySQL 变更，这里只刷 MySQL + Redis
         CompletableFuture <Void> mysqlCompletableFuture = playCountAsyncService.flushPlayCountBatchToMysql(batch);
         CompletableFuture <Void> redisCompletableFuture = playCountAsyncService.flushPlayCountBatchToRedis(batch);
-        CompletableFuture <Void> esCompletableFuture = playCountAsyncService.flushPlayCountToES(batch);
 
-        CompletableFuture.allOf(mysqlCompletableFuture, redisCompletableFuture, esCompletableFuture).join();
+        CompletableFuture.allOf(mysqlCompletableFuture, redisCompletableFuture).join();
     }
 }

@@ -7,8 +7,6 @@
     <resultMap id="base_result_map" type="com.neon.nilocommon.entity.po.VideoInfoFileUpload">
         <!--唯一ID-->
         <result column="file_id" property="fileId"/>
-        <!--上传ID-->
-        <result column="upload_id" property="uploadId"/>
         <!--用户ID-->
         <result column="user_id" property="userId"/>
         <!--视频ID-->
@@ -32,7 +30,7 @@
 
     <!-- 通用查询结果列-->
     <sql id="base_column_list">
-        v.file_id,v.upload_id,v.user_id,v.video_id,v.file_index,
+        v.file_id,v.user_id,v.video_id,v.file_index,
 		 v.file_name,v.file_size,v.file_path,v.update_type,v.transfer_result,
 		 v.duration
     </sql>
@@ -40,9 +38,6 @@
     <sql id="base_condition_filed">
         <if test="query.fileId != null and query.fileId!=''">
             and v.file_id = #{query.fileId}
-        </if>
-        <if test="query.uploadId != null and query.uploadId!=''">
-            and v.upload_id = #{query.uploadId}
         </if>
         <if test="query.userId != null">
             and v.user_id = #{query.userId}
@@ -115,9 +110,6 @@
             <if test="bean.fileId != null">
                 file_id,
             </if>
-            <if test="bean.uploadId != null">
-                upload_id,
-            </if>
             <if test="bean.userId != null">
                 user_id,
             </if>
@@ -149,9 +141,6 @@
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="bean.fileId!=null">
                 #{bean.fileId},
-            </if>
-            <if test="bean.uploadId!=null">
-                #{bean.uploadId},
             </if>
             <if test="bean.userId!=null">
                 #{bean.userId},
@@ -190,9 +179,6 @@
             <if test="bean.fileId != null">
                 file_id,
             </if>
-            <if test="bean.uploadId != null">
-                upload_id,
-            </if>
             <if test="bean.userId != null">
                 user_id,
             </if>
@@ -224,9 +210,6 @@
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="bean.fileId!=null">
                 #{bean.fileId},
-            </if>
-            <if test="bean.uploadId!=null">
-                #{bean.uploadId},
             </if>
             <if test="bean.userId!=null">
                 #{bean.userId},
@@ -260,9 +243,6 @@
         <trim prefix="" suffix="" suffixOverrides=",">
             <if test="bean.fileId!=null">
                 file_id = VALUES(file_id),
-            </if>
-            <if test="bean.uploadId!=null">
-                upload_id = VALUES(upload_id),
             </if>
             <if test="bean.userId!=null">
                 user_id = VALUES(user_id),
@@ -298,7 +278,6 @@
     <insert id="insertBatch" parameterType="com.neon.nilocommon.entity.po.VideoInfoFileUpload">
         INSERT INTO video_info_file_upload(
         file_id,
-        upload_id,
         user_id,
         video_id,
         file_index,
@@ -312,7 +291,6 @@
         <foreach collection="list" item="item" separator=",">
             (
             #{item.fileId},
-            #{item.uploadId},
             #{item.userId},
             #{item.videoId},
             #{item.fileIndex},
@@ -330,7 +308,6 @@
     <insert id="insertOrUpdateBatch" parameterType="com.neon.nilocommon.entity.po.VideoInfoFileUpload">
         INSERT INTO video_info_file_upload(
         file_id,
-        upload_id,
         user_id,
         video_id,
         file_index,
@@ -344,7 +321,6 @@
         <foreach collection="list" item="item" separator=",">
             (
             #{item.fileId},
-            #{item.uploadId},
             #{item.userId},
             #{item.videoId},
             #{item.fileIndex},
@@ -358,7 +334,6 @@
         </foreach>
         on DUPLICATE key update
         file_id = VALUES(file_id),
-        upload_id = VALUES(upload_id),
         user_id = VALUES(user_id),
         video_id = VALUES(video_id),
         file_index = VALUES(file_index),
@@ -376,9 +351,6 @@
         <set>
             <if test="bean.fileId != null">
                 file_id = #{bean.fileId},
-            </if>
-            <if test="bean.uploadId != null">
-                upload_id = #{bean.uploadId},
             </if>
             <if test="bean.userId != null">
                 user_id = #{bean.userId},
@@ -421,9 +393,6 @@
     <update id="updateByFileId" parameterType="com.neon.nilocommon.entity.po.VideoInfoFileUpload">
         UPDATE video_info_file_upload
         <set>
-            <if test="bean.uploadId != null">
-                upload_id = #{bean.uploadId},
-            </if>
             <if test="bean.userId != null">
                 user_id = #{bean.userId},
             </if>
@@ -469,39 +438,19 @@
         from video_info_file_upload v where file_id=#{fileId}
     </select>
 
-    <!-- 根据UploadIdAndUserId修改-->
-    <update id="updateByUploadIdAndUserId" parameterType="com.neon.nilocommon.entity.po.VideoInfoFileUpload">
+    <!-- 根据UserIdAndFileId修改-->
+    <update id="updateByUserIdAndFileId" parameterType="com.neon.nilocommon.entity.po.VideoInfoFileUpload">
         UPDATE video_info_file_upload
-        <set>
-            <if test="bean.fileId != null">
-                file_id = #{bean.fileId},
-            </if>
-            <if test="bean.videoId != null">
-                video_id = #{bean.videoId},
-            </if>
-            <if test="bean.fileIndex != null">
-                file_index = #{bean.fileIndex},
-            </if>
-            <if test="bean.fileName != null">
-                file_name = #{bean.fileName},
-            </if>
-            <if test="bean.fileSize != null">
-                file_size = #{bean.fileSize},
-            </if>
-            <if test="bean.filePath != null">
-                file_path = #{bean.filePath},
-            </if>
-            <if test="bean.updateType != null">
-                update_type = #{bean.updateType},
-            </if>
-            <if test="bean.transferResult != null">
-                transfer_result = #{bean.transferResult},
-            </if>
-            <if test="bean.duration != null">
-                duration = #{bean.duration},
-            </if>
-        </set>
-        where upload_id=#{uploadId} and user_id=#{userId}
+        SET video_id        = #{bean.videoId},
+            file_index      = #{bean.fileIndex},
+            file_name       = #{bean.fileName},
+            file_size       = #{bean.fileSize},
+            file_path       = #{bean.filePath},
+            update_type     = #{bean.updateType},
+            transfer_result = #{bean.transferResult},
+            duration        = #{bean.duration}
+        WHERE user_id = #{userId}
+          AND file_id = #{fileId}
     </update>
 
     <!--  根据fileId批量删除出现在fileId的对象  -->
@@ -514,25 +463,16 @@
         </foreach>
     </delete>
 
-    <!-- 根据UploadIdAndUserId删除-->
-    <delete id="deleteByUploadIdAndUserId">
-        delete
-        from video_info_file_upload
-        where upload_id = #{uploadId}
-          and user_id = #{userId}
-    </delete>
-
     <select id="sumDuration" resultType="java.lang.Integer">
         select sum(duration)
         from video_info_file_upload
         where video_id = #{videoId}
     </select>
 
-    <!-- 根据PrimaryKey获取对象-->
-    <select id="selectByUploadIdAndUserId" resultMap="base_result_map">
-        select
+    <select id="selectByVideoId" resultMap="base_result_map">
+        SELECT
         <include refid="base_column_list"/>
-        from video_info_file_upload v where upload_id=#{uploadId} and user_id=#{userId}
+        FROM video_info_file_upload v
+        WHERE video_id=#{videoId}
     </select>
-
 </mapper>

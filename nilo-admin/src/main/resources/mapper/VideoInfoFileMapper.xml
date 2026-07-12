@@ -375,4 +375,16 @@
         from video_info_file v where file_id=#{fileId}
     </select>
 
+    <select id="selectByVideoId" resultMap="base_result_map">
+        SELECT
+        <include refid="base_column_list"/>
+        FROM video_info_file v
+        WHERE video_id=#{videoId}
+    </select>
+
+    <delete id="deleteByVideoId">
+        DELETE
+        FROM video_info_file
+        WHERE video_id = #{videoId}
+    </delete>
 </mapper>

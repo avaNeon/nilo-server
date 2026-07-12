@@ -78,12 +78,12 @@ public class VideoController
                  @Parameter(name = "reviewResult", description = "审核结果，true表示审核通过，false表示审核不通过"),
                  @Parameter(name = "refuseReason", description = "拒绝理由，当审核不通过时需要提供")})
     @PutMapping(path = "/review")
-    public ResponseVO <Object> reviewVideo(@RequestParam(name = "videoId") @NotNull Long videoId,
-                                           @RequestParam(name = "reviewResult") @NotNull Boolean reviewResult,
-                                           @RequestParam(name = "refuseReason", required = false) String refuseReason)
+    public ResponseVO <Void> reviewVideo(@RequestParam(name = "videoId") @NotNull Long videoId,
+                                         @RequestParam(name = "reviewResult") @NotNull Boolean reviewResult,
+                                         @RequestParam(name = "refuseReason", required = false) String refuseReason)
     {
         videoService.reviewVideo(videoId, reviewResult, refuseReason);
-        return ResponseVO.success(null);
+        return ResponseVO.success();
     }
 
     /**
@@ -93,28 +93,28 @@ public class VideoController
      */
     @Operation(summary = "恢复被删除的视频")
     @PutMapping(path = "/{videoId}")
-    public ResponseVO <Object> recoverVideo(@PathVariable(name = "videoId") @NotNull Long videoId)
+    public ResponseVO <Void> recoverVideo(@PathVariable(name = "videoId") @NotNull Long videoId)
     {
         videoService.recoverVideo(videoId);
-        return ResponseVO.success(null);
+        return ResponseVO.success();
     }
 
     @Operation(summary = "切换视频推荐状态")
     @PutMapping(path = "/recommend/{videoId}")
-    public ResponseVO <Object> toggleVideoRecommend(@RequestParam("videoId") @NotNull Long videoId)
+    public ResponseVO <Void> toggleVideoRecommend(@RequestParam("videoId") @NotNull Long videoId)
     {
         videoService.toggleVideoRecommend(videoId);
-        return ResponseVO.success(null);
+        return ResponseVO.success();
     }
 
     @Operation(summary = "删除用户视频")
     @DeleteMapping(path = "/video/{userId}/{videoId}")
-    public ResponseVO <Object> deleteVideo(@PathVariable(name = "userId") @NotNull Long userId,
-                                           @PathVariable(name = "videoId") @NotNull Long videoId,
-                                           @RequestParam(name = "detail") @NotEmpty String detail)
+    public ResponseVO <Void> deleteVideo(@PathVariable(name = "userId") @NotNull Long userId,
+                                         @PathVariable(name = "videoId") @NotNull Long videoId,
+                                         @RequestParam(name = "detail") @NotEmpty String detail)
     {
         videoService.deleteVideo(userId, videoId, detail);
-        return ResponseVO.success(null);
+        return ResponseVO.success();
     }
 
 }

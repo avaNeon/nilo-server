@@ -367,4 +367,10 @@
 		select <include refid="base_column_list" /> from video_info_file_archive v where file_id=#{fileId}
 	</select>
 
+	<select id="selectByVideoId" resultMap="base_result_map">
+        SELECT
+        <include refid="base_column_list"/>
+        FROM video_info_file_archive v
+        WHERE v.video_id = #{videoId}
+    </select>
 </mapper>

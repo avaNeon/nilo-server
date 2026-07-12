@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
@@ -76,24 +77,13 @@ public class VideoArchiveController
         videoArchiveService.downloadVideoMasterM3u8(videoId, index, response);
     }
 
-    @Operation(summary = "下载存档HLS分辨率播放列表（playlist.m3u8）")
-    @GetMapping(path = "/video/hls/{videoId}/{index}/playlist/{resolution}.m3u8")
+    @Operation(summary = "下载存档HLS分辨率播放列表（index.m3u8）", description = "folder 为 720P 或 480P")
+    @GetMapping(path = "/video/hls/{videoId}/{index}/{folder}/index.m3u8")
     public void downloadVideoPlaylistM3u8(@PathVariable(name = "videoId") @NotNull Long videoId,
                                           @PathVariable(name = "index") @NotNull Integer index,
-                                          @PathVariable(name = "resolution") @NotNull Integer resolution,
+                                          @PathVariable(name = "folder") @NotEmpty String folder,
                                           @Parameter(hidden = true) HttpServletResponse response)
     {
-        videoArchiveService.downloadVideoPlaylistM3u8(videoId, index, resolution, response);
-    }
-
-    @Operation(summary = "下载存档HLS分片（segment.ts）")
-    @GetMapping(path = "/video/hls/{videoId}/{index}/segment/{resolution}/{segment}")
-    public void downloadVideoSegmentTs(@PathVariable(name = "videoId") @NotNull Long videoId,
-                                       @PathVariable(name = "index") @NotNull Integer index,
-                                       @PathVariable(name = "resolution") @NotNull Integer resolution,
-                                       @PathVariable(name = "segment") @NotNull String segment,
-                                       @Parameter(hidden = true) HttpServletResponse response)
-    {
-        videoArchiveService.downloadVideoSegmentTs(videoId, index, resolution, segment, response);
+        videoArchiveService.downloadVideoPlaylistM3u8(videoId, index, folder, response);
     }
 }

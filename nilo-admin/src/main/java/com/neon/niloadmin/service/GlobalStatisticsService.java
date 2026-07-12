@@ -69,7 +69,7 @@ public class GlobalStatisticsService
 
         vos.sort(Comparator.comparing(StatisticsInfoVO::getStatisticsDate));
 
-        return result;
+        return vos;
     }
 
     /**

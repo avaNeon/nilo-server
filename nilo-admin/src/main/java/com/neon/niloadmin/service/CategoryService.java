@@ -1,22 +1,24 @@
 package com.neon.niloadmin.service;
 
 
-import com.neon.niloadmin.config.AdminConfig;
+import com.neon.niloadmin.feign.storage.ImageFeignClient;
 import com.neon.niloadmin.mapper.CategoryInfoMapper;
 import com.neon.niloadmin.mapper.VideoInfoMapper;
 import com.neon.niloadmin.repository.rabbitmq.MqRepository;
 import com.neon.niloadmin.repository.redis.CategoryRedisRepository;
-import com.neon.nilocommon.entity.constants.Constants;
+import com.neon.nilocommon.entity.constants.MinioKey;
 import com.neon.nilocommon.entity.enums.PageSize;
+import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.po.CategoryInfo;
 import com.neon.nilocommon.entity.po.VideoInfo;
 import com.neon.nilocommon.entity.query.CategoryInfoQuery;
 import com.neon.nilocommon.entity.query.VideoInfoQuery;
 import com.neon.nilocommon.entity.vo.PaginationResponseVO;
+import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.nilocommon.util.FileUtil;
 import com.neon.nilocommon.util.PageCalculator;
 import com.neon.nilocommon.util.RedisQueryUtil;
-import com.neon.nilocommon.util.StringUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -24,7 +26,6 @@ import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,15 +43,15 @@ public class CategoryService
 {
     private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
 
-    private final CategoryInfoMapper <CategoryInfo, CategoryInfoQuery> mapper;
+    private final CategoryInfoMapper <CategoryInfo, CategoryInfoQuery> categoryInfoMapper;
 
     private final CategoryRedisRepository categoryRedisRepository;
 
     private final RedissonClient redisson;
 
-    private final AdminConfig adminConfig;
-
     private final MqRepository mqRepository;
+
+    private final ImageFeignClient imageFeignClient;
 
     /**
      * 分页查询方法
@@ -115,7 +116,7 @@ public class CategoryService
         }
         else
         {
-            list = mapper.selectByIdOrParentIds(idOrParentIds);
+            list = categoryInfoMapper.selectByIdOrParentIds(idOrParentIds);
         }
         return buildTree(list, 0);
     }
@@ -134,7 +135,7 @@ public class CategoryService
         }
         else
         {
-            list = mapper.selectList(new CategoryInfoQuery());
+            list = categoryInfoMapper.selectList(new CategoryInfoQuery());
         }
         return buildTree(list, 0);
     }
@@ -144,10 +145,11 @@ public class CategoryService
      *
      * @param categoryInfo 分类信息
      */
+    @Transactional(rollbackFor = Exception.class)
     public void saveCategory(CategoryInfo categoryInfo)
     {
         // 先校验一下 categoryNumber 唯一性
-        CategoryInfo sameNumberInfo = mapper.selectByCategoryNumber(categoryInfo.getCategoryNumber());
+        CategoryInfo sameNumberInfo = categoryInfoMapper.selectByCategoryNumber(categoryInfo.getCategoryNumber());
 
         // 如果有其他分类有这个 categoryNumber 禁止保存
         if (sameNumberInfo != null && (sameNumberInfo.getCategoryId() == null || !Objects.equals(sameNumberInfo.getCategoryId(),
@@ -157,14 +159,14 @@ public class CategoryService
         }
 
         // 检查是否存在记录
-        CategoryInfo existedInfo = mapper.selectByCategoryId(categoryInfo.getCategoryId());
+        CategoryInfo existedInfo = categoryInfoMapper.selectByCategoryId(categoryInfo.getCategoryId());
 
         try
         {
             if (existedInfo == null) // 新增
             {
                 // 给一个排序序号
-                Integer maxSort = mapper.selectMaxSort(categoryInfo.getPCategoryId());
+                Integer maxSort = categoryInfoMapper.selectMaxSort(categoryInfo.getPCategoryId());
 
                 if (maxSort == null)
                 {
@@ -173,42 +175,50 @@ public class CategoryService
 
                 categoryInfo.setSort(maxSort + 1);
 
-                mapper.insert(categoryInfo);
+                categoryInfoMapper.insert(categoryInfo);
+
+                // 新上传的图标/背景在 TMP，保存后移到 PUBLIC
+                moveImageToPublicIfPresent(categoryInfo.getIcon());
+                moveImageToPublicIfPresent(categoryInfo.getBackground());
             }
             else // 修改
             {
-                mapper.updateByCategoryId(categoryInfo, existedInfo.getCategoryId());
-
-
-                // 删除旧头像和背景头图
-                List <String> deletePathList = new ArrayList <>();
-                String fileRootPath = Path.of(adminConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME).normalize().toString();
+                categoryInfoMapper.updateByCategoryId(categoryInfo, existedInfo.getCategoryId());
 
                 String oldIcon = existedInfo.getIcon();
-                // 如果旧图标存在
-                if (oldIcon != null && !oldIcon.isBlank())
-                {
-                    String iconAbsPath = Path.of(fileRootPath, Constants.COVER_FOLDER_NAME, oldIcon).normalize().toString();
-                    if (StringUtil.isValidPath(fileRootPath, iconAbsPath))
-                    {
-                        deletePathList.add(iconAbsPath);
-                    }
-                }
+                String newIcon = categoryInfo.getIcon();
+                boolean iconChanged = !Objects.equals(oldIcon, newIcon);
 
                 String oldBackground = existedInfo.getBackground();
-                // 如果旧背景存在
-                if (oldBackground != null && !oldBackground.isBlank())
+                String newBackground = categoryInfo.getBackground();
+                boolean backgroundChanged = !Objects.equals(oldBackground, newBackground);
+
+                // 变更的图片从 TMP 移到 PUBLIC
+                if (iconChanged)
                 {
-                    String bgAbsPath = Path.of(fileRootPath, Constants.COVER_FOLDER_NAME, oldBackground).normalize().toString();
-                    if (StringUtil.isValidPath(fileRootPath, bgAbsPath))
-                    {
-                        deletePathList.add(bgAbsPath);
-                    }
+                    moveImageToPublicIfPresent(newIcon);
+                }
+                if (backgroundChanged)
+                {
+                    moveImageToPublicIfPresent(newBackground);
+                }
+
+                // 仅删除被替换掉的旧图（含缩略图）
+                List <String> deletePathList = new ArrayList <>();
+                if (iconChanged && oldIcon != null && !oldIcon.isBlank())
+                {
+                    deletePathList.add(oldIcon);
+                    deletePathList.add(FileUtil.constructThumbnailName(oldIcon));
+                }
+                if (backgroundChanged && oldBackground != null && !oldBackground.isBlank())
+                {
+                    deletePathList.add(oldBackground);
+                    deletePathList.add(FileUtil.constructThumbnailName(oldBackground));
                 }
 
                 if (!deletePathList.isEmpty())
                 {
-                    mqRepository.addPathList2DeleteQueue(deletePathList);
+                    mqRepository.addKeysToImageDeleteQueue(deletePathList);
                 }
             }
         }
@@ -248,12 +258,9 @@ public class CategoryService
             throw new BusinessException("现在不能删除，分类下还有视频");
         }
 
-        mapper.deleteByCategoryId(categoryId);
-        mapper.deleteByPCategoryId(categoryId);
+        categoryInfoMapper.deleteByCategoryId(categoryId);
+        categoryInfoMapper.deleteByPCategoryId(categoryId);
         categoryRedisRepository.deleteCategoryInfo();
-
-        // 获取根路径
-        String fileRootPath = Path.of(adminConfig.getRootFilePath(), Constants.FILE_FOLDER_NAME).normalize().toString();
 
         // 定义删除列表
         ArrayList <String> deletedPathList = new ArrayList <>();
@@ -262,35 +269,21 @@ public class CategoryService
         deletedCategoryList.forEach(c ->
                                     {
                                         String icon = c.getIcon();
-                                        String background = c.getBackground();
-
                                         if (icon != null && !icon.isEmpty())
                                         {
-                                            String iconPathStr = Path.of(fileRootPath, Constants.COVER_FOLDER_NAME, icon)
-                                                                     .normalize()
-                                                                     .toString();
-                                            if (StringUtil.isValidPath(fileRootPath, iconPathStr))
-                                            {
-                                                deletedPathList.add(iconPathStr);
-                                            }
+                                            deletedPathList.add(icon);
                                         }
-
+                                        String background = c.getBackground();
                                         if (background != null && !background.isEmpty())
                                         {
-                                            String backgroundPathStr = Path.of(fileRootPath,
-                                                                               Constants.COVER_FOLDER_NAME,
-                                                                               background).normalize().toString();
-                                            if (StringUtil.isValidPath(fileRootPath, backgroundPathStr))
-                                            {
-                                                deletedPathList.add(backgroundPathStr);
-                                            }
+                                            deletedPathList.add(background);
                                         }
                                     });
 
         // 用MQ队列异步删除图片
         if (!deletedPathList.isEmpty())
         {
-            mqRepository.addPathList2DeleteQueue(deletedPathList);
+            mqRepository.addKeysToImageDeleteQueue(deletedPathList);
         }
     }
 
@@ -308,7 +301,7 @@ public class CategoryService
                                                                 categoryInfo.setPCategoryId(parentId);
                                                                 return categoryInfo;
                                                             }).toList();
-        mapper.updateSort(list);
+        categoryInfoMapper.updateSort(list);
         categoryRedisRepository.deleteCategoryInfo();
     }
 
@@ -317,7 +310,7 @@ public class CategoryService
      */
     public List <CategoryInfo> findListByParam(CategoryInfoQuery param)
     {
-        return this.mapper.selectList(param);
+        return this.categoryInfoMapper.selectList(param);
     }
 
     /**
@@ -325,15 +318,31 @@ public class CategoryService
      */
     public Integer findCountByParam(CategoryInfoQuery param)
     {
-        return this.mapper.selectCount(param);
+        return this.categoryInfoMapper.selectCount(param);
     }
 
     /**
-     * 新增
+     * 将分类图片（原图+缩略图）从 TMP 移动到 PUBLIC
+     *
+     * @param plainKey 不带前缀的图片 key
      */
-    public Integer add(CategoryInfo bean)
+    private void moveImageToPublicIfPresent(String plainKey)
     {
-        return this.mapper.insert(bean);
+        if (plainKey == null || plainKey.isBlank())
+        {
+            return;
+        }
+
+        String thumbnailKey = FileUtil.constructThumbnailName(plainKey);
+        Map <String, String> imageKeyMap = Map.of(MinioKey.TMP_PREFIX + plainKey,
+                                                  MinioKey.PUBLIC_PREFIX + plainKey,
+                                                  MinioKey.TMP_PREFIX + thumbnailKey,
+                                                  MinioKey.PUBLIC_PREFIX + thumbnailKey);
+        ResponseVO <Void> imageResult = imageFeignClient.batchMove(imageKeyMap);
+        if (!ResponseCode.SUCCESS.getCode().equals(imageResult.getCode()))
+        {
+            throw new RuntimeException("分类图片移动失败: " + plainKey);
+        }
     }
 
     /**
@@ -373,7 +382,7 @@ public class CategoryService
                 {
                     CategoryInfoQuery param = new CategoryInfoQuery();
                     param.setOrderBy("sort asc");
-                    List <CategoryInfo> list = mapper.selectList(param);
+                    List <CategoryInfo> list = categoryInfoMapper.selectList(param);
                     categoryRedisRepository.setCategoryInfo(list);
                 }
             }

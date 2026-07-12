@@ -2,11 +2,28 @@ package com.neon.niloadmin.mapper;
 
 import org.apache.ibatis.annotations.Param;
 
+import java.util.List;
+
 /**
- * 视频文件信息 数据库操作接口
+ * 视频文件信息
  */
 public interface VideoInfoFileMapper<T, P> extends BaseMapper <T, P>
 {
+    /**
+     * 根据视频ID获取文件信息
+     *
+     * @param videoId 视频ID
+     * @return 文件信息列表
+     */
+    List <T> selectByVideoId(@Param("videoId") Long videoId);
+
+    /**
+     * 根据视频ID删除
+     *
+     * @param videoId 视频ID
+     * @return 改变行数
+     */
+    Integer deleteByVideoId(@Param("videoId") Long videoId);
 
     /**
      * 根据FileId更新

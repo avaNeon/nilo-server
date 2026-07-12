@@ -2,7 +2,6 @@ package com.neon.niloadmin.service;
 
 import com.neon.niloadmin.mapper.VideoDanmakuMapper;
 import com.neon.niloadmin.mapper.VideoInfoMapper;
-import com.neon.niloadmin.repository.elasticsearch.VideoInfoDocRepository;
 import com.neon.nilocommon.entity.po.VideoDanmaku;
 import com.neon.nilocommon.entity.po.VideoInfo;
 import com.neon.nilocommon.entity.query.VideoDanmakuQuery;
@@ -22,8 +21,6 @@ public class VideoDanmakuService
     private final VideoDanmakuMapper <VideoDanmaku, VideoDanmakuQuery> videoDanmakuMapper;
 
     private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
-
-    private final VideoInfoDocRepository videoInfoDocRepository;
 
     public Long getDanmakuManagementInfoCount(String nameFuzzy)
     {
@@ -49,8 +46,8 @@ public class VideoDanmakuService
         if (deletedCount != null && deletedCount > 0)
         {
             Long videoId = videoDanmaku.getVideoId();
+            // ES 由 Canal 同步
             videoInfoMapper.decreaseByField(videoId, "danmaku_count", 1);
-            videoInfoDocRepository.decreaseDanmakuCountByVideoId(videoId, 1);
         }
         else
         {

@@ -298,40 +298,4 @@
  		 <include refid="query_condition" />
 	</delete>
 
-	<!-- 根据ActionId修改-->
-	<update id="updateByActionId" parameterType="com.neon.nilocommon.entity.po.UserVideoActionArchive">
-		 UPDATE user_video_action_archive
- 		 <set> 
-			<if test="bean.videoId != null">
-				 video_id = #{bean.videoId},
-			</if>
-			<if test="bean.videoUserId != null">
-				 video_user_id = #{bean.videoUserId},
-			</if>
-			<if test="bean.actionType != null">
-				 action_type = #{bean.actionType},
-			</if>
-			<if test="bean.coinAmount != null">
-				 coin_amount = #{bean.coinAmount},
-			</if>
-			<if test="bean.userId != null">
-				 user_id = #{bean.userId},
-			</if>
-			<if test="bean.actionTime != null">
-				 action_time = #{bean.actionTime},
-			</if>
- 		 </set>
- 		 where action_id=#{actionId}
-	</update>
-
-	<!-- 根据ActionId删除-->
-	<delete id="deleteByActionId">
-		delete from user_video_action_archive where action_id=#{actionId}
-	</delete>
-
-	<!-- 根据PrimaryKey获取对象-->
-	<select id="selectByActionId" resultMap="base_result_map" >
-		select <include refid="base_column_list" /> from user_video_action_archive u where action_id=#{actionId}
-	</select>
-
 </mapper>

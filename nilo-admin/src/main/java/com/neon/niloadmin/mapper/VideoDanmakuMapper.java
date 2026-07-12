@@ -30,11 +30,6 @@ public interface VideoDanmakuMapper<T, P> extends BaseMapper <T, P>
      */
     Integer deleteByFileIdBatch(@Param("fileIdList") List <Long> fileIdList);
 
-    /**
-     * 根据DanmakuId更新
-     */
-    Integer updateByDanmakuId(@Param("bean") T t, @Param("danmakuId") Long danmakuId);
-
 
     /**
      * 根据DanmakuId删除

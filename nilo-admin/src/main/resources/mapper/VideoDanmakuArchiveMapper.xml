@@ -362,46 +362,5 @@
  		 <include refid="query_condition" />
 	</delete>
 
-	<!-- 根据DanmakuId修改-->
-	<update id="updateByDanmakuId" parameterType="com.neon.nilocommon.entity.po.VideoDanmakuArchive">
-		 UPDATE video_danmaku_archive
- 		 <set> 
-			<if test="bean.videoId != null">
-				 video_id = #{bean.videoId},
-			</if>
-			<if test="bean.fileId != null">
-				 file_id = #{bean.fileId},
-			</if>
-			<if test="bean.userId != null">
-				 user_id = #{bean.userId},
-			</if>
-			<if test="bean.postTime != null">
-				 post_time = #{bean.postTime},
-			</if>
-			<if test="bean.content != null">
-				 content = #{bean.content},
-			</if>
-			<if test="bean.position != null">
-				 position = #{bean.position},
-			</if>
-			<if test="bean.color != null">
-				 color = #{bean.color},
-			</if>
-			<if test="bean.displayMoment != null">
-				 display_moment = #{bean.displayMoment},
-			</if>
- 		 </set>
- 		 where danmaku_id=#{danmakuId}
-	</update>
-
-	<!-- 根据DanmakuId删除-->
-	<delete id="deleteByDanmakuId">
-		delete from video_danmaku_archive where danmaku_id=#{danmakuId}
-	</delete>
-
-	<!-- 根据PrimaryKey获取对象-->
-	<select id="selectByDanmakuId" resultMap="base_result_map" >
-		select <include refid="base_column_list" /> from video_danmaku_archive v where danmaku_id=#{danmakuId}
-	</select>
 
 </mapper>

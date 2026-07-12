@@ -603,7 +603,7 @@
         用 ROW_NUMBER() OVER (PARTITION BY parent_comment_id ORDER BY post_time ASC) 实现。
         是否还有更多子评论由调用方通过 replyCount > limitPerParent 判断。
 
-        JOIN 策略：
+        JOIN 策略（旧）：
           - INNER JOIN user_info：评论一定有评论者，获取 nick_name / avatar（user_id 为主键，等值查找极快）
           - LEFT JOIN user_comment_action（仅 userId != null 时）：
               索引覆盖（user_id, comment_id, action_type），只取这三列，无需回表。
@@ -628,14 +628,14 @@
         subs.content,
         subs.img_paths,
         subs.user_id,
+        subs.nick_name,
+        subs.avatar,
         subs.top_type,
         subs.post_time,
         subs.upvote_count,
         subs.downvote_count,
         subs.reply_count,
         subs.deleted,
-        ui.nick_name,
-        ui.avatar
         <if test="userId != null">
             , uca.user_id AS uca_user_id
             , uca.comment_id AS uca_comment_id
@@ -664,6 +664,8 @@
         v.content,
         v.img_paths,
         v.user_id,
+        v.nick_name,
+        v.avatar,
         v.top_type,
         v.post_time,
         v.upvote_count,
@@ -677,7 +679,6 @@
         ORDER BY v.post_time
         LIMIT #{limitPerParent}
         ) subs
-        INNER JOIN user_info ui ON ui.user_id = subs.user_id
         <if test="userId != null">
             LEFT JOIN user_comment_action uca
             ON uca.user_id = #{userId}
@@ -696,14 +697,14 @@
         v.content,
         v.img_paths,
         v.user_id,
+        v.nick_name,
+        v.avatar,
         v.top_type,
         v.post_time,
         v.upvote_count,
         v.downvote_count,
         v.reply_count,
-        v.deleted,
-        ui.nick_name,
-        ui.avatar
+        v.deleted
         <if test="userId != null">
             , uca.user_id AS uca_user_id
             , uca.comment_id AS uca_comment_id
@@ -715,7 +716,6 @@
             , NULL AS uca_action_type
         </if>
         FROM video_comment v
-        INNER JOIN user_info ui ON ui.user_id = v.user_id
         <if test="userId != null">
             LEFT JOIN user_comment_action uca
             ON uca.user_id = #{userId} AND uca.comment_id = v.comment_id
@@ -736,14 +736,14 @@
         v.content,
         v.img_paths,
         v.user_id,
+        v.nick_name,
+        v.avatar,
         v.top_type,
         v.post_time,
         v.upvote_count,
         v.downvote_count,
         v.reply_count,
-        v.deleted,
-        ui.nick_name,
-        ui.avatar
+        v.deleted
         <if test="userId != null">
             , uca.user_id AS uca_user_id
             , uca.comment_id AS uca_comment_id
@@ -755,7 +755,6 @@
             , NULL AS uca_action_type
         </if>
         FROM video_comment v
-        INNER JOIN user_info ui ON ui.user_id = v.user_id
         <if test="userId != null">
             LEFT JOIN user_comment_action uca
             ON uca.user_id = #{userId} AND uca.comment_id = v.comment_id

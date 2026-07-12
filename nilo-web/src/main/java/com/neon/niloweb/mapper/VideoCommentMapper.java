@@ -35,11 +35,13 @@ public interface VideoCommentMapper<T, P> extends BaseMapper <T, P>
     T selectByCommentId(@Param("commentId") Long commentId);
 
     /**
-     * 批量查询父评论的子评论（per-parent top-K），同时 JOIN user_info 获取评论者昵称/头像，<br/>
-     * 并可选 LEFT JOIN user_comment_action 获取当前用户对每条评论的操作记录（索引覆盖）。<br/>
-     * 使用 ROW_NUMBER() OVER (PARTITION BY parent_comment_id ORDER BY post_time ASC) <br/>
-     * 保证每个父节点最多返回limitPerParent 条，结果直接映射到 {@link VideoCommentVO}。<br/>
-     * 是否还有更多子评论由调用方通过 {@code replyCount > limitPerParent} 判断，无需 K+1 探查。
+     * <p>
+     *     批量查询父评论的子评论（per-parent top-K），同时 JOIN user_info 获取评论者昵称/头像，<br/>
+     *     并可选 LEFT JOIN user_comment_action 获取当前用户对每条评论的操作记录（索引覆盖）。
+     * </p>
+     * <p>使用 ROW_NUMBER() OVER (PARTITION BY parent_comment_id ORDER BY post_time ASC) </p>
+     * <p>保证每个父节点最多返回limitPerParent 条，结果直接映射到 {@link VideoCommentVO}。</p>
+     * <p>是否还有更多子评论由调用方通过 {@code replyCount > limitPerParent} 判断，无需 K+1 探查。</p>
      *
      * @param parentIdList   父节点 comment_id 列表
      * @param videoId        视频 ID

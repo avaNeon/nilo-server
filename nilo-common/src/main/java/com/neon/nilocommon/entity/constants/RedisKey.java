@@ -14,13 +14,8 @@ public class RedisKey
     public static final String CATEGORY_UPDATE_LOCK = REDIS_KEY_PREFIX + "category:update:lock";
 
     /**
-     * redis中预上传视频标签的键名
-     */
-    public static final String PRE_UPLOADED_VIDEO_TAG_PREFIX = REDIS_KEY_PREFIX + "video:pre-uploaded-tag:";
-
-    /**
      * 用户每日上传额度前缀<hr/>
-     * key: nilo:upload:quota:{image|video}:size:{userId}:{yyyyMMdd}
+     * <p>key: nilo:upload:quota:{image|video}:size:{userId}:{yyyyMMdd}</p>
      */
     public static final String UPLOAD_QUOTA_PREFIX = REDIS_KEY_PREFIX + "upload:quota:";
 
@@ -90,30 +85,34 @@ public class RedisKey
     public static final String HOT_KEYWORD_RANKING = REDIS_KEY_PREFIX + "hot-keyword:ranking";
 
     /**
-     * <b>热门视频排行榜</b><hr/>
+     * 热门视频排行榜<hr/>
      * <p>这个排行榜中的视频将会展示给用户</p>
      */
     public static final String HOT_VIDEO_RANKING = REDIS_KEY_PREFIX + "{play-count}:ranking";
 
     /**
-     * <b>热门视频时间记录前缀</b><hr/>
+     * 热门视频时间记录前缀
      */
     public static final String HOT_VIDEO_COUNTING_PREFIX = REDIS_KEY_PREFIX + "{play-count}:counting:";
 
     /**
-     * <b>热门视频排行榜候选池</b><hr/>
+     * 热门视频排行榜候选池<hr/>
      * <p>这个候选池用于存储还没达到热门播放量阈值的视频</p>
      */
     public static final String COLD_VIDEO_RANKING = REDIS_KEY_PREFIX + "{play-count}:cold-ranking";
 
     /**
-     * <b>候选池视频时间记录前缀</b><hr/>
+     * 候选池视频时间记录前缀
      */
     public static final String COLD_VIDEO_COUNTING_PREFIX = REDIS_KEY_PREFIX + "{play-count}:cold-counting:";
 
     /**
-     * <b>视频历史播放记录统计（仅统计近2天）</b><hr/>
+     * 视频历史播放记录统计（仅统计近2天）
      */
     public static final String VIDEO_DAILY_PLAY_COUNT_PREFIX = REDIS_KEY_PREFIX + "{play-count}:daily:";
 
+    /**
+     * 预签名URL缓存Key前缀
+     */
+    public static final String PRESIGNED_URL_CACHE_PREFIX = REDIS_KEY_PREFIX + "presigned:";
 }

@@ -3,33 +3,31 @@ package com.neon.nilocommon.entity.constants;
 public class Constants
 {
     /* 常用常量 */
+
     /**
      * 用byte记的Mebibyte
      */
     public static final Long Mebibyte = 1024 * 1024L;
 
     /* 文件夹名相关 */
+
     /**
      * 总文件夹名
      */
     public static final String FILE_FOLDER_NAME = "file";
-    /**
-     * 封面文件夹名
-     */
-    public static final String COVER_FOLDER_NAME = "cover";
-    /**
-     * 视频文件夹名
-     */
-    public static final String VIDEO_FOLDER_NAME = "video";
+
     /**
      * 临时文件夹名
      */
     public static final String TMP_FOLDER_NAME = "tmp";
 
-    /* 文件名相关 */
-    public static final String TMP_VIDEO_NAME = "tmp_video.mp4";
 
-    public static final String TMP_VIDEO_SUFFIX = "_tmp";
+    /* 文件名相关 */
+
+    /**
+     * 从minio提取的原始视频文件名称
+     */
+    public static final String SOURCE_VIDEO_NAME = "source";
 
     public static final String TS_NAME = "index.ts";
 
@@ -39,17 +37,8 @@ public class Constants
 
     public static final String TS_FOLDER_NAME = "tsFolder";
 
-    /* 文件相关 */
-    /**
-     * 路径最大长度
-     */
-    public static final int MAX_PATH_LENGTH = 4096;
-    /**
-     * 文件名最大长度
-     */
-    public static final int MAX_FILENAME_LENGTH = 255;
-
     /* cookie key相关 */
+
     /**
      * cookie中web token键名
      */
@@ -60,6 +49,7 @@ public class Constants
     public static final String ADMIN_COOKIE_TOKEN_KEY = "token_admin";
 
     /* 正则表达式 */
+
     /**
      * 密码的正则表达式<hr/>
      * 要求：<br/>

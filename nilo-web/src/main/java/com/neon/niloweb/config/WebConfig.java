@@ -14,10 +14,6 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties(prefix = "project")
 public class WebConfig
 {
-    /**
-     * 【必填】项目文件夹根目录
-     */
-    private String rootFilePath;
 
     /**
      * 查询视频分页大小
@@ -130,5 +126,15 @@ public class WebConfig
      * 历史记录分页大小
      */
     private int playHistoryPageSize = 20;
+
+    /**
+     * 资源所有权过期清理间隔（单位：小时）
+     */
+    private int ownershipExpireClearIntervalHour = 1;
+
+    /**
+     * 资源所有权过期时间（单位：小时）
+     */
+    private int ownershipExpireTime = 30;
 
 }

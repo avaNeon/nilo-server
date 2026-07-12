@@ -76,4 +76,24 @@ Thumbs.db
 **/application*.yml
 **/banner*.txt
 
+### Migration (含 MinIO 密钥与映射产物) ###
+migration/config.yaml
+migration/mapping.jsonl
+migration/*.log
+migration/referenced_keys.jsonl
+migration/referenced_keys_unique.jsonl
+migration/db_path_update_report.json
+migration/db_comment_category_update_report.json
+migration/avatar_thumb_fix.jsonl
+migration/orphan_objects.jsonl
+migration/missing_referenced_objects.jsonl
+migration/orphan_scan_report.json
+migration/real_orphans_with_local_paths.jsonl
+migration/real_orphans_local_paths.txt
+migration/fix_missing_thumbs.jsonl
+migration/delete_orphans_log.jsonl
+migration/delete_orphans_report.json
+migration/media_ownership_backfill_report.json
+migration/media_ownership_backfill_keys.jsonl
+
 # End of file

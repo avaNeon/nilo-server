@@ -1,7 +1,6 @@
 package com.neon.nilocommon.util;
 
 
-import com.neon.nilocommon.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.BufferedReader;
@@ -14,7 +13,7 @@ public class ProcessUtil
 {
     private static final String osName = System.getProperty("os.name").toLowerCase();
 
-    public static String executeCommand(String cmd, Boolean showLog) throws BusinessException
+    public static String executeCommand(String cmd, Boolean showLog)
     {
         if (cmd == null || cmd.isBlank())
         {
@@ -60,7 +59,7 @@ public class ProcessUtil
         catch (Exception e)
         {
             log.error("执行命令失败cmd{}失败:{} ", cmd, e.getMessage());
-            throw new BusinessException("视频转换失败");
+            throw new RuntimeException("视频转换失败", e);
         }
         finally
         {

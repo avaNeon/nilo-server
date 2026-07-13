@@ -208,7 +208,7 @@ public class FileUtil
         }
         catch (IOException e)
         {
-            throw new BusinessException("文件读取失败");
+            throw new RuntimeException("文件读取失败", e);
         }
     }
 

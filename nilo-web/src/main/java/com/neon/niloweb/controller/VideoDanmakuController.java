@@ -1,13 +1,14 @@
 package com.neon.niloweb.controller;
 
 import com.neon.nilocommon.entity.dto.DanmakuDTO;
-import com.neon.nilocommon.entity.vo.danmaku.DanmakuVO;
 import com.neon.nilocommon.entity.vo.ResponseVO;
+import com.neon.nilocommon.entity.vo.danmaku.DanmakuVO;
 import com.neon.niloweb.loginState.LoginState;
 import com.neon.niloweb.service.VideoDanmakuService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -37,12 +38,15 @@ public class VideoDanmakuController
         return ResponseVO.success(null);
     }
 
-    @Operation(summary = "加载弹幕", description = "加载视频弹幕")
-    @GetMapping(path = "/danmaku/{videoId}")
+    @Operation(summary = "加载弹幕",
+               description = "按视频时间轴增量加载弹幕。区间为左闭右开 [fromMs, toMs)，单次跨度不得超过 5000 毫秒")
+    @GetMapping(path = "/{videoId}")
     public ResponseVO <List <DanmakuVO>> loadDanmaku(@PathVariable("videoId") Long videoId,
-                                                     @RequestParam(name = "fileIndex") @NotNull Integer fileIndex)
+                                                     @RequestParam(name = "fileIndex") @NotNull Integer fileIndex,
+                                                     @RequestParam(name = "fromMs") @NotNull @Min(0) Integer fromMs,
+                                                     @RequestParam(name = "toMs") @NotNull @Min(0) Integer toMs)
     {
-        return ResponseVO.success(videoDanmakuService.loadDanmaku(videoId, fileIndex));
+        return ResponseVO.success(videoDanmakuService.loadDanmaku(videoId, fileIndex, fromMs, toMs));
     }
 
     @Operation(summary = "删除弹幕", description = "用户只能删除自己的弹幕")

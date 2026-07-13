@@ -31,6 +31,11 @@ import java.util.List;
 @Service()
 public class VideoDanmakuService
 {
+    /**
+     * 单次加载允许的最大时间窗口（毫秒）
+     */
+    private static final int MAX_LOAD_WINDOW_MS = 5_000;
+
     private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
 
     private final VideoDanmakuMapper <VideoDanmaku, VideoDanmakuQuery> videoDanmakuMapper;
@@ -95,14 +100,22 @@ public class VideoDanmakuService
     }
 
     /**
-     * 获取弹幕
+     * 按视频时间轴区间加载弹幕<hr/>
+     * <p>区间为左闭右开 [fromMs, toMs)，单次跨度不得超过 {@link #MAX_LOAD_WINDOW_MS} 毫秒。</p>
      *
      * @param videoId   视频ID
      * @param fileIndex 分片索引
+     * @param fromMs    起始展示时刻（毫秒，含）
+     * @param toMs      结束展示时刻（毫秒，不含）
      * @return 弹幕VO
      */
-    public List <DanmakuVO> loadDanmaku(long videoId, int fileIndex)
+    public List <DanmakuVO> loadDanmaku(long videoId, int fileIndex, int fromMs, int toMs)
     {
+        if (fromMs < 0 || toMs < 0 || toMs <= fromMs || (long) toMs - fromMs > MAX_LOAD_WINDOW_MS)
+        {
+            throw new BusinessException(ResponseCode.WRONG_ARGUMENTS);
+        }
+
         // --------
         // 校验
         // --------
@@ -123,10 +136,16 @@ public class VideoDanmakuService
         videoInfoFileQuery.setVideoId(videoId);
         videoInfoFileQuery.setFileIndex(fileIndex);
         List <VideoInfoFile> videoInfoFileList = videoInfoFileMapper.selectList(videoInfoFileQuery);
+        if (videoInfoFileList == null || videoInfoFileList.isEmpty())
+        {
+            throw new BusinessException(ResponseCode.NOT_FOUND);
+        }
 
         VideoDanmakuQuery danmakuQuery = new VideoDanmakuQuery();
         danmakuQuery.setVideoId(videoId);
         danmakuQuery.setFileId(videoInfoFileList.get(0).getFileId());
+        danmakuQuery.setDisplayMomentStart(fromMs);
+        danmakuQuery.setDisplayMomentEnd(toMs);
         danmakuQuery.setOrderBy("display_moment ASC");
 
         return findListByParam(danmakuQuery).stream().map(danmaku ->

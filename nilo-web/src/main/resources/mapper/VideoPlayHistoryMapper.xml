@@ -22,7 +22,7 @@
 
     <!-- DTO查询结果列-->
     <sql id="dto_column_list">
-        v.user_id,ui.nick_name,v.video_id,v.file_index,v.last_update_time, vi.video_cover,vi.video_name
+        ui.user_id,ui.nick_name,v.video_id,v.file_index,v.last_update_time, vi.video_cover,vi.video_name
     </sql>
 
     <sql id="base_condition_filed">
@@ -79,7 +79,7 @@
         <include refid="dto_column_list"/>
         FROM video_play_history v
         LEFT JOIN video_info vi ON v.video_id = vi.video_id
-        LEFT JOIN user_info ui ON v.user_id = ui.user_id
+        LEFT JOIN user_info ui ON vi.user_id = ui.user_id
         <include refid="query_condition"/>
         <if test="query.orderBy!=null">
             order by ${query.orderBy}

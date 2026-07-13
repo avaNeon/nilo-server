@@ -6,7 +6,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 在方法调用前检查用户是否登录
+ * 在方法调用前检查用户是否登录并且可用
  */
 @Target({ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)

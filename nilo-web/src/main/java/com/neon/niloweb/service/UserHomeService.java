@@ -1,7 +1,9 @@
 package com.neon.niloweb.service;
 
 import com.neon.nilocommon.entity.constants.MinioKey;
+import com.neon.nilocommon.entity.dto.comment.CommentRedundantDTO;
 import com.neon.nilocommon.entity.dto.UpdatedUserInfoDTO;
+import com.neon.nilocommon.entity.dto.UserInfoDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.userInfo.UserGender;
 import com.neon.nilocommon.entity.enums.userInfo.UserTheme;
@@ -22,8 +24,10 @@ import com.neon.nilocommon.util.EnumFieldChecker;
 import com.neon.nilocommon.util.FileUtil;
 import com.neon.nilocommon.util.PageCalculator;
 import com.neon.niloweb.config.WebConfig;
-import com.neon.niloweb.feign.storage.ImageFeignClient;
+import com.neon.niloweb.feign.comment.InnerVideoCommentFeignClient;
+import com.neon.niloweb.feign.storage.InnerImageFeignClient;
 import com.neon.niloweb.mapper.*;
+import com.neon.niloweb.repository.rabbitmq.CommentMqRepository;
 import com.neon.niloweb.repository.redis.AccountRedisRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,8 +54,6 @@ public class UserHomeService
 
     private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
 
-    private final VideoCommentMapper <VideoComment, VideoCommentQuery> videoCommentMapper;
-
     private final UserVideoActionMapper <UserVideoAction, UserVideoActionQuery> userVideoActionMapper;
 
     private final VideoSeriesInfoMapper <VideoSeriesInfo, VideoSeriesInfoQuery> videoSeriesInfoMapper;
@@ -61,7 +63,12 @@ public class UserHomeService
     private final SystemConfigRedisRepository systemConfigRedisRepository;
 
     private final WebConfig webConfig;
-    private final ImageFeignClient imageFeignClient;
+
+    private final InnerImageFeignClient innerImageFeignClient;
+
+    private final InnerVideoCommentFeignClient innerVideoCommentFeignClient;
+
+    private final CommentMqRepository commentMqRepository;
 
     /**
      * 获取用户主页信息
@@ -96,7 +103,13 @@ public class UserHomeService
         }
 
         Long videoLikeCount = videoInfoMapper.selectLikeCountByUserId(hostUserId);
-        Long commentLikeCount = videoCommentMapper.selectUpvoteCountByUserId(hostUserId);
+        ResponseVO <Long> commentLikeResult = innerVideoCommentFeignClient.getUpvoteCountByUserId(hostUserId);
+        Long commentLikeCount = 0L;
+        if (commentLikeResult != null && ResponseCode.SUCCESS.getCode()
+                                                             .equals(commentLikeResult.getCode()) && commentLikeResult.getData() != null)
+        {
+            commentLikeCount = commentLikeResult.getData();
+        }
         Long playCount = videoInfoMapper.selectPlayCountByUserId(hostUserId);
         userDetailVO.setLikeCount(videoLikeCount + commentLikeCount);
         userDetailVO.setPlayCount(playCount);
@@ -244,19 +257,33 @@ public class UserHomeService
                 safelyMoveAvatarKey(newAvatarThumbnail, tokenUserInfoVO.getToken());
 
                 // 接下来就不能回滚了（只能在失败时打日志了）
-                if (oldAvatar != null && !oldAvatar.isBlank())
+                try
                 {
-                    String oldAvatarThumbnail = FileUtil.constructThumbnailName(oldAvatar);
-                    ResponseVO <Void> oldAvatarDeleted = imageFeignClient.delete(oldAvatar);
-                    if (oldAvatarDeleted == null || !oldAvatarDeleted.getStatus().equals(ResponseVO.STATUS_SUCCESS))
+                    if (oldAvatar != null && !oldAvatar.isBlank())
                     {
-                        log.error("删除旧头像{}失败！", oldAvatar);
+                        String oldAvatarThumbnail = FileUtil.constructThumbnailName(oldAvatar);
+                        ResponseVO <Void> oldAvatarDeleted = innerImageFeignClient.delete(oldAvatar);
+                        if (oldAvatarDeleted == null || !oldAvatarDeleted.getStatus().equals(ResponseVO.STATUS_SUCCESS))
+                        {
+                            log.error("删除旧头像{}失败！", oldAvatar);
+                        }
+                        ResponseVO <Void> oldAvatarThumbnailDeleted = innerImageFeignClient.delete(oldAvatarThumbnail);
+                        if (oldAvatarThumbnailDeleted == null || !oldAvatarThumbnailDeleted.getStatus()
+                                                                                           .equals(ResponseVO.STATUS_SUCCESS))
+                        {
+                            log.error("删除旧头像缩略图{}失败！", oldAvatarThumbnail);
+                        }
                     }
-                    ResponseVO <Void> oldAvatarThumbnailDeleted = imageFeignClient.delete(oldAvatarThumbnail);
-                    if (oldAvatarThumbnailDeleted == null || !oldAvatarThumbnailDeleted.getStatus().equals(ResponseVO.STATUS_SUCCESS))
-                    {
-                        log.error("删除旧头像缩略图{}失败！", oldAvatarThumbnail);
-                    }
+
+                    // 异步更新评论表冗余头像
+                    CommentRedundantDTO avatarUpdateDTO = new CommentRedundantDTO();
+                    avatarUpdateDTO.setUserId(userId);
+                    avatarUpdateDTO.setAvatar(newAvatar);
+                    commentMqRepository.sendCommentRedundantUpdate(avatarUpdateDTO);
+                }
+                catch (Exception e)
+                {
+                    log.error("发生错误，错误信息：{}", e.toString());
                 }
             }
 
@@ -281,6 +308,20 @@ public class UserHomeService
                         log.error("删除redis中用户名为{}的 user state 记录失败！", userId);
                     }
                 }
+
+                try
+                {
+                    // 异步更新评论表冗余昵称
+                    CommentRedundantDTO nickNameUpdateDTO = new CommentRedundantDTO();
+                    nickNameUpdateDTO.setUserId(userId);
+                    nickNameUpdateDTO.setNickName(updatedUserInfoDTO.getNickName());
+                    commentMqRepository.sendCommentRedundantUpdate(nickNameUpdateDTO);
+                }
+                catch (Exception e)
+                {
+                    log.error("发送更新评论昵称MQ任务失败！原因：{}", e.toString());
+                }
+
                 // 回写
                 BeanUtils.copyProperties(userState, tokenUserInfoVO);
             }
@@ -494,6 +535,22 @@ public class UserHomeService
     }
 
     /**
+     * 获取用户资料快照（跨服务内部调用）
+     *
+     * @param userId 用户ID
+     * @return 用户资料；用户不存在时返回 null
+     */
+    public UserInfoDTO getUserInfo(long userId)
+    {
+        UserInfo userInfo = userInfoMapper.selectByUserId(userId);
+        if (userInfo == null)
+        {
+            return null;
+        }
+        return new UserInfoDTO(userInfo.getUserId(), userInfo.getNickName(), userInfo.getAvatar(), userInfo.getStatus());
+    }
+
+    /**
      * 安全移动头像key（出现异常时，帮助Redis回滚）
      *
      * @param key           需要安全移动的key（不含前缀）
@@ -504,7 +561,7 @@ public class UserHomeService
         try
         {
             // 这里的移动操作是幂等的，如果已经移动到目标位置了，再次移动不会有任何影响
-            imageFeignClient.move(MinioKey.TMP_PREFIX + key, MinioKey.PUBLIC_PREFIX + key);
+            innerImageFeignClient.move(MinioKey.TMP_PREFIX + key, MinioKey.PUBLIC_PREFIX + key);
         }
         catch (Exception e)
         {

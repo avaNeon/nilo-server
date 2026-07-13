@@ -3,7 +3,9 @@ package com.neon.niloweb.service;
 import cn.hutool.core.lang.Snowflake;
 import com.neon.nilocommon.config.SystemConfig;
 import com.neon.nilocommon.entity.constants.MinioKey;
+import com.neon.nilocommon.entity.dto.comment.CommentArchiveDTO;
 import com.neon.nilocommon.entity.dto.VideoInfoUploadJoinDTO;
+import com.neon.nilocommon.entity.enums.comment.OperationType;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.videoInfoArchive.DeleterType;
 import com.neon.nilocommon.entity.enums.videoInfoFileUpload.VideoFileStatus;
@@ -21,9 +23,11 @@ import com.neon.nilocommon.repository.redis.SystemConfigRedisRepository;
 import com.neon.nilocommon.util.FileUtil;
 import com.neon.nilocommon.util.PageCalculator;
 import com.neon.niloweb.enums.UploadQuotaType;
-import com.neon.niloweb.feign.storage.ImageFeignClient;
-import com.neon.niloweb.feign.storage.VideoFileFeignClient;
+import com.neon.niloweb.feign.comment.InnerVideoCommentFeignClient;
+import com.neon.niloweb.feign.storage.InnerImageFeignClient;
+import com.neon.niloweb.feign.storage.InnerVideoFileFeignClient;
 import com.neon.niloweb.mapper.*;
+import com.neon.niloweb.repository.rabbitmq.CommentMqRepository;
 import com.neon.niloweb.repository.rabbitmq.ImageMqRepository;
 import com.neon.niloweb.repository.rabbitmq.VideoMqRepository;
 import com.neon.niloweb.repository.redis.AccountRedisRepository;
@@ -65,11 +69,7 @@ public class CreativeCenterService
 
     private final VideoInfoFileMapper <VideoInfoFile, VideoInfoFileQuery> videoInfoFileMapper;
 
-    private final VideoCommentMapper <VideoComment, VideoCommentQuery> videoCommentMapper;
-
     private final VideoDanmakuMapper <VideoDanmaku, VideoDanmakuQuery> videoDanmakuMapper;
-
-    private final UserCommentActionMapper <UserCommentAction, UserCommentActionQuery> userCommentActionMapper;
 
     private final UserVideoActionMapper <UserVideoAction, UserVideoActionQuery> userVideoActionMapper;
 
@@ -79,11 +79,7 @@ public class CreativeCenterService
 
     private final VideoInfoFileArchiveMapper <VideoInfoFileArchive, VideoInfoFileArchiveQuery> videoInfoFileArchiveMapper;
 
-    private final VideoCommentArchiveMapper <VideoCommentArchive, VideoCommentArchiveQuery> videoCommentArchiveMapper;
-
     private final VideoDanmakuArchiveMapper <VideoDanmakuArchive, VideoDanmakuArchiveQuery> videoDanmakuArchiveMapper;
-
-    private final UserCommentActionArchiveMapper <UserCommentActionArchive, UserCommentActionArchiveQuery> userCommentActionArchiveMapper;
 
     private final UserVideoActionArchiveMapper <UserVideoActionArchive, UserVideoActionArchiveQuery> userVideoActionArchiveMapper;
 
@@ -100,11 +96,15 @@ public class CreativeCenterService
 
     private final VideoMqRepository videoMqRepository;
 
-    private final ImageFeignClient imageFeignClient;
+    private final InnerImageFeignClient innerImageFeignClient;
 
-    private final VideoFileFeignClient videoFileFeignClient;
+    private final InnerVideoFileFeignClient innerVideoFileFeignClient;
+
+    private final InnerVideoCommentFeignClient innerVideoCommentFeignClient;
 
     private final ImageMqRepository imageMqRepository;
+
+    private final CommentMqRepository commentMqRepository;
 
     private final UploadQuotaService uploadQuotaService;
 
@@ -766,6 +766,9 @@ public class CreativeCenterService
             userInfoMapper.decreaseCoinForVideoDelete(userId,
                                                       systemConfigRedisRepository.getSystemConfig().getRewardsPreUpload());
 
+            // 迁移之前把改查的记录查出来
+            List <VideoInfoFile> videoInfoFiles = videoInfoFileMapper.selectByVideoId(videoId);
+
             // 数据迁移和删除
             archiveVideo(userId, videoId, detail, videoInfo);
 
@@ -773,7 +776,6 @@ public class CreativeCenterService
             moveImage(MinioKey.PUBLIC_PREFIX, MinioKey.PENDING_PREFIX, videoInfo.getVideoCover());
 
             // 移动视频文件
-            List <VideoInfoFile> videoInfoFiles = videoInfoFileMapper.selectByVideoId(videoId);
             List <String> videoBaseKeyList = videoInfoFiles.stream().map(VideoInfoFile::getFilePath).toList();
             moveVideoFiles(MinioKey.PUBLIC_PREFIX, MinioKey.PENDING_PREFIX, videoBaseKeyList);
         }
@@ -785,7 +787,9 @@ public class CreativeCenterService
         {
             nameFuzzy = null;
         }
-        return videoCommentMapper.selectCommentManagementVOCount(userId, videoId, nameFuzzy);
+        ResponseVO <Long> result = innerVideoCommentFeignClient.getCreatorCommentManagementInfoCount(userId, videoId, nameFuzzy);
+        assertCommentFeignSuccess(result);
+        return result.getData();
     }
 
     public List <CommentManagementVO> getCommentManagementInfo(long userId,
@@ -798,8 +802,10 @@ public class CreativeCenterService
         {
             nameFuzzy = null;
         }
-        int start = (pageNo - 1) * pageSize;
-        return videoCommentMapper.selectCommentManagementVO(userId, videoId, nameFuzzy, start, pageSize);
+        ResponseVO <List <CommentManagementVO>> result =
+                innerVideoCommentFeignClient.getCreatorCommentManagementInfo(pageNo, pageSize, userId, videoId, nameFuzzy);
+        assertCommentFeignSuccess(result);
+        return result.getData();
     }
 
     public Long getDanmakuManagementInfoCount(long userId, Long videoId, Integer fileIndex, String nameFuzzy)
@@ -888,7 +894,7 @@ public class CreativeCenterService
                                              MinioKey.TMP_PREFIX + thumbnailKey,
                                              MinioKey.PENDING_PREFIX + thumbnailKey);
 
-        ResponseVO <Void> result = imageFeignClient.batchMove(keyMap);
+        ResponseVO <Void> result = innerImageFeignClient.batchMove(keyMap);
         if (!result.getCode().equals(ResponseCode.SUCCESS.getCode()))
         {
             throw new RuntimeException("图片移动失败");
@@ -910,7 +916,7 @@ public class CreativeCenterService
         }
 
         // 传给储存微服务
-        ResponseVO <Void> result = videoFileFeignClient.batchMove(keyMap);
+        ResponseVO <Void> result = innerVideoFileFeignClient.batchMove(keyMap);
         if (!result.getCode().equals(ResponseCode.SUCCESS.getCode()))
         {
             throw new RuntimeException("视频文件移动失败");
@@ -1023,6 +1029,33 @@ public class CreativeCenterService
             public void afterCommit()
             {
                 videoMqRepository.addVideoFilesToVideoDeleteQueue(filePathList);
+            }
+        });
+    }
+
+    /**
+     * 在事务提交后发送视频评论归档/恢复/彻底删除消息<hr/>
+     * <p>本地事务未提交成功时绝不会通知评论服务，避免出现"本地回滚但评论已归档"的不一致状态</p>
+     */
+    private void sendCommentArchiveOperationAfterCommit(CommentArchiveDTO dto)
+    {
+        if (dto == null)
+        {
+            return;
+        }
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive())
+        {
+            commentMqRepository.sendCommentArchiveOperation(dto);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization()
+        {
+            @Override
+            public void afterCommit()
+            {
+                commentMqRepository.sendCommentArchiveOperation(dto);
             }
         });
     }
@@ -1151,7 +1184,7 @@ public class CreativeCenterService
                                                   targetPrefix + coverBaseKey,
                                                   sourcePrefix + thumbnailKey,
                                                   targetPrefix + thumbnailKey);
-        ResponseVO <Void> imageResult = imageFeignClient.batchMove(imageKeyMap);
+        ResponseVO <Void> imageResult = innerImageFeignClient.batchMove(imageKeyMap);
         if (!ResponseCode.SUCCESS.getCode().equals(imageResult.getCode()))
         {
             throw new RuntimeException("封面移动失败");
@@ -1176,7 +1209,7 @@ public class CreativeCenterService
         {
             videoDirectoryMap.put(sourcePrefix + baseKey, targetPrefix + baseKey);
         }
-        ResponseVO <Void> videoResult = videoFileFeignClient.batchMoveDirectory(videoDirectoryMap);
+        ResponseVO <Void> videoResult = innerVideoFileFeignClient.batchMoveDirectory(videoDirectoryMap);
         if (!ResponseCode.SUCCESS.getCode().equals(videoResult.getCode()))
         {
             throw new RuntimeException("视频文件移动失败");
@@ -1219,14 +1252,8 @@ public class CreativeCenterService
         videoInfoFileArchiveMapper.deleteByParam(videoInfoFileArchiveQuery);
         archiveBatch(videoInfoFileList, VideoInfoFileArchive::new, videoInfoFileArchiveMapper);
 
-        // video_comment
-        VideoCommentQuery videoCommentQuery = new VideoCommentQuery();
-        videoCommentQuery.setVideoId(videoId);
-        List <VideoComment> videoCommentList = videoCommentMapper.selectList(videoCommentQuery);
-        VideoCommentArchiveQuery videoCommentArchiveQuery = new VideoCommentArchiveQuery();
-        videoCommentArchiveQuery.setVideoId(videoId);
-        videoCommentArchiveMapper.deleteByParam(videoCommentArchiveQuery);
-        archiveBatch(videoCommentList, VideoCommentArchive::new, videoCommentArchiveMapper);
+        // video_comment + user_comment_action：事务提交后异步通知评论服务归档，保证最终一致性
+        sendCommentArchiveOperationAfterCommit(new CommentArchiveDTO(videoId, OperationType.ARCHIVE));
 
         // video_danmaku
         VideoDanmakuQuery videoDanmakuQuery = new VideoDanmakuQuery();
@@ -1236,15 +1263,6 @@ public class CreativeCenterService
         videoDanmakuArchiveQuery.setVideoId(videoId);
         videoDanmakuArchiveMapper.deleteByParam(videoDanmakuArchiveQuery);
         archiveBatch(videoDanmakuList, VideoDanmakuArchive::new, videoDanmakuArchiveMapper);
-
-        // user_comment_action
-        UserCommentActionQuery userCommentActionQuery = new UserCommentActionQuery();
-        userCommentActionQuery.setVideoId(videoId);
-        List <UserCommentAction> userCommentActionList = userCommentActionMapper.selectList(userCommentActionQuery);
-        UserCommentActionArchiveQuery userCommentActionArchiveQuery = new UserCommentActionArchiveQuery();
-        userCommentActionArchiveQuery.setVideoId(videoId);
-        userCommentActionArchiveMapper.deleteByParam(userCommentActionArchiveQuery);
-        archiveBatch(userCommentActionList, UserCommentActionArchive::new, userCommentActionArchiveMapper);
 
         // user_video_action
         UserVideoActionQuery userVideoActionQuery = new UserVideoActionQuery();
@@ -1257,10 +1275,8 @@ public class CreativeCenterService
 
         // --- 删除原业务表数据 ---
 
-        userCommentActionMapper.deleteByParam(userCommentActionQuery);
         userVideoActionMapper.deleteByParam(userVideoActionQuery);
         videoDanmakuMapper.deleteByParam(videoDanmakuQuery);
-        videoCommentMapper.deleteByParam(videoCommentQuery);
         videoInfoFileMapper.deleteByParam(videoInfoFileQuery);
         videoInfoMapper.deleteByVideoId(videoId);
 
@@ -1355,7 +1371,7 @@ public class CreativeCenterService
 
     private long probeVideoFileSize(String baseKey)
     {
-        ResponseVO <Long> result = videoFileFeignClient.probeVideoFileSize(baseKey);
+        ResponseVO <Long> result = innerVideoFileFeignClient.probeVideoFileSize(baseKey);
         if (result != null && ResponseCode.SUCCESS.getCode().equals(result.getCode()) && result.getData() != null)
         {
             return result.getData();
@@ -1369,7 +1385,7 @@ public class CreativeCenterService
         {
             try
             {
-                ResponseVO <Long> result = imageFeignClient.getImageSize(prefix + baseKey);
+                ResponseVO <Long> result = innerImageFeignClient.getImageSize(prefix + baseKey);
                 if (result != null && ResponseCode.SUCCESS.getCode()
                                                           .equals(result.getCode()) && result.getData() != null && result.getData() > 0)
                 {
@@ -1392,5 +1408,13 @@ public class CreativeCenterService
             return ownership.getCreatedTime().toLocalDate();
         }
         return LocalDate.now();
+    }
+
+    private void assertCommentFeignSuccess(ResponseVO <?> result)
+    {
+        if (result == null || !ResponseCode.SUCCESS.getCode().equals(result.getCode()))
+        {
+            throw new BusinessException(result == null ? "评论服务调用失败" : result.getInfo());
+        }
     }
 }

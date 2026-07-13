@@ -1,7 +1,7 @@
 package com.neon.niloadmin.service;
 
-import com.neon.niloadmin.feign.storage.ImageFeignClient;
-import com.neon.niloadmin.feign.storage.VideoFileFeignClient;
+import com.neon.niloadmin.feign.storage.InnerImageFeignClient;
+import com.neon.niloadmin.feign.storage.InnerVideoFileFeignClient;
 import com.neon.niloadmin.mapper.VideoInfoFileUploadMapper;
 import com.neon.niloadmin.repository.redis.FileRedisRepository;
 import com.neon.niloadmin.util.PathResolver;
@@ -51,9 +51,9 @@ public class FileService
 
     private final PathResolver pathResolver;
 
-    private final ImageFeignClient imageFeignClient;
+    private final InnerImageFeignClient innerImageFeignClient;
 
-    private final VideoFileFeignClient videoFileFeignClient;
+    private final InnerVideoFileFeignClient innerVideoFileFeignClient;
 
     private final MinioClient minioClient;
 
@@ -99,7 +99,7 @@ public class FileService
             throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
         }
 
-        ResponseVO <String> probeResult = imageFeignClient.probeImageObjectKey(plainKey);
+        ResponseVO <String> probeResult = innerImageFeignClient.probeImageObjectKey(plainKey);
         if (!probeResult.getCode().equals(ResponseCode.SUCCESS.getCode()))
         {
             throw new BusinessException(ResponseCode.NOT_FOUND);
@@ -186,11 +186,11 @@ public class FileService
         ResponseVO <String> result;
         if (minioKey.contains(".m3u8") || minioKey.endsWith(".ts"))
         {
-            result = videoFileFeignClient.downloadVideo(minioKey, PRESIGNED_URL_EXPIRE_SECONDS);
+            result = innerVideoFileFeignClient.downloadVideo(minioKey, PRESIGNED_URL_EXPIRE_SECONDS);
         }
         else
         {
-            result = imageFeignClient.downloadImage(minioKey, PRESIGNED_URL_EXPIRE_SECONDS);
+            result = innerImageFeignClient.downloadImage(minioKey, PRESIGNED_URL_EXPIRE_SECONDS);
         }
 
         if (!result.getCode().equals(ResponseCode.SUCCESS.getCode()))

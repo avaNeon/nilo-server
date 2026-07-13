@@ -16,7 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.concurrent.CompletableFuture;
 
 @RequiredArgsConstructor
@@ -76,7 +76,7 @@ public class UserMessageService
     private void sendSystemMessage(long userId, long videoId, String extendJson)
     {
         long messageId = snowflake.nextId();
-        LocalDate createdTime = LocalDate.now();
+        LocalDateTime createdTime = LocalDateTime.now();
         userMessageMapper.insert(new UserMessage(messageId,
                                                  userId,
                                                  videoId,

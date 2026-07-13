@@ -1,16 +1,13 @@
 package com.neon.nilomqconsumer.feign.storage;
 
 import com.neon.nilocommon.entity.vo.ResponseVO;
-import jakarta.validation.constraints.NotEmpty;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
-import java.util.Map;
 
-@FeignClient(value = "nilo-storage", contextId = "imageFeignClient", path = "/image")
-public interface ImageFeignClient
+@FeignClient(value = "nilo-storage", contextId = "imageFeignClient", path = "/inner/image")
+public interface InnerImageFeignClient
 {
     /**
      * 删除所有状态的文件

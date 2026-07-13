@@ -1,7 +1,7 @@
 package com.neon.niloadmin.service;
 
 
-import com.neon.niloadmin.feign.storage.ImageFeignClient;
+import com.neon.niloadmin.feign.storage.InnerImageFeignClient;
 import com.neon.niloadmin.mapper.CategoryInfoMapper;
 import com.neon.niloadmin.mapper.VideoInfoMapper;
 import com.neon.niloadmin.repository.rabbitmq.MqRepository;
@@ -51,7 +51,7 @@ public class CategoryService
 
     private final MqRepository mqRepository;
 
-    private final ImageFeignClient imageFeignClient;
+    private final InnerImageFeignClient innerImageFeignClient;
 
     /**
      * 分页查询方法
@@ -338,7 +338,7 @@ public class CategoryService
                                                   MinioKey.PUBLIC_PREFIX + plainKey,
                                                   MinioKey.TMP_PREFIX + thumbnailKey,
                                                   MinioKey.PUBLIC_PREFIX + thumbnailKey);
-        ResponseVO <Void> imageResult = imageFeignClient.batchMove(imageKeyMap);
+        ResponseVO <Void> imageResult = innerImageFeignClient.batchMove(imageKeyMap);
         if (!ResponseCode.SUCCESS.getCode().equals(imageResult.getCode()))
         {
             throw new RuntimeException("分类图片移动失败: " + plainKey);

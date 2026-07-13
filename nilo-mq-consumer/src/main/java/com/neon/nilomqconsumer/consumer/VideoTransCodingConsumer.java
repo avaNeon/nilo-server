@@ -14,7 +14,7 @@ import com.neon.nilocommon.entity.query.MediaOwnershipQuery;
 import com.neon.nilocommon.entity.query.VideoInfoFileUploadQuery;
 import com.neon.nilocommon.entity.query.VideoInfoUploadQuery;
 import com.neon.nilocommon.util.FfmpegUtil;
-import com.neon.nilomqconsumer.feign.storage.VideoFileFeignClient;
+import com.neon.nilomqconsumer.feign.storage.InnerVideoFileFeignClient;
 import com.neon.nilomqconsumer.mapper.MediaOwnershipMapper;
 import com.neon.nilomqconsumer.mapper.VideoInfoFileUploadMapper;
 import com.neon.nilomqconsumer.mapper.VideoInfoUploadMapper;
@@ -51,7 +51,7 @@ public class VideoTransCodingConsumer
 
     private final VideoInfoUploadMapper <VideoInfoUpload, VideoInfoUploadQuery> videoInfoUploadMapper;
 
-    private final VideoFileFeignClient videoFileFeignClient;
+    private final InnerVideoFileFeignClient innerVideoFileFeignClient;
 
     private final MediaOwnershipMapper <MediaOwnership, MediaOwnershipQuery> mediaOwnershipMapper;
 
@@ -292,7 +292,7 @@ public class VideoTransCodingConsumer
         {
             try
             {
-                videoFileFeignClient.deleteObject(MinioKey.PENDING_PREFIX + baseKey);
+                innerVideoFileFeignClient.deleteObject(MinioKey.PENDING_PREFIX + baseKey);
             }
             catch (Exception e)
             {

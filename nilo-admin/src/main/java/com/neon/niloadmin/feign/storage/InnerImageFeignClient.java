@@ -7,16 +7,16 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
-@FeignClient(value = "nilo-storage", contextId = "videoFileFeignClient", path = "/video")
-public interface VideoFileFeignClient
+@FeignClient(value = "nilo-storage", contextId = "imageFeignClient", path = "/inner/image")
+public interface InnerImageFeignClient
 {
     @PutMapping(path = "/move/batch")
     ResponseVO <Void> batchMove(@RequestBody @NotEmpty Map <String, String> keyMap);
 
-    @PutMapping(path = "/move/directory/batch")
-    ResponseVO <Void> batchMoveDirectory(@RequestBody @NotEmpty Map <String, String> directoryMap);
-
     @GetMapping(path = "/download")
-    ResponseVO <String> downloadVideo(@RequestParam(name = "key") String key,
+    ResponseVO <String> downloadImage(@RequestParam(name = "key") String key,
                                       @RequestParam(name = "expireSeconds") Integer expireSeconds);
+
+    @GetMapping(path = "/key/probe")
+    ResponseVO <String> probeImageObjectKey(@RequestParam(name = "baseKey") String baseKey);
 }

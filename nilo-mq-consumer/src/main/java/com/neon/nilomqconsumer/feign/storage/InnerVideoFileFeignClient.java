@@ -6,8 +6,8 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
-@FeignClient(value = "nilo-storage", contextId = "videoFileFeignClient", path = "/video")
-public interface VideoFileFeignClient
+@FeignClient(value = "nilo-storage", contextId = "videoFileFeignClient", path = "/inner/video")
+public interface InnerVideoFileFeignClient
 {
     @DeleteMapping(path = "/delete/recursively")
     ResponseVO <Void> deleteRecursively(@RequestBody @NotEmpty String baseKey);

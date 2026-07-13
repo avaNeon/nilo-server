@@ -8,8 +8,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-@FeignClient(value = "nilo-storage", contextId = "videoFileFeignClient", path = "/video")
-public interface VideoFileFeignClient
+@FeignClient(value = "nilo-storage", contextId = "videoFileFeignClient", path = "/inner/video")
+public interface InnerVideoFileFeignClient
 {
     @GetMapping(path = "/upload")
     ResponseVO <Map <String, String>> upload(@RequestParam(name = "key") String key,

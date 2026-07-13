@@ -16,8 +16,8 @@ import com.neon.nilocommon.util.FfmpegUtil;
 import com.neon.nilocommon.util.FileUtil;
 import com.neon.nilocommon.util.TimeUtil;
 import com.neon.niloweb.enums.UploadQuotaType;
-import com.neon.niloweb.feign.storage.ImageFeignClient;
-import com.neon.niloweb.feign.storage.VideoFileFeignClient;
+import com.neon.niloweb.feign.storage.InnerImageFeignClient;
+import com.neon.niloweb.feign.storage.InnerVideoFileFeignClient;
 import com.neon.niloweb.mapper.MediaOwnershipMapper;
 import com.neon.niloweb.mapper.VideoInfoFileUploadMapper;
 import com.neon.niloweb.repository.redis.FileRedisRepository;
@@ -78,9 +78,9 @@ public class FileService
 
     private final FileRedisRepository fileRedisRepository;
 
-    private final ImageFeignClient imageFeignClient;
+    private final InnerImageFeignClient innerImageFeignClient;
 
-    private final VideoFileFeignClient videoFileFeignClient;
+    private final InnerVideoFileFeignClient innerVideoFileFeignClient;
 
     private final MinioClient minioClient;
 
@@ -173,7 +173,7 @@ public class FileService
 
         // 向nilo-storage请求预签名URL（pending前缀）
         String minioKey = MinioKey.PENDING_PREFIX + imgKey;
-        ResponseVO <String> result = imageFeignClient.downloadImage(minioKey, PRESIGNED_URL_EXPIRE_SECONDS);
+        ResponseVO <String> result = innerImageFeignClient.downloadImage(minioKey, PRESIGNED_URL_EXPIRE_SECONDS);
         if (!result.getCode().equals(ResponseCode.SUCCESS.getCode()))
         {
             throw new BusinessException("获取图片下载地址失败");
@@ -225,11 +225,11 @@ public class FileService
         // 申请一个 presigned post form
         // MinIO getPresignedPostFormData 只返回签名字段，不含 key / Content-Type，需由调用方补上
         String objectKey = MinioKey.TMP_PREFIX + key;
-        ResponseVO <Map <String, String>> responseVO = videoFileFeignClient.upload(objectKey,
-                                                                                   secondsUntilTomorrow,
-                                                                                   Math.min(fileSize,
-                                                                                            Math.min(maxVideoSize,
-                                                                                                     remainingQuota)));
+        ResponseVO <Map <String, String>> responseVO = innerVideoFileFeignClient.upload(objectKey,
+                                                                                        secondsUntilTomorrow,
+                                                                                        Math.min(fileSize,
+                                                                                                 Math.min(maxVideoSize,
+                                                                                                          remainingQuota)));
 
         if (!responseVO.getCode().equals(ResponseCode.SUCCESS.getCode()))
         {
@@ -320,7 +320,7 @@ public class FileService
 
         if (!imageKeys.isEmpty())
         {
-            ResponseVO <Void> responseVO = imageFeignClient.batchDelete(imageKeys);
+            ResponseVO <Void> responseVO = innerImageFeignClient.batchDelete(imageKeys);
             if (!responseVO.getCode().equals(ResponseCode.SUCCESS.getCode()))
             {
                 log.error("删除图片失败");
@@ -329,12 +329,32 @@ public class FileService
 
         if (!videoKeys.isEmpty())
         {
-            ResponseVO <Void> responseVO = videoFileFeignClient.batchDeleteRecursively(videoKeys);
+            ResponseVO <Void> responseVO = innerVideoFileFeignClient.batchDeleteRecursively(videoKeys);
             if (!responseVO.getCode().equals(ResponseCode.SUCCESS.getCode()))
             {
                 log.error("删除视频失败");
             }
         }
+    }
+
+    /**
+     * 查询指定用户多个 objectKey 中满足 used 条件的记录数
+     */
+    public int countExistByKeysAndOwnerIdAndUsed(List <String> objectKeys, long ownerId, int used)
+    {
+        Integer count = mediaOwnershipMapper.selectCountByObjectKeysAndOwnerIdAndUsed(objectKeys, ownerId, used);
+        return count == null ? 0 : count;
+    }
+
+    /**
+     * 将指定用户的多个未使用记录标记为已使用
+     *
+     * @return 受影响行数
+     */
+    public int markMediaAsUsedBatch(List <String> objectKeys, long ownerId, LocalDateTime usedTime)
+    {
+        Integer affected = mediaOwnershipMapper.markAsUsedBatch(objectKeys, ownerId, usedTime);
+        return affected == null ? 0 : affected;
     }
 
     /**
@@ -420,11 +440,11 @@ public class FileService
         ResponseVO <String> result;
         if (minioKey.contains(".m3u8") || minioKey.endsWith(".ts"))
         {
-            result = videoFileFeignClient.downloadVideo(minioKey, PRESIGNED_URL_EXPIRE_SECONDS);
+            result = innerVideoFileFeignClient.downloadVideo(minioKey, PRESIGNED_URL_EXPIRE_SECONDS);
         }
         else
         {
-            result = imageFeignClient.downloadImage(minioKey, PRESIGNED_URL_EXPIRE_SECONDS);
+            result = innerImageFeignClient.downloadImage(minioKey, PRESIGNED_URL_EXPIRE_SECONDS);
         }
 
         if (!result.getCode().equals(ResponseCode.SUCCESS.getCode()))
@@ -535,8 +555,8 @@ public class FileService
                 Path thumbnailPath = Path.of(thumbnailPathStr);
 
                 // 上传原图和缩略图到MinIO中
-                try (InputStream localImageStream = Files.newInputStream(absDest) ;
-                     InputStream thumbnailStream = Files.newInputStream(thumbnailPath))
+                try (InputStream localImageStream = Files.newInputStream(absDest) ; InputStream thumbnailStream = Files.newInputStream(
+                        thumbnailPath))
                 {
                     minioClient.putObject(PutObjectArgs.builder()
                                                        .bucket(MinioBucket.MINIO_IMAGE_BUCKET)
@@ -569,12 +589,9 @@ public class FileService
                 }
                 catch (IOException e)
                 {
-                    log.warn("删除文件失败，文件路径：{}，异常信息：{}",
-                             List.of(absDest.toString(), thumbnailPathStr),
-                             e.toString());
+                    log.warn("删除文件失败，文件路径：{}，异常信息：{}", List.of(absDest.toString(), thumbnailPathStr), e.toString());
                 }
             }
         }
     }
-
 }

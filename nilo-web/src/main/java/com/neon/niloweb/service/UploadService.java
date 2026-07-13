@@ -15,7 +15,7 @@ import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.repository.redis.SystemConfigRedisRepository;
 import com.neon.nilocommon.util.TimeUtil;
 import com.neon.niloweb.enums.UploadQuotaType;
-import com.neon.niloweb.feign.storage.VideoFileFeignClient;
+import com.neon.niloweb.feign.storage.InnerVideoFileFeignClient;
 import com.neon.niloweb.mapper.MediaOwnershipMapper;
 import com.neon.niloweb.mapper.UserUploadVideoLockMapper;
 import com.neon.niloweb.repository.redis.UploadQuotaRedisRepository;
@@ -46,7 +46,7 @@ public class UploadService
 
     private final UserUploadVideoLockMapper <UserUploadVideoLock, UserUploadVideoLockQuery> userUploadVideoLockMapper;
 
-    private final VideoFileFeignClient videoFileFeignClient;
+    private final InnerVideoFileFeignClient innerVideoFileFeignClient;
 
     /**
      * 获取上传文件的key<hr/>
@@ -95,7 +95,7 @@ public class UploadService
                 String lastFileKey = lastOwnership.getObjectKey();
 
                 // 从minio中查询是否存在，如果存在说明已经被用过了，就记录占用大小和使用时间
-                ResponseVO <Long> probeResult = videoFileFeignClient.probeVideoFileSize(lastFileKey);
+                ResponseVO <Long> probeResult = innerVideoFileFeignClient.probeVideoFileSize(lastFileKey);
                 Integer resultCode = probeResult.getCode();
 
                 // 1. 如果minio中无记录

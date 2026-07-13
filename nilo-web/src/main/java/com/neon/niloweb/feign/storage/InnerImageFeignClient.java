@@ -8,8 +8,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-@FeignClient(value = "nilo-storage", contextId = "imageFeignClient", path = "/image")
-public interface ImageFeignClient
+@FeignClient(value = "nilo-storage", contextId = "imageFeignClient", path = "/inner/image")
+public interface InnerImageFeignClient
 {
     @PutMapping(path = "/move")
     ResponseVO <Void> move(@RequestParam(name = "srcKey") String srcKey, @RequestParam(name = "destKey") String destKey);

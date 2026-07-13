@@ -5,8 +5,11 @@ import cn.hutool.captcha.LineCaptcha;
 import com.neon.nilocommon.captcha.RedisCaptcha;
 import com.neon.niloweb.annotation.Authorized;
 import com.neon.nilocommon.entity.constants.Constants;
+import com.neon.nilocommon.entity.dto.EmailCodeRequestDTO;
 import com.neon.nilocommon.entity.dto.LoginUserInfoDTO;
 import com.neon.nilocommon.entity.dto.RegisterUserInfoDTO;
+import com.neon.nilocommon.entity.dto.ResetPasswordDTO;
+import com.neon.nilocommon.entity.enums.EmailScene;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.po.UserState;
 import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
@@ -63,28 +66,49 @@ public class AccountController
     }
 
     /**
-     * 注册<hr/>
-     * 验证验证码答案<br/>
-     * 根据传入的captchaKey找到对应的redis中的captchaKey，验证用户验证码是否正确
+     * 申请邮箱验证码<hr/>
+     * REGISTER场景要求邮箱未注册；RESET_PASSWORD场景如果邮箱未注册，会自动转为REGISTER场景发送验证码<br/>
+     * 前端应始终以响应中的data（实际生效场景）而不是自己传入的scene来决定下一步展示的表单
      *
-     * @param registerUserInfoDTO 前端传入的注册信息，包括邮箱、昵称、密码、验证码答案和验证码key
+     * @param emailCodeRequestDTO 邮箱和场景
      */
-    @Operation(summary = "注册接口", description = "检验用户信息和验证码")
-    @PostMapping(path = "/register")
-    public ResponseVO <Object> register(@RequestBody @Valid RegisterUserInfoDTO registerUserInfoDTO)
+    @Operation(summary = "申请邮箱验证码接口", description = "用于注册或找回密码，返回实际生效的场景")
+    @PostMapping(path = "/email")
+    public ResponseVO <EmailScene> sendEmailCode(@RequestBody @Valid EmailCodeRequestDTO emailCodeRequestDTO)
     {
-        try
-        {
-            if (!redisCaptcha.verifyCaptchaCode(registerUserInfoDTO.getCaptchaKey(), registerUserInfoDTO.getCode()))
-                throw new BusinessException(ResponseCode.CAPTCHA_FAILED);
-            accountService.register(registerUserInfoDTO.getEmail(),
-                                    registerUserInfoDTO.getNickName(),
-                                    registerUserInfoDTO.getPassword());
-        }
-        finally
-        {
-            redisCaptcha.deleteCaptcha(registerUserInfoDTO.getCaptchaKey());
-        }
+        return ResponseVO.success(accountService.sendEmailCode(emailCodeRequestDTO.getEmail(), emailCodeRequestDTO.getScene()));
+    }
+
+    /**
+     * 注册<hr/>
+     * 验证邮箱验证码是否正确
+     *
+     * @param registerUserInfoDTO 前端传入的注册信息，包括邮箱、昵称、密码和邮箱验证码
+     */
+    @Operation(summary = "注册接口", description = "检验用户信息和邮箱验证码")
+    @PostMapping(path = "/register")
+    public ResponseVO <Void> register(@RequestBody @Valid RegisterUserInfoDTO registerUserInfoDTO)
+    {
+        accountService.register(registerUserInfoDTO.getEmail(),
+                                registerUserInfoDTO.getNickName(),
+                                registerUserInfoDTO.getPassword(),
+                                registerUserInfoDTO.getEmailCode());
+        return ResponseVO.success();
+    }
+
+    /**
+     * 重置密码<hr/>
+     * 验证邮箱验证码是否正确，通过后更新密码
+     *
+     * @param resetPasswordDTO 邮箱、邮箱验证码和新密码
+     */
+    @Operation(summary = "重置密码接口", description = "通过邮箱验证码重置密码，需要先调用申请邮箱验证码接口（scene传RESET_PASSWORD）")
+    @PostMapping(path = "/reset")
+    public ResponseVO <Object> resetPassword(@RequestBody @Valid ResetPasswordDTO resetPasswordDTO)
+    {
+        accountService.resetPassword(resetPasswordDTO.getEmail(),
+                                     resetPasswordDTO.getEmailCode(),
+                                     resetPasswordDTO.getNewPassword());
         return ResponseVO.success(null);
     }
 

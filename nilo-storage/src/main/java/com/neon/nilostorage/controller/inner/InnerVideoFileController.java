@@ -1,4 +1,4 @@
-package com.neon.nilostorage.controller;
+package com.neon.nilostorage.controller.inner;
 
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilostorage.service.VideoFileService;
@@ -13,11 +13,11 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-@RequestMapping(path = "/video")
+@RequestMapping(path = "/inner/video")
 @Validated
 @RestController
 @RequiredArgsConstructor
-public class VideoFileController
+public class InnerVideoFileController
 {
     private final VideoFileService videoFileService;
 

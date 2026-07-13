@@ -1,4 +1,4 @@
-package com.neon.nilostorage.controller;
+package com.neon.nilostorage.controller.inner;
 
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilostorage.service.ImageService;
@@ -14,11 +14,11 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 import java.util.Map;
 
-@RequestMapping(path = "/image")
+@RequestMapping(path = "/inner/image")
 @Validated
 @RestController
 @RequiredArgsConstructor
-public class ImageController
+public class InnerImageController
 {
     private final ImageService imageService;
 

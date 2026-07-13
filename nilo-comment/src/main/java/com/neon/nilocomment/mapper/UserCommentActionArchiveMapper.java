@@ -1,4 +1,4 @@
-package com.neon.niloweb.mapper;
+package com.neon.nilocomment.mapper;
 
 import org.apache.ibatis.annotations.Param;
 

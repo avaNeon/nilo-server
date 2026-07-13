@@ -1,25 +1,21 @@
-package com.neon.niloweb.service;
+package com.neon.nilocomment.service;
 
+import com.neon.nilocomment.mapper.UserCommentActionMapper;
+import com.neon.nilocomment.mapper.VideoCommentMapper;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.userCommentAction.CommentActionType;
 import com.neon.nilocommon.entity.enums.videoComment.DeleteType;
 import com.neon.nilocommon.entity.po.UserCommentAction;
 import com.neon.nilocommon.entity.po.VideoComment;
-import com.neon.nilocommon.entity.po.VideoInfo;
 import com.neon.nilocommon.entity.query.UserCommentActionQuery;
 import com.neon.nilocommon.entity.query.VideoCommentQuery;
-import com.neon.nilocommon.entity.query.VideoInfoQuery;
-import com.neon.nilocommon.entity.vo.UserCommentActionVO;
 import com.neon.nilocommon.exception.BusinessException;
-import com.neon.niloweb.mapper.UserCommentActionMapper;
-import com.neon.niloweb.mapper.VideoCommentMapper;
-import com.neon.niloweb.mapper.VideoInfoMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.Objects;
 
 @RequiredArgsConstructor
 @Service
@@ -28,8 +24,6 @@ public class UserCommentActionService
     private final UserCommentActionMapper <UserCommentAction, UserCommentActionQuery> userCommentActionMapper;
 
     private final VideoCommentMapper <VideoComment, VideoCommentQuery> videoCommentMapper;
-
-    private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
 
     /**
      * 对评论进行操作
@@ -45,20 +39,14 @@ public class UserCommentActionService
         UserCommentAction userCommentAction = new UserCommentAction();
         userCommentAction.setUserId(userId);
 
-        // 检查视频是否存在
-        VideoInfo videoInfo = videoInfoMapper.selectByVideoId(videoId);
-        if (videoInfo == null)
+        // 检查评论是否存在
+        VideoComment videoComment = videoCommentMapper.selectByCommentId(commentId);
+        if (videoComment == null || videoComment.getDeleted() != DeleteType.UNDELETED.getValue() || !Objects.equals(videoId,
+                                                                                                                    videoComment.getVideoId()))
         {
             throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
         }
         userCommentAction.setVideoId(videoId);
-
-        // 检查评论是否存在
-        VideoComment videoComment = videoCommentMapper.selectByCommentId(commentId);
-        if (videoComment == null || videoComment.getDeleted() != DeleteType.UNDELETED.getValue())
-        {
-            throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
-        }
         userCommentAction.setCommentId(commentId);
 
         userCommentAction.setActionType(actionType);
@@ -122,15 +110,4 @@ public class UserCommentActionService
         }
     }
 
-    /**
-     * 获取用户对评论的操作
-     *
-     * @param userId    用户ID
-     * @param commentId 评论ID
-     * @return 所有用户对评论的操作
-     */
-    public List <UserCommentActionVO> getCommentAction(long userId, long commentId)
-    {
-        return null;
-    }
 }

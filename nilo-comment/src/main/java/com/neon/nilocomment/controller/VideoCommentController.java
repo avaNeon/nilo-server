@@ -1,5 +1,8 @@
-package com.neon.niloweb.controller;
+package com.neon.nilocomment.controller;
 
+import com.neon.nilocomment.config.CommentConfig;
+import com.neon.nilocomment.service.VideoCommentService;
+import com.neon.nilocommon.annotation.RedisAuthorized;
 import com.neon.nilocommon.entity.constants.RedisKey;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.videoComment.CommentOrderType;
@@ -7,10 +10,8 @@ import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.entity.vo.comment.VideoCommentVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.nilocommon.redisauth.RedisLoginState;
 import com.neon.nilocommon.util.EnumFieldChecker;
-import com.neon.niloweb.config.WebConfig;
-import com.neon.niloweb.loginState.LoginState;
-import com.neon.niloweb.service.VideoCommentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,11 +32,12 @@ public class VideoCommentController
 
     private final RedisTemplate <String, Object> redisTemplate;
 
-    private final WebConfig webConfig;
+    private final CommentConfig commentConfig;
 
-    private final LoginState loginState;
+    private final RedisLoginState loginState;
 
     @Operation(summary = "发布视频评论", description = "发布视频评论接口，登录状态通过token传递")
+    @RedisAuthorized
     @PostMapping("/comment")
     public ResponseVO <Long> postComment(@RequestHeader(name = "token") String token,
                                          @RequestParam(name = "videoId") @NotNull Long videoId,
@@ -87,11 +89,12 @@ public class VideoCommentController
                                                                      parentCommentId,
                                                                      pageNo,
                                                                      orderType,
-                                                                     depth == null ? webConfig.getCommentSelectDepth() : depth));
+                                                                     depth == null ? commentConfig.getCommentSelectDepth() : depth));
     }
 
     @Operation(summary = "逻辑删除评论",
                description = "逻辑删除一条评论（删除位标记为1），登录状态通过token传递，只有评论发布者和视频发布者可以删除评论")
+    @RedisAuthorized
     @DeleteMapping(path = "/comment")
     public ResponseVO <Object> deleteComment(@RequestHeader(name = "token") String token,
                                              @RequestParam(name = "commentId") @NotNull Long commentId)
@@ -109,6 +112,7 @@ public class VideoCommentController
     }
 
     @Operation(summary = "置顶评论", description = "置顶一条评论，可以置顶多条评论，后发布的评论会排在前面")
+    @RedisAuthorized
     @PostMapping(path = "/top")
     public ResponseVO <Object> topComment(@RequestHeader(name = "token") String token,
                                           @RequestParam(name = "commentId") @NotNull Long commentId)
@@ -119,6 +123,7 @@ public class VideoCommentController
     }
 
     @Operation(summary = "取消置顶评论", description = "取消置顶一条评论")
+    @RedisAuthorized
     @DeleteMapping(path = "/top")
     public ResponseVO <Object> cancelTopComment(@RequestHeader(name = "token") String token,
                                                 @RequestParam(name = "commentId") @NotNull Long commentId)

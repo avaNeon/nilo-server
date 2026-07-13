@@ -1,40 +1,52 @@
-package com.neon.niloweb.service;
+package com.neon.nilocomment.service;
 
 import cn.hutool.core.lang.Snowflake;
+import com.neon.nilocomment.config.CommentConfig;
+import com.neon.nilocomment.feign.storage.InnerImageFeignClient;
+import com.neon.nilocomment.feign.web.InnerMediaOwnershipFeignClient;
+import com.neon.nilocomment.feign.web.InnerUserFeignClient;
+import com.neon.nilocomment.feign.web.InnerUserMessageFeignClient;
+import com.neon.nilocomment.feign.web.InnerVideoFeignClient;
+import com.neon.nilocomment.mapper.*;
 import com.neon.nilocommon.entity.constants.MinioKey;
+import com.neon.nilocommon.entity.dto.CommentMessageDTO;
+import com.neon.nilocommon.entity.dto.MediaOwnershipBatchDTO;
+import com.neon.nilocommon.entity.dto.UserInfoDTO;
+import com.neon.nilocommon.entity.dto.VideoSnapshotDTO;
+import com.neon.nilocommon.entity.dto.comment.CommentDailyStatisticsDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.userCommentAction.CommentActionType;
+import com.neon.nilocommon.entity.enums.userInfo.UserStatus;
 import com.neon.nilocommon.entity.enums.videoComment.CommentOrderType;
 import com.neon.nilocommon.entity.enums.videoComment.CommentTopType;
 import com.neon.nilocommon.entity.enums.videoComment.DeleteType;
 import com.neon.nilocommon.entity.enums.videoInfo.InteractionType;
-import com.neon.nilocommon.entity.po.*;
-import com.neon.nilocommon.entity.query.MediaOwnershipQuery;
-import com.neon.nilocommon.entity.query.UserInfoQuery;
+import com.neon.nilocommon.entity.po.UserCommentAction;
+import com.neon.nilocommon.entity.po.UserCommentActionArchive;
+import com.neon.nilocommon.entity.po.VideoComment;
+import com.neon.nilocommon.entity.po.VideoCommentArchive;
+import com.neon.nilocommon.entity.query.UserCommentActionArchiveQuery;
+import com.neon.nilocommon.entity.query.UserCommentActionQuery;
+import com.neon.nilocommon.entity.query.VideoCommentArchiveQuery;
 import com.neon.nilocommon.entity.query.VideoCommentQuery;
-import com.neon.nilocommon.entity.query.VideoInfoQuery;
 import com.neon.nilocommon.entity.vo.ResponseVO;
+import com.neon.nilocommon.entity.vo.comment.CommentManagementAdmin;
+import com.neon.nilocommon.entity.vo.comment.CommentManagementVO;
 import com.neon.nilocommon.entity.vo.comment.VideoCommentVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.FileUtil;
 import com.neon.nilocommon.util.PageCalculator;
-import com.neon.niloweb.config.WebConfig;
-import com.neon.niloweb.feign.storage.ImageFeignClient;
-import com.neon.niloweb.mapper.MediaOwnershipMapper;
-import com.neon.niloweb.mapper.UserInfoMapper;
-import com.neon.niloweb.mapper.VideoCommentMapper;
-import com.neon.niloweb.mapper.VideoInfoMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.seata.spring.annotation.GlobalTransactional;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
+import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -42,27 +54,34 @@ import java.util.stream.Collectors;
 @Service
 public class VideoCommentService
 {
-    /* Service */
+    /* Feign */
 
-    private final UserMessageService userMessageService;
+    private final InnerVideoFeignClient innerVideoFeignClient;
+
+    private final InnerUserFeignClient innerUserFeignClient;
+
+    private final InnerMediaOwnershipFeignClient innerMediaOwnershipFeignClient;
+
+    private final InnerUserMessageFeignClient innerUserMessageFeignClient;
+
+    private final InnerImageFeignClient innerImageFeignClient;
 
     /* Repository */
 
-    private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
-
     private final VideoCommentMapper <VideoComment, VideoCommentQuery> videoCommentMapper;
 
-    private final UserInfoMapper <UserInfo, UserInfoQuery> userInfoMapper;
+    private final VideoCommentArchiveMapper <VideoCommentArchive, VideoCommentArchiveQuery> videoCommentArchiveMapper;
+
+    private final UserCommentActionMapper <UserCommentAction, UserCommentActionQuery> userCommentActionMapper;
+
+    private final UserCommentActionArchiveMapper <UserCommentActionArchive, UserCommentActionArchiveQuery> userCommentActionArchiveMapper;
 
     /* Other */
 
     private final Snowflake snowflake;
 
-    private final WebConfig webConfig;
+    private final CommentConfig commentConfig;
 
-    private final ImageFeignClient imageFeignClient;
-
-    private final MediaOwnershipMapper <MediaOwnership, MediaOwnershipQuery> mediaOwnershipMapper;
     /**
      * 最大置顶评论条数
      */
@@ -78,10 +97,10 @@ public class VideoCommentService
      * @param parentCommentId 父级评论ID，如果自己就是顶级评论，则为0
      * @return 评论ID
      */
-    @Transactional(rollbackFor = Exception.class)
+    @GlobalTransactional(rollbackFor = Exception.class)
     public Long postComment(long userId, long videoId, String content, String imgKeys, long parentCommentId)
     {
-        VideoInfo videoInfo = getVideoInfo(videoId);
+        VideoSnapshotDTO videoInfo = getVideoInfo(videoId);
 
         // 校验是否允许评论
         String interaction = videoInfo.getInteraction();
@@ -95,6 +114,13 @@ public class VideoCommentService
 
         VideoComment parentComment = null;
 
+        // 检查用户是否存在且可用
+        UserInfoDTO userInfo = getUserInfo(userId);
+        if (userInfo == null || Objects.equals(userInfo.getStatus(), UserStatus.DISABLE.status))
+        {
+            throw new BusinessException(ResponseCode.NOT_FOUND);
+        }
+
         // 校验父级评论是否合法
         if (parentCommentId != 0)
         {
@@ -104,10 +130,15 @@ public class VideoCommentService
                 throw new BusinessException("禁止发布评论");
             }
             videoComment.setReplyUserId(parentComment.getUserId());
+            videoComment.setReplyNickName(parentComment.getNickName());
         }
 
         videoComment.setVideoId(videoId);
+        videoComment.setVideoName(videoInfo.getVideoName());
+        videoComment.setVideoCover(videoInfo.getVideoCover());
         videoComment.setVideoUserId(videoInfo.getUserId());
+        videoComment.setNickName(userInfo.getNickName());
+        videoComment.setAvatar(userInfo.getAvatar());
         if (content != null)
         {
             videoComment.setContent(content);
@@ -133,8 +164,13 @@ public class VideoCommentService
                 allKeys.add(FileUtil.constructThumbnailName(imgKey));
             }
 
-            int count = mediaOwnershipMapper.selectCountByObjectKeysAndOwnerIdAndUsed(allKeys, userId, 0);
-            if (count != allKeys.size())
+            MediaOwnershipBatchDTO validateRequest = new MediaOwnershipBatchDTO();
+            validateRequest.setObjectKeys(allKeys);
+            validateRequest.setOwnerId(userId);
+            validateRequest.setUsed(0);
+            ResponseVO <Integer> validateResult = innerMediaOwnershipFeignClient.validate(validateRequest);
+            if (!ResponseCode.SUCCESS.getCode()
+                                     .equals(validateResult.getCode()) || validateResult.getData() == null || validateResult.getData() != allKeys.size())
             {
                 throw new BusinessException(ResponseCode.INVALID_ARGUMENTS);
             }
@@ -152,15 +188,19 @@ public class VideoCommentService
         }
 
         // 视频的评论数+1
-        videoInfoMapper.increaseByField(videoId, "comment_count", 1);
+        ResponseVO <Void> increaseResult = innerVideoFeignClient.increaseCommentCount(videoId, 1);
+        if (!ResponseCode.SUCCESS.getCode().equals(increaseResult.getCode()))
+        {
+            throw new BusinessException("更新视频评论数失败");
+        }
 
         // 标记图片资源为已使用并移动到public
         if (imgKeys != null)
         {
-            String[] imgKeyArray = imgKeys.split(",");
             LocalDateTime curDate = LocalDateTime.now();
 
             // 收集所有需要标记的key（图片+缩略图）
+            String[] imgKeyArray = imgKeys.split(",");
             List <String> allKeys = new ArrayList <>();
             for (String imgKey : imgKeyArray)
             {
@@ -169,8 +209,13 @@ public class VideoCommentService
             }
 
             // 批量标记为已使用
-            int affected = mediaOwnershipMapper.markAsUsedBatch(allKeys, userId, curDate);
-            if (affected != allKeys.size())
+            MediaOwnershipBatchDTO markRequest = new MediaOwnershipBatchDTO();
+            markRequest.setObjectKeys(allKeys);
+            markRequest.setOwnerId(userId);
+            markRequest.setUsedTime(curDate);
+            ResponseVO <Integer> markResult = innerMediaOwnershipFeignClient.markAsUsed(markRequest);
+            if (!ResponseCode.SUCCESS.getCode()
+                                     .equals(markResult.getCode()) || markResult.getData() == null || markResult.getData() != allKeys.size())
             {
                 throw new BusinessException("部分图片资源不存在或已被使用");
             }
@@ -179,10 +224,10 @@ public class VideoCommentService
             for (String imgKey : imgKeyArray)
             {
                 String thumbnailKey = FileUtil.constructThumbnailName(imgKey);
-                ResponseVO <Void> imgResult = imageFeignClient.move(MinioKey.TMP_PREFIX + imgKey,
-                                                                    MinioKey.PUBLIC_PREFIX + imgKey);
-                ResponseVO <Void> thumbResult = imageFeignClient.move(MinioKey.TMP_PREFIX + thumbnailKey,
-                                                                      MinioKey.PUBLIC_PREFIX + thumbnailKey);
+                ResponseVO <Void> imgResult = innerImageFeignClient.move(MinioKey.TMP_PREFIX + imgKey,
+                                                                         MinioKey.PUBLIC_PREFIX + imgKey);
+                ResponseVO <Void> thumbResult = innerImageFeignClient.move(MinioKey.TMP_PREFIX + thumbnailKey,
+                                                                           MinioKey.PUBLIC_PREFIX + thumbnailKey);
                 if (!imgResult.getCode().equals(ResponseCode.SUCCESS.getCode()) || !thumbResult.getCode()
                                                                                                .equals(ResponseCode.SUCCESS.getCode()))
                 {
@@ -191,44 +236,31 @@ public class VideoCommentService
             }
         }
 
-        if (parentCommentId != 0)
+        // 给回复人发消息
+        // 如果父评论存在并且回复的不是自己的评论，就给回复者发通知
+        if (parentCommentId != 0 && !Objects.equals(parentComment.getUserId(), userId))
         {
             String replyCommentContent = formatReplyCommentContent(parentComment);
             String postedCommentContent = formatPostedCommentContent(content, imgKeys);
-
-            // 异步向父评论发布用户发送通知
-            CompletableFuture <Void> replyCommentMessage = userMessageService.recordCommentMessage(videoComment.getReplyUserId(),
-                                                                                                   userId,
-                                                                                                   videoId,
-                                                                                                   postedCommentContent,
-                                                                                                   replyCommentContent);
-
-            CompletableFuture.allOf(replyCommentMessage).exceptionally(e ->
-                                                                       {
-                                                                           log.warn("异步发送给用户评论被回复消息时产生异常：{}",
-                                                                                    e.toString());
-                                                                           return null;
-                                                                       });
+            sendCommentMessageSafely(videoComment.getReplyUserId(),
+                                     userId,
+                                     videoId,
+                                     postedCommentContent,
+                                     replyCommentContent,
+                                     "异步发送给用户评论被回复消息时产生异常：{}");
         }
 
-        // 如果回复者就是视频发布者，没必要再给发布者发消息了
-        if (!Objects.equals(videoComment.getReplyUserId(), videoInfo.getUserId()))
+        // 通知视频发布者新消息
+        // 如果评论者就是视频发布者，没必要再给发布者（自己）发消息了
+        if (!Objects.equals(userId, videoInfo.getUserId()))
         {
             String postedCommentContent = formatPostedCommentContent(content, imgKeys);
-
-            // 异步向视频发布者发送新评论通知
-            CompletableFuture <Void> videoCommentMessage = userMessageService.recordCommentMessage(videoInfo.getUserId(),
-                                                                                                   userId,
-                                                                                                   videoId,
-                                                                                                   postedCommentContent,
-                                                                                                   null);
-
-            CompletableFuture.allOf(videoCommentMessage).exceptionally(e ->
-                                                                       {
-                                                                           log.warn("异步发送视频出现新评论消息时产生异常：{}",
-                                                                                    e.toString());
-                                                                           return null;
-                                                                       });
+            sendCommentMessageSafely(videoInfo.getUserId(),
+                                     userId,
+                                     videoId,
+                                     postedCommentContent,
+                                     null,
+                                     "异步发送视频出现新评论消息时产生异常：{}");
         }
 
         return commentId;
@@ -410,21 +442,431 @@ public class VideoCommentService
     }
 
     /**
-     * 根据videoId获取VideoInfo<hr/>
-     * 自动校验视频是否存在，不存在会抛出异常
-     *
-     * @param videoId 视频ID
-     * @return VideoInfo
+     * Admin：评论管理列表数量（含已删除）
      */
-    private VideoInfo getVideoInfo(long videoId)
+    public Long getAdminCommentManagementInfoCount(String nameFuzzy)
     {
-        VideoInfo videoInfo = videoInfoMapper.selectByVideoId(videoId);
-        // 校验视频是否存在
-        if (videoInfo == null)
+        if (nameFuzzy == null || nameFuzzy.isBlank())
+        {
+            nameFuzzy = null;
+        }
+        return videoCommentMapper.selectCommentManagementCount(nameFuzzy);
+    }
+
+    /**
+     * Admin：评论管理列表（含已删除）
+     */
+    public List <CommentManagementAdmin> getAdminCommentManagementInfo(String nameFuzzy, int pageNo, int pageSize)
+    {
+        if (nameFuzzy == null || nameFuzzy.isBlank())
+        {
+            nameFuzzy = null;
+        }
+        int start = (pageNo - 1) * pageSize;
+        return videoCommentMapper.selectCommentManagement(nameFuzzy, start, pageSize);
+    }
+
+    /**
+     * 创作中心：评论管理数量
+     */
+    public Long getCreatorCommentManagementInfoCount(long userId, Long videoId, String nameFuzzy)
+    {
+        if (nameFuzzy == null || nameFuzzy.isBlank())
+        {
+            nameFuzzy = null;
+        }
+        return videoCommentMapper.selectCommentManagementVOCount(userId, videoId, nameFuzzy);
+    }
+
+    /**
+     * 创作中心：评论管理列表
+     */
+    public List <CommentManagementVO> getCreatorCommentManagementInfo(long userId,
+                                                                      Long videoId,
+                                                                      String nameFuzzy,
+                                                                      int pageNo,
+                                                                      int pageSize)
+    {
+        if (nameFuzzy == null || nameFuzzy.isBlank())
+        {
+            nameFuzzy = null;
+        }
+        int start = (pageNo - 1) * pageSize;
+        return videoCommentMapper.selectCommentManagementVO(userId, videoId, nameFuzzy, start, pageSize);
+    }
+
+    /**
+     * Admin：逻辑删除指定评论
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteCommentByAdmin(long commentId)
+    {
+        VideoComment videoComment = videoCommentMapper.selectByCommentId(commentId);
+        if (videoComment == null)
+        {
+            throw new BusinessException("不存在此条记录");
+        }
+        if (videoComment.getDeleted() == null || videoComment.getDeleted() != DeleteType.UNDELETED.getValue())
+        {
+            throw new BusinessException("评论已被删除");
+        }
+
+        Integer deletedCount = videoCommentMapper.safeDeleteByCommentId(commentId, DeleteType.DELETED_BY_ADMIN.getValue());
+        if (deletedCount == null || deletedCount == 0)
+        {
+            throw new BusinessException("评论未被删除");
+        }
+    }
+
+    /**
+     * Admin：真正删除指定已逻辑删除的评论
+     */
+    @GlobalTransactional(rollbackFor = Exception.class)
+    public void destroyComment(long commentId)
+    {
+        destroyCommentTree(List.of(commentId));
+    }
+
+    /**
+     * Admin：真正删除发布时间在指定日期范围内且已逻辑删除的评论
+     */
+    @GlobalTransactional(rollbackFor = Exception.class)
+    public void destroyCommentsByPostTimeRange(LocalDate postTimeStart, LocalDate postTimeEnd)
+    {
+        if (postTimeStart == null || postTimeEnd == null)
+        {
+            throw new BusinessException("postTimeStart和postTimeEnd不能为空");
+        }
+        if (postTimeStart.isAfter(postTimeEnd))
+        {
+            throw new BusinessException("postTimeStart不能晚于postTimeEnd");
+        }
+
+        List <Long> commentIdList = videoCommentMapper.selectDeletedCommentIdListByPostTimeRange(postTimeStart, postTimeEnd);
+        destroyCommentTree(commentIdList);
+    }
+
+    /**
+     * 将指定视频下的评论及评论行为归档（视频删除时调用）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void archiveByVideoId(long videoId)
+    {
+        VideoCommentQuery videoCommentQuery = new VideoCommentQuery();
+        videoCommentQuery.setVideoId(videoId);
+        List <VideoComment> videoCommentList = videoCommentMapper.selectList(videoCommentQuery);
+
+        VideoCommentArchiveQuery videoCommentArchiveQuery = new VideoCommentArchiveQuery();
+        videoCommentArchiveQuery.setVideoId(videoId);
+        videoCommentArchiveMapper.deleteByParam(videoCommentArchiveQuery);
+        copyBatch(videoCommentList, VideoCommentArchive::new, videoCommentArchiveMapper);
+
+        UserCommentActionQuery userCommentActionQuery = new UserCommentActionQuery();
+        userCommentActionQuery.setVideoId(videoId);
+        List <UserCommentAction> userCommentActionList = userCommentActionMapper.selectList(userCommentActionQuery);
+
+        UserCommentActionArchiveQuery userCommentActionArchiveQuery = new UserCommentActionArchiveQuery();
+        userCommentActionArchiveQuery.setVideoId(videoId);
+        userCommentActionArchiveMapper.deleteByParam(userCommentActionArchiveQuery);
+        copyBatch(userCommentActionList, UserCommentActionArchive::new, userCommentActionArchiveMapper);
+
+        userCommentActionMapper.deleteByParam(userCommentActionQuery);
+        videoCommentMapper.deleteByParam(videoCommentQuery);
+    }
+
+    /**
+     * 从归档恢复指定视频下的评论及评论行为<hr/>
+     * <p>幂等：若归档数据已不存在（说明本次恢复此前已经执行成功），直接视为成功返回，
+     * 不再校验目标表是否为空，避免 MQ 重复投递触发误报错误并进入死信队列</p>
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void restoreByVideoId(long videoId)
+    {
+        VideoCommentArchiveQuery videoCommentArchiveQuery = new VideoCommentArchiveQuery();
+        videoCommentArchiveQuery.setVideoId(videoId);
+        List <VideoCommentArchive> videoCommentArchiveList = videoCommentArchiveMapper.selectList(videoCommentArchiveQuery);
+
+        UserCommentActionArchiveQuery userCommentActionArchiveQuery = new UserCommentActionArchiveQuery();
+        userCommentActionArchiveQuery.setVideoId(videoId);
+        List <UserCommentActionArchive> userCommentActionArchiveList = userCommentActionArchiveMapper.selectList(
+                userCommentActionArchiveQuery);
+
+        // 归档表已经没有数据，说明本次恢复已经完成过（或本身没有归档数据），直接视为成功，保证重复消费时的幂等性
+        if ((videoCommentArchiveList == null || videoCommentArchiveList.isEmpty()) && (userCommentActionArchiveList == null || userCommentActionArchiveList.isEmpty()))
+        {
+            return;
+        }
+
+        VideoCommentQuery videoCommentQuery = new VideoCommentQuery();
+        videoCommentQuery.setVideoId(videoId);
+        assertTargetEmpty(videoCommentQuery, videoCommentMapper);
+        copyBatch(videoCommentArchiveList, VideoComment::new, videoCommentMapper);
+
+        UserCommentActionQuery userCommentActionQuery = new UserCommentActionQuery();
+        userCommentActionQuery.setVideoId(videoId);
+        assertTargetEmpty(userCommentActionQuery, userCommentActionMapper);
+        copyBatch(userCommentActionArchiveList, UserCommentAction::new, userCommentActionMapper);
+
+        userCommentActionArchiveMapper.deleteByParam(userCommentActionArchiveQuery);
+        videoCommentArchiveMapper.deleteByParam(videoCommentArchiveQuery);
+    }
+
+    /**
+     * 彻底清除指定视频的评论归档数据
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void purgeArchiveByVideoId(long videoId)
+    {
+        VideoCommentArchiveQuery commentArchiveQuery = new VideoCommentArchiveQuery();
+        commentArchiveQuery.setVideoId(videoId);
+        videoCommentArchiveMapper.deleteByParam(commentArchiveQuery);
+
+        UserCommentActionArchiveQuery commentActionArchiveQuery = new UserCommentActionArchiveQuery();
+        commentActionArchiveQuery.setVideoId(videoId);
+        userCommentActionArchiveMapper.deleteByParam(commentActionArchiveQuery);
+    }
+
+    /**
+     * 同步视频标题到评论冗余字段（含归档）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void updateVideoNameByVideoId(long videoId, String videoName)
+    {
+        videoCommentMapper.updateVideoNameByVideoId(videoId, videoName);
+        videoCommentArchiveMapper.updateVideoNameByVideoId(videoId, videoName);
+    }
+
+    /**
+     * 同步视频封面到评论冗余字段（含归档）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void updateVideoCoverByVideoId(long videoId, String videoCover)
+    {
+        videoCommentMapper.updateVideoCoverByVideoId(videoId, videoCover);
+        videoCommentArchiveMapper.updateVideoCoverByVideoId(videoId, videoCover);
+    }
+
+    /**
+     * 同步用户昵称到评论冗余字段（含归档）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void updateNickNameByUserId(long userId, String nickName)
+    {
+        videoCommentMapper.updateNickNameByUserId(userId, nickName);
+        videoCommentArchiveMapper.updateNickNameByUserId(userId, nickName);
+        videoCommentMapper.updateReplyNickNameByReplyUserId(userId, nickName);
+        videoCommentArchiveMapper.updateReplyNickNameByReplyUserId(userId, nickName);
+    }
+
+    /**
+     * 同步用户头像到评论冗余字段（含归档）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void updateAvatarByUserId(long userId, String avatar)
+    {
+        videoCommentMapper.updateAvatarByUserId(userId, avatar);
+        videoCommentArchiveMapper.updateAvatarByUserId(userId, avatar);
+    }
+
+    /**
+     * 汇总用户评论获赞数
+     */
+    public Long getUpvoteCountByUserId(long userId)
+    {
+        Long count = videoCommentMapper.selectUpvoteCountByUserId(userId);
+        return count == null ? 0L : count;
+    }
+
+    /**
+     * 聚合指定统计日内各视频作者收到的评论数（仅未删除）
+     *
+     * @param statisticsDate 统计日期（自然日）
+     */
+    public List <CommentDailyStatisticsDTO> getDailyCommentStatistics(LocalDate statisticsDate)
+    {
+        if (statisticsDate == null)
         {
             throw new BusinessException(ResponseCode.WRONG_ARGUMENTS);
         }
-        return videoInfo;
+        LocalDateTime startDate = statisticsDate.atStartOfDay();
+        LocalDateTime endDate = statisticsDate.plusDays(1).atStartOfDay();
+        List <CommentDailyStatisticsDTO> result = videoCommentMapper.selectDailyCommentCountByVideoUserId(startDate, endDate);
+        return result == null ? List.of() : result;
+    }
+
+    /**
+     * 按层级真正删除评论树<hr/>
+     * <p>第一层必须全部已逻辑删除，子层不限制删除标志</p>
+     */
+    private void destroyCommentTree(List <Long> commentIdList)
+    {
+        if (commentIdList == null || commentIdList.isEmpty())
+        {
+            return;
+        }
+
+        List <Long> currentLevelCommentIdList = commentIdList.stream().distinct().toList();
+        Integer deletedCount = videoCommentMapper.selectDeletedCountByCommentIdList(currentLevelCommentIdList);
+
+        if (deletedCount == null || deletedCount != currentLevelCommentIdList.size())
+        {
+            throw new BusinessException("存在未逻辑删除或不存在的评论");
+        }
+
+        List <VideoComment> commentList = videoCommentMapper.selectBatchByCommentIdList(commentIdList);
+
+        Map <Long, Integer> videoCommentDeleteCountMap = new HashMap <>();
+        commentList.forEach(comment ->
+                            {
+                                if (comment.getVideoId() != null)
+                                {
+                                    videoCommentDeleteCountMap.merge(comment.getVideoId(), 1, Integer::sum);
+                                }
+                            });
+
+        List <Long> parentCommentIdList = commentList.stream()
+                                                     .map(VideoComment::getParentCommentId)
+                                                     .filter(pid -> !Objects.equals(pid, 0L))
+                                                     .distinct()
+                                                     .toList();
+
+        deletedCount = videoCommentMapper.destroyDeletedByCommentIdList(currentLevelCommentIdList);
+        if (deletedCount == null || deletedCount == 0)
+        {
+            throw new BusinessException("评论未被删除");
+        }
+
+        if (!parentCommentIdList.isEmpty())
+        {
+            videoCommentMapper.decreaseBatchReplyCount(parentCommentIdList, 1);
+        }
+
+        while (!currentLevelCommentIdList.isEmpty())
+        {
+            List <Long> childCommentIdList = videoCommentMapper.selectChildCommentIdList(currentLevelCommentIdList);
+            if (childCommentIdList == null || childCommentIdList.isEmpty())
+            {
+                break;
+            }
+
+            List <VideoComment> childCommentList = videoCommentMapper.selectBatchByCommentIdList(childCommentIdList);
+            childCommentList.forEach(comment ->
+                                     {
+                                         if (comment.getVideoId() != null)
+                                         {
+                                             videoCommentDeleteCountMap.merge(comment.getVideoId(), 1, Integer::sum);
+                                         }
+                                     });
+
+            Integer deletedChildCount = videoCommentMapper.destroyByCommentIdList(childCommentIdList);
+            if (deletedChildCount == null || deletedChildCount == 0)
+            {
+                break;
+            }
+
+            currentLevelCommentIdList = childCommentIdList;
+        }
+
+        videoCommentDeleteCountMap.entrySet()
+                                  .removeIf(entry -> entry.getKey() == null || entry.getValue() == null || entry.getValue() <= 0);
+
+        if (!videoCommentDeleteCountMap.isEmpty())
+        {
+            for (Map.Entry <Long, Integer> entry : videoCommentDeleteCountMap.entrySet())
+            {
+                ResponseVO <Void> decreaseResult = innerVideoFeignClient.decreaseCommentCount(entry.getKey(), entry.getValue());
+                if (!ResponseCode.SUCCESS.getCode().equals(decreaseResult.getCode()))
+                {
+                    throw new BusinessException("更新视频评论数失败");
+                }
+            }
+        }
+    }
+
+    private <S, T> void copyBatch(List <S> sourceList, Supplier <T> targetSupplier, BaseMapper <T, ?> targetMapper)
+    {
+        if (sourceList == null || sourceList.isEmpty())
+        {
+            return;
+        }
+        List <T> targetList = sourceList.stream().map(source ->
+                                                      {
+                                                          T target = targetSupplier.get();
+                                                          BeanUtils.copyProperties(source, target);
+                                                          return target;
+                                                      }).toList();
+        targetMapper.insertBatch(targetList);
+    }
+
+    private <P> void assertTargetEmpty(P query, BaseMapper <?, P> targetMapper)
+    {
+        Integer count = targetMapper.selectCount(query);
+        if (count != null && count > 0)
+        {
+            throw new BusinessException("视频无法恢复，因为目标表数据存在冲突，请联系管理员");
+        }
+    }
+
+    /**
+     * 根据videoId获取视频快照<hr/>
+     * 自动校验视频是否存在，不存在会抛出异常
+     *
+     * @param videoId 视频ID
+     * @return VideoSnapshotDTO
+     */
+    private VideoSnapshotDTO getVideoInfo(long videoId)
+    {
+        ResponseVO <VideoSnapshotDTO> result = innerVideoFeignClient.getVideoSnapshot(videoId);
+        if (!ResponseCode.SUCCESS.getCode().equals(result.getCode()) || result.getData() == null)
+        {
+            throw new BusinessException(ResponseCode.WRONG_ARGUMENTS);
+        }
+        return result.getData();
+    }
+
+    /**
+     * 获取用户资料快照
+     *
+     * @param userId 用户ID
+     * @return 用户资料，不存在时返回 null
+     */
+    private UserInfoDTO getUserInfo(long userId)
+    {
+        ResponseVO <UserInfoDTO> result = innerUserFeignClient.getUserInfo(userId);
+        if (!ResponseCode.SUCCESS.getCode().equals(result.getCode()))
+        {
+            throw new BusinessException(ResponseCode.NOT_FOUND);
+        }
+        return result.getData();
+    }
+
+    /**
+     * 发送评论站内信；失败仅记日志，不影响发评主流程
+     */
+    private void sendCommentMessageSafely(long receiverUserId,
+                                          long senderUserId,
+                                          long videoId,
+                                          String commentContent,
+                                          String replyCommentContent,
+                                          String warnMessage)
+    {
+        try
+        {
+            CommentMessageDTO request = new CommentMessageDTO(receiverUserId,
+                                                              senderUserId,
+                                                              videoId,
+                                                              commentContent,
+                                                              replyCommentContent);
+            ResponseVO <Void> result = innerUserMessageFeignClient.sendCommentMessage(request);
+            if (!ResponseCode.SUCCESS.getCode().equals(result.getCode()))
+            {
+                log.warn(warnMessage, result.getInfo());
+            }
+        }
+        catch (Exception e)
+        {
+            log.warn(warnMessage, e.toString());
+        }
     }
 
     /**
@@ -446,13 +888,17 @@ public class VideoCommentService
         return videoComment;
     }
 
+    /**
+     * 构建评论消息回复区内容
+     *
+     * @param parentComment 父评论
+     * @return 回复消息内容
+     */
     private String formatReplyCommentContent(VideoComment parentComment)
     {
-        UserInfo replyUser = userInfoMapper.selectByUserId(parentComment.getUserId());
-
-        String nickName = replyUser.getNickName();
+        String nickName = parentComment.getNickName();
         // 如果找不到昵称（不太可能），兜底返回UID
-        if (replyUser.getNickName() == null || replyUser.getNickName().isBlank())
+        if (nickName == null || nickName.isBlank())
         {
             nickName = String.valueOf(parentComment.getUserId());
         }
@@ -522,7 +968,7 @@ public class VideoCommentService
                                                            int layer)
     {
 
-        final int childPageSize = webConfig.getChildrenCommentPageSize();
+        final int childPageSize = commentConfig.getChildrenCommentPageSize();
 
         // 查询评论
         final int pageSize;
@@ -532,12 +978,12 @@ public class VideoCommentService
         // 如果是顶级评论
         if (parentCommentId == 0)
         {
-            pageSize = webConfig.getCommentPageSize();
+            pageSize = commentConfig.getCommentPageSize();
         }
         // 如果是子评论（子评论的有自己的页大小）
         else
         {
-            pageSize = webConfig.getChildrenCommentPageSize();
+            pageSize = commentConfig.getChildrenCommentPageSize();
         }
 
         pageIndex = (pageNo - 1) * pageSize;

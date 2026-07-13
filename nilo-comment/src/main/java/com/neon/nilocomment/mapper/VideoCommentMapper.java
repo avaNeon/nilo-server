@@ -1,10 +1,15 @@
-package com.neon.niloweb.mapper;
+package com.neon.nilocomment.mapper;
 
+import com.neon.nilocommon.entity.dto.comment.CommentDailyStatisticsDTO;
+import com.neon.nilocommon.entity.po.VideoComment;
+import com.neon.nilocommon.entity.vo.comment.CommentManagementAdmin;
 import com.neon.nilocommon.entity.vo.comment.CommentManagementVO;
 import com.neon.nilocommon.entity.vo.comment.VideoCommentVO;
 import com.neon.nilocommon.util.PageCalculator;
 import org.apache.ibatis.annotations.Param;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -119,4 +124,87 @@ public interface VideoCommentMapper<T, P> extends BaseMapper <T, P>
                                                          @Param("nameFuzzy") String nameFuzzy,
                                                          @Param("start") Integer start,
                                                          @Param("pageSize") Integer pageSize);
+
+    /**
+     * 按评论者 user_id 批量更新冗余昵称
+     */
+    Integer updateNickNameByUserId(@Param("userId") Long userId, @Param("nickName") String nickName);
+
+    /**
+     * 按被回复者 reply_user_id 批量更新冗余回复昵称
+     */
+    Integer updateReplyNickNameByReplyUserId(@Param("replyUserId") Long replyUserId,
+                                             @Param("replyNickName") String replyNickName);
+
+    /**
+     * 按评论者 user_id 批量更新冗余头像
+     */
+    Integer updateAvatarByUserId(@Param("userId") Long userId, @Param("avatar") String avatar);
+
+    /**
+     * 根据评论ID列表批量查询评论信息
+     */
+    List <VideoComment> selectBatchByCommentIdList(@Param("commentIdList") List <Long> commentIdList);
+
+    /**
+     * 查询指定父评论下一级的评论ID列表
+     */
+    List <Long> selectChildCommentIdList(@Param("parentCommentIdList") List <Long> parentCommentIdList);
+
+    /**
+     * 查询发布时间范围内已逻辑删除的评论ID列表
+     */
+    List <Long> selectDeletedCommentIdListByPostTimeRange(@Param("postTimeStart") LocalDate postTimeStart,
+                                                          @Param("postTimeEnd") LocalDate postTimeEnd);
+
+    /**
+     * 查询指定评论ID列表中已逻辑删除的评论数量
+     */
+    Integer selectDeletedCountByCommentIdList(@Param("commentIdList") List <Long> commentIdList);
+
+    /**
+     * 根据CommentId列表真正删除评论（不限制逻辑删除标志）
+     */
+    Integer destroyByCommentIdList(@Param("commentIdList") List <Long> commentIdList);
+
+    /**
+     * 根据CommentId列表真正删除已逻辑删除评论
+     */
+    Integer destroyDeletedByCommentIdList(@Param("commentIdList") List <Long> commentIdList);
+
+    /**
+     * 统一减少评论的回复数量
+     */
+    Integer decreaseBatchReplyCount(@Param("commentIds") List <Long> commentIds, @Param("count") Integer count);
+
+    /**
+     * 评论管理页面（admin），查询数量（含已删除）
+     */
+    Long selectCommentManagementCount(@Param("nameFuzzy") String nameFuzzy);
+
+    /**
+     * 评论管理页面（admin），查询列表（含已删除）
+     */
+    List <CommentManagementAdmin> selectCommentManagement(@Param("nameFuzzy") String nameFuzzy,
+                                                          @Param("start") Integer start,
+                                                          @Param("pageSize") Integer pageSize);
+
+    /**
+     * 按 video_id 批量更新冗余视频标题
+     */
+    Integer updateVideoNameByVideoId(@Param("videoId") Long videoId, @Param("videoName") String videoName);
+
+    /**
+     * 按 video_id 批量更新冗余视频封面
+     */
+    Integer updateVideoCoverByVideoId(@Param("videoId") Long videoId, @Param("videoCover") String videoCover);
+
+    /**
+     * 按视频作者聚合指定时间范围内收到的评论数（仅未删除）
+     *
+     * @param startDate 开始时间，闭区间
+     * @param endDate   结束时间，开区间
+     */
+    List <CommentDailyStatisticsDTO> selectDailyCommentCountByVideoUserId(@Param("startDate") LocalDateTime startDate,
+                                                                          @Param("endDate") LocalDateTime endDate);
 }

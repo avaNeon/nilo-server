@@ -36,21 +36,6 @@ public class WebConfig
     private int recommendVideoSize = 10;
 
     /**
-     * 查询评论分页大小
-     */
-    private int commentPageSize = 10;
-
-    /**
-     * 子评论分页大小（超出则由前端显示"查看更多回复"）
-     */
-    private int childrenCommentPageSize = 5;
-
-    /**
-     * 默认查询评论深度
-     */
-    private int commentSelectDepth = 3;
-
-    /**
      * 用户信息过期时间，单位：天
      */
     private int userInfoExpireDays = 7;

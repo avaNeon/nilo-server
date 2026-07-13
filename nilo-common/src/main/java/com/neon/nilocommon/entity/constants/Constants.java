@@ -48,6 +48,11 @@ public class Constants
      */
     public static final String ADMIN_COOKIE_TOKEN_KEY = "token_admin";
 
+    /**
+     * 集群内部调用鉴权请求头
+     */
+    public static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
+
     /* 正则表达式 */
 
     /**
@@ -58,5 +63,10 @@ public class Constants
      * 可包含符号：!@#$%^&*()_+-=<br/>
      */
     public static final String PASSWORD_REGEXP = "^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d!@#$%^&*()_+\\-=]{8,20}$";
+
+    /**
+     * 邮箱验证码正则：6位数字字母（大小写均可）
+     */
+    public static final String EMAIL_CODE_REGEXP = "^[0-9A-Za-z]{6}$";
 
 }

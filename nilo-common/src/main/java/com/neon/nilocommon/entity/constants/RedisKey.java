@@ -115,4 +115,28 @@ public class RedisKey
      * 预签名URL缓存Key前缀
      */
     public static final String PRESIGNED_URL_CACHE_PREFIX = REDIS_KEY_PREFIX + "presigned:";
+
+    /**
+     * 邮箱验证码前缀<hr/>
+     * <p>key: nilo:email:code:{scene}:{email}</p>
+     */
+    public static final String EMAIL_CODE_PREFIX = REDIS_KEY_PREFIX + "email:code:";
+
+    /**
+     * 邮箱验证码剩余可尝试次数前缀<hr/>
+     * <p>key: nilo:email:code:attempts:{scene}:{email}</p>
+     */
+    public static final String EMAIL_CODE_ATTEMPTS_PREFIX = REDIS_KEY_PREFIX + "email:code:attempts:";
+
+    /**
+     * 邮箱验证码发送冷却前缀（防止连续重复发送）<hr/>
+     * <p>key: nilo:email:cooldown:{scene}:{email}</p>
+     */
+    public static final String EMAIL_CODE_COOLDOWN_PREFIX = REDIS_KEY_PREFIX + "email:cooldown:";
+
+    /**
+     * 邮箱验证码发送频次前缀（固定窗口限流）<hr/>
+     * <p>key: nilo:email:freq:{scene}:{email}</p>
+     */
+    public static final String EMAIL_CODE_FREQ_PREFIX = REDIS_KEY_PREFIX + "email:freq:";
 }

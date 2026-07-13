@@ -20,7 +20,10 @@ public enum ResponseCode
     TIME_OUT(1006, "请求超时"),
     NO_PERMISSION(1007, "没有权限"),
     INSUFFICIENT_COIN(1008, "硬币不足"),
-    EXPIRE_LOGIN(1009, "登录信息已过期");
+    EXPIRE_LOGIN(1009, "登录信息已过期"),
+    EMAIL_CODE_SEND_TOO_FREQUENT(1010, "请求过于频繁，请稍后再试"),
+    EMAIL_CODE_SEND_LIMIT_EXCEEDED(1011, "验证码请求次数过多，请几小时后再试"),
+    EMAIL_CODE_INVALID(1012, "验证码错误或已失效，请重新获取");
 
     private final Integer code;
 

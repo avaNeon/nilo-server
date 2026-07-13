@@ -49,4 +49,17 @@ public class MqInfo
     public static final String PLAY_COUNT_EXCHANGE = "video.play-count.direct";
     public static final String PLAY_COUNT_QUEUE = "video.play-count.queue";
     public static final String PLAY_COUNT_ROUTING_KEY = "video.play-count.routing.key";
+
+
+    // ————EMAIL————————————————————————————————————————————————————————
+    public static final String EMAIL_EXCHANGE = "email.direct";
+    // 邮箱验证码发送
+    public static final String EMAIL_SEND_QUEUE = "email.send.queue";
+    public static final String EMAIL_SEND_ROUTING_KEY = "email.send";
+    // dlx
+    public static final String EMAIL_DLX = "email.dlx";
+    public static final String EMAIL_SEND_DLQ = "email.send.dlq";
+    public static final String EMAIL_SEND_DLK = "email.send.dead";
 }
+
+

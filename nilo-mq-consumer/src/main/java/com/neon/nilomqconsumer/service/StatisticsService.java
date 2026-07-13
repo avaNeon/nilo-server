@@ -1,11 +1,17 @@
 package com.neon.nilomqconsumer.service;
 
+import com.neon.nilocommon.entity.dto.comment.CommentDailyStatisticsDTO;
+import com.neon.nilocommon.entity.enums.ResponseCode;
+import com.neon.nilocommon.entity.enums.statisticsInfo.DataType;
 import com.neon.nilocommon.entity.po.StatisticsInfo;
 import com.neon.nilocommon.entity.po.VideoInfo;
 import com.neon.nilocommon.entity.po.VideoPlayDaily;
 import com.neon.nilocommon.entity.query.StatisticsInfoQuery;
 import com.neon.nilocommon.entity.query.VideoInfoQuery;
 import com.neon.nilocommon.entity.query.VideoPlayDailyQuery;
+import com.neon.nilocommon.entity.vo.ResponseVO;
+import com.neon.nilocommon.exception.BusinessException;
+import com.neon.nilomqconsumer.feign.comment.InnerVideoCommentFeignClient;
 import com.neon.nilomqconsumer.mapper.StatisticsInfoMapper;
 import com.neon.nilomqconsumer.mapper.VideoInfoMapper;
 import com.neon.nilomqconsumer.mapper.VideoPlayDailyMapper;
@@ -31,6 +37,8 @@ public class StatisticsService
     private final StatisticsInfoMapper <StatisticsInfo, StatisticsInfoQuery> statisticsInfoMapper;
 
     private final StatisticsRedisRepository statisticsRedisRepository;
+
+    private final InnerVideoCommentFeignClient innerVideoCommentFeignClient;
 
     private static final Integer DAILY_PLAY_SCAN_COUNT = 1000;
 
@@ -110,7 +118,8 @@ public class StatisticsService
     }
 
     /**
-     * 统计用户每日收到的评论数。
+     * 统计用户每日收到的评论数。<hr/>
+     * <p>评论表已迁至 nilo-comment，这里通过 Feign 拉取聚合结果后写入 statistics_info。</p>
      *
      * @param statisticsDate 统计日期
      * @return 改变行数
@@ -118,8 +127,31 @@ public class StatisticsService
     public Integer collectDailyCommentStatistics(LocalDate statisticsDate)
     {
         LocalDate targetStatisticsDate = buildTargetStatisticsDate(statisticsDate);
-        DateRange dateRange = buildDateRange(targetStatisticsDate);
-        return statisticsInfoMapper.reduceDailyComment(targetStatisticsDate, dateRange.startDate(), dateRange.endDate());
+        ResponseVO <List <CommentDailyStatisticsDTO>> response = innerVideoCommentFeignClient.getDailyCommentStatistics(
+                targetStatisticsDate);
+        if (response == null || !ResponseCode.SUCCESS.getCode().equals(response.getCode()))
+        {
+            throw new BusinessException(response == null ? "评论服务调用失败" : response.getInfo());
+        }
+
+        List <CommentDailyStatisticsDTO> dailyCommentList = response.getData();
+        if (dailyCommentList == null || dailyCommentList.isEmpty())
+        {
+            return 0;
+        }
+
+        List <StatisticsInfo> statisticsInfoList = dailyCommentList.stream()
+                                                                   .filter(item -> item != null && item.getUserId() != null && item.getStatisticsCount() != null)
+                                                                   .map(item -> new StatisticsInfo(targetStatisticsDate,
+                                                                                                   item.getUserId(),
+                                                                                                   DataType.COMMENT.getValue(),
+                                                                                                   item.getStatisticsCount()))
+                                                                   .toList();
+        if (statisticsInfoList.isEmpty())
+        {
+            return 0;
+        }
+        return statisticsInfoMapper.insertOrUpdateBatch(statisticsInfoList);
     }
 
     /**
@@ -166,6 +198,7 @@ public class StatisticsService
 
     /**
      * <b>将统计日期转化为我们真正要统计的日期</b>
+     *
      * @param statisticsDate 统计日期
      * @return 转化后的日期
      */

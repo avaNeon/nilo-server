@@ -33,19 +33,6 @@ public interface StatisticsInfoMapper<T, P> extends BaseMapper <T, P>
                                 @Param("endDate") LocalDateTime endDate);
 
     /**
-     * <b>整合每日评论统计</b><hr/>
-     * <p>将指定日期内各视频作者收到的评论数聚合写入 statistics_info。</p>
-     *
-     * @param statisticsDate 统计日期
-     * @param startDate      统计开始时间，闭区间
-     * @param endDate        统计结束时间，开区间
-     * @return 改变行数
-     */
-    Integer reduceDailyComment(@Param("statisticsDate") LocalDate statisticsDate,
-                               @Param("startDate") LocalDateTime startDate,
-                               @Param("endDate") LocalDateTime endDate);
-
-    /**
      * <b>整合每日弹幕统计</b><hr/>
      * <p>将指定日期内各视频作者收到的弹幕数聚合写入 statistics_info。</p>
      *

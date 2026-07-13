@@ -202,6 +202,83 @@ public class RabbitMqConfig
         return BindingBuilder.bind(playCountQueue()).to(playCountExchange()).with(PLAY_COUNT_ROUTING_KEY);
     }
 
+    /* 评论交换机 */
+    @Bean
+    public DirectExchange commentExchange()
+    {
+        return new DirectExchange(COMMENT_EXCHANGE);
+    }
+
+    /* 评论冗余字段更新队列 */
+    @Bean
+    public Queue commentUpdateQueue()
+    {
+        return QueueBuilder.durable(COMMENT_UPDATE_QUEUE)
+                           .quorum()
+                           .deadLetterExchange(COMMENT_DLX)
+                           .deadLetterRoutingKey(COMMENT_UPDATE_DLK)
+                           .build();
+    }
+
+    /* 评论冗余字段更新队列-交换机绑定 */
+    @Bean
+    public Binding commentUpdateBinding()
+    {
+        return BindingBuilder.bind(commentUpdateQueue()).to(commentExchange()).with(COMMENT_UPDATE_ROUTING_KEY);
+    }
+
+    /* 视频评论归档/恢复/彻底删除队列 */
+    @Bean
+    public Queue commentArchiveQueue()
+    {
+        return QueueBuilder.durable(COMMENT_ARCHIVE_QUEUE)
+                           .quorum()
+                           .deadLetterExchange(COMMENT_DLX)
+                           .deadLetterRoutingKey(COMMENT_ARCHIVE_DLK)
+                           .build();
+    }
+
+    /* 视频评论归档/恢复/彻底删除队列-交换机绑定 */
+    @Bean
+    public Binding commentArchiveBinding()
+    {
+        return BindingBuilder.bind(commentArchiveQueue()).to(commentExchange()).with(COMMENT_ARCHIVE_ROUTING_KEY);
+    }
+
+    /* 评论死信交换机 */
+    @Bean
+    public DirectExchange dlxCommentExchange()
+    {
+        return new DirectExchange(COMMENT_DLX);
+    }
+
+    /* 评论冗余字段更新死信队列 */
+    @Bean
+    public Queue dlqCommentUpdateQueue()
+    {
+        return QueueBuilder.durable(COMMENT_UPDATE_DLQ).quorum().build();
+    }
+
+    /* 评论冗余字段更新死信队列-死信交换机绑定 */
+    @Bean
+    public Binding commentUpdateDlqBinding()
+    {
+        return BindingBuilder.bind(dlqCommentUpdateQueue()).to(dlxCommentExchange()).with(COMMENT_UPDATE_DLK);
+    }
+
+    /* 视频评论归档/恢复/彻底删除死信队列 */
+    @Bean
+    public Queue dlqCommentArchiveQueue()
+    {
+        return QueueBuilder.durable(COMMENT_ARCHIVE_DLQ).quorum().build();
+    }
+
+    /* 视频评论归档/恢复/彻底删除死信队列-死信交换机绑定 */
+    @Bean
+    public Binding commentArchiveDlqBinding()
+    {
+        return BindingBuilder.bind(dlqCommentArchiveQueue()).to(dlxCommentExchange()).with(COMMENT_ARCHIVE_DLK);
+    }
 
     /* 邮件交换机 */
     @Bean
@@ -250,5 +327,3 @@ public class RabbitMqConfig
     }
 
 }
-
-

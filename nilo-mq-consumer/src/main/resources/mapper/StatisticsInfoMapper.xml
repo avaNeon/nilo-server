@@ -275,23 +275,6 @@
         ON DUPLICATE KEY UPDATE statistics_count = VALUES(statistics_count)
     </insert>
 
-    <insert id="reduceDailyComment">
-        INSERT INTO statistics_info(statistics_date,
-                                    user_id,
-                                    data_type,
-                                    statistics_count)
-        SELECT #{statisticsDate},
-               video_user_id,
-               3,
-               COUNT(1)
-        FROM video_comment
-        WHERE post_time &gt;= #{startDate}
-          AND post_time &lt; #{endDate}
-          AND deleted = 0
-        GROUP BY video_user_id
-        ON DUPLICATE KEY UPDATE statistics_count = VALUES(statistics_count)
-    </insert>
-
     <insert id="reduceDailyDanmaku">
         INSERT INTO statistics_info(statistics_date,
                                     user_id,

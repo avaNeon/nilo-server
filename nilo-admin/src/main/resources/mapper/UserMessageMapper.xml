@@ -51,7 +51,7 @@
             and u.read_type = #{query.readType}
         </if>
         <if test="query.createTime != null and query.createTime!=''">
-            <![CDATA[ and  u.create_time=str_to_date(#{query.createTime}, '%Y-%m-%d') ]]>
+            <![CDATA[ and  u.create_time=str_to_date(#{query.createTime}, '%Y-%m-%d %H:%i:%s') ]]>
         </if>
         <if test="query.extendJson != null and query.extendJson!=''">
             and u.extend_json = #{query.extendJson}

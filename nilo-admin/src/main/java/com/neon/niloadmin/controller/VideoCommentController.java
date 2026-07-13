@@ -44,27 +44,27 @@ public class VideoCommentController
 
     @Operation(summary = "删除视频评论")
     @DeleteMapping(path = "/{commentId}")
-    public ResponseVO <Object> deleteComment(@PathVariable(name = "commentId") @NotNull Long commentId)
+    public ResponseVO <Void> deleteComment(@PathVariable(name = "commentId") @NotNull Long commentId)
     {
         videoCommentService.deleteComment(commentId);
-        return ResponseVO.success(null);
+        return ResponseVO.success();
     }
 
     @Operation(summary = "真正删除指定视频评论", description = "仅会删除已逻辑删除的评论")
     @DeleteMapping(path = "/destroy/{commentId}")
-    public ResponseVO <Object> destroyComment(@PathVariable(name = "commentId") @NotNull Long commentId)
+    public ResponseVO <Void> destroyComment(@PathVariable(name = "commentId") @NotNull Long commentId)
     {
         videoCommentService.destroyComment(commentId);
-        return ResponseVO.success(null);
+        return ResponseVO.success();
     }
 
     @Operation(summary = "真正删除指定时间范围的视频评论", description = "仅会删除已逻辑删除的评论，时间格式：yyyy-MM-dd")
     @DeleteMapping(path = "/destroy/range")
-    public ResponseVO <Object> destroyCommentsByPostTimeRange(
+    public ResponseVO <Void> destroyCommentsByPostTimeRange(
             @RequestParam(name = "postTimeStart") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) @NotNull LocalDate postTimeStart,
             @RequestParam(name = "postTimeEnd") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) @NotNull LocalDate postTimeEnd)
     {
         videoCommentService.destroyCommentsByPostTimeRange(postTimeStart, postTimeEnd);
-        return ResponseVO.success(null);
+        return ResponseVO.success();
     }
 }

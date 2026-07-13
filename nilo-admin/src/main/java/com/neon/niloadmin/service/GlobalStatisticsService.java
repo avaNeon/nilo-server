@@ -15,9 +15,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -43,31 +43,37 @@ public class GlobalStatisticsService
         // 统计 7天前 ~ 昨天 的数据，共7天
         List <StatisticsInfoVO> records = statisticsInfoMapper.selectVoByStatisticsDatePeriod(earliestDay, yesterday);
 
-        // 将查到的记录按 (date, dataType) 建索引
-        Set <String> existingKeys = records.stream()
-                                           .map(vo -> vo.getStatisticsDate() + "_" + vo.getDataType())
-                                           .collect(Collectors.toSet());
+        // 按 (date, dataType) 聚合，累加各用户的 statisticsCount
+        Map <String, StatisticsInfoVO> aggregated = records.stream()
+                                                           .collect(Collectors.toMap(
+                                                                   vo -> vo.getStatisticsDate() + "_" + vo.getDataType(),
+                                                                   vo -> new StatisticsInfoVO(vo.getStatisticsDate(),
+                                                                                              vo.getDataType(),
+                                                                                              vo.getStatisticsCount()),
+                                                                   (a, b) ->
+                                                                   {
+                                                                       a.setStatisticsCount(a.getStatisticsCount() + b.getStatisticsCount());
+                                                                       return a;
+                                                                   }
+                                                           ));
 
         // 补齐缺失的天和类型，statisticsCount 设为 0
-        List <StatisticsInfoVO> result = new ArrayList <>(records);
         for (LocalDate date = earliestDay ; !date.isAfter(yesterday) ; date = date.plusDays(1))
         {
             for (DataType dataType : DataType.values())
             {
                 String key = date + "_" + dataType.getValue();
-                if (!existingKeys.contains(key))
-                {
-                    result.add(new StatisticsInfoVO(date, dataType.getValue(), 0));
-                }
+                aggregated.putIfAbsent(key, new StatisticsInfoVO(date, dataType.getValue(), 0));
             }
         }
 
         // 不用传FOLLOW数据
-        List <StatisticsInfoVO> vos = new ArrayList <>(result.stream()
-                                                             .filter(vo -> !vo.getDataType().equals(DataType.FOLLOWER.getValue()))
-                                                             .toList());
-
-        vos.sort(Comparator.comparing(StatisticsInfoVO::getStatisticsDate));
+        List <StatisticsInfoVO> vos = aggregated.values()
+                                                .stream()
+                                                .filter(vo -> !vo.getDataType().equals(DataType.FOLLOWER.getValue()))
+                                                .sorted(Comparator.comparing(StatisticsInfoVO::getStatisticsDate)
+                                                                  .thenComparing(StatisticsInfoVO::getDataType))
+                                                .toList();
 
         return vos;
     }

@@ -2,7 +2,9 @@ package com.neon.niloadmin.service;
 
 import com.neon.niloadmin.mapper.*;
 import com.neon.niloadmin.repository.rabbitmq.MqRepository;
+import com.neon.nilocommon.entity.dto.comment.CommentArchiveDTO;
 import com.neon.nilocommon.entity.dto.VideoInfoArchiveAdminJoinDTO;
+import com.neon.nilocommon.entity.enums.comment.OperationType;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.po.*;
 import com.neon.nilocommon.entity.query.*;
@@ -15,6 +17,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,11 +34,7 @@ public class VideoArchiveService
 
     private final VideoInfoFileMapper <VideoInfoFile, VideoInfoFileQuery> videoInfoFileMapper;
 
-    private final VideoCommentArchiveMapper <VideoCommentArchive, VideoCommentArchiveQuery> videoCommentArchiveMapper;
-
     private final VideoDanmakuArchiveMapper <VideoDanmakuArchive, VideoDanmakuArchiveQuery> videoDanmakuArchiveMapper;
-
-    private final UserCommentActionArchiveMapper <UserCommentActionArchive, UserCommentActionArchiveQuery> userCommentActionArchiveMapper;
 
     private final UserVideoActionArchiveMapper <UserVideoActionArchive, UserVideoActionArchiveQuery> userVideoActionArchiveMapper;
 
@@ -224,20 +224,42 @@ public class VideoArchiveService
         fileArchiveQuery.setVideoId(videoId);
         videoInfoFileArchiveMapper.deleteByParam(fileArchiveQuery);
 
-        VideoCommentArchiveQuery commentArchiveQuery = new VideoCommentArchiveQuery();
-        commentArchiveQuery.setVideoId(videoId);
-        videoCommentArchiveMapper.deleteByParam(commentArchiveQuery);
+        // video_comment + user_comment_action：事务提交后异步通知评论服务彻底删除归档，保证最终一致性
+        sendCommentArchiveOperationAfterCommit(new CommentArchiveDTO(videoId, OperationType.DESTROY));
 
         VideoDanmakuArchiveQuery danmakuArchiveQuery = new VideoDanmakuArchiveQuery();
         danmakuArchiveQuery.setVideoId(videoId);
         videoDanmakuArchiveMapper.deleteByParam(danmakuArchiveQuery);
 
-        UserCommentActionArchiveQuery commentActionArchiveQuery = new UserCommentActionArchiveQuery();
-        commentActionArchiveQuery.setVideoId(videoId);
-        userCommentActionArchiveMapper.deleteByParam(commentActionArchiveQuery);
-
         UserVideoActionArchiveQuery videoActionArchiveQuery = new UserVideoActionArchiveQuery();
         videoActionArchiveQuery.setVideoId(videoId);
         userVideoActionArchiveMapper.deleteByParam(videoActionArchiveQuery);
+    }
+
+    /**
+     * 在事务提交后发送视频评论归档/恢复/彻底删除消息<hr/>
+     * <p>本地事务未提交成功时绝不会通知评论服务，避免出现"本地回滚但评论已变更"的不一致状态</p>
+     */
+    private void sendCommentArchiveOperationAfterCommit(CommentArchiveDTO dto)
+    {
+        if (dto == null)
+        {
+            return;
+        }
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive())
+        {
+            mqRepository.sendCommentArchiveOperation(dto);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization()
+        {
+            @Override
+            public void afterCommit()
+            {
+                mqRepository.sendCommentArchiveOperation(dto);
+            }
+        });
     }
 }

@@ -3,7 +3,6 @@ package com.neon.niloadmin.mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * 视频信息 数据库操作接口
@@ -44,11 +43,6 @@ public interface VideoInfoMapper<T, P> extends BaseMapper <T, P>
      * @return 修改行数
      */
     Integer toggleRecommendType(@Param("videoId") Long videoId);
-
-    /**
-     * 按视频ID批量减少评论数量。
-     */
-    Integer decreaseCommentCountBatch(@Param("decreaseMap") Map <Long, Integer> decreaseMap);
 
     /**
      * 根据VideoId更新

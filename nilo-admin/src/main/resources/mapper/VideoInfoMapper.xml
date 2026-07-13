@@ -871,20 +871,6 @@
         </where>
     </update>
 
-    <update id="decreaseCommentCountBatch">
-        UPDATE video_info
-        SET comment_count = comment_count - CASE video_id
-        <foreach collection="decreaseMap" index="videoId" item="count">
-            WHEN #{videoId} THEN #{count}
-        </foreach>
-        ELSE 0
-        END
-        WHERE video_id IN
-        <foreach collection="decreaseMap" index="videoId" item="count" separator="," open="(" close=")">
-            #{videoId}
-        </foreach>
-    </update>
-
     <select id="selectCountByCategoryIdBatch" resultType="java.lang.Integer">
         SELECT COUNT(1)
         FROM video_info

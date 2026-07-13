@@ -1,13 +1,16 @@
 package com.neon.niloadmin.service;
 
 import com.neon.niloadmin.config.AdminConfig;
-import com.neon.niloadmin.feign.storage.ImageFeignClient;
-import com.neon.niloadmin.feign.storage.VideoFileFeignClient;
+import com.neon.niloadmin.feign.storage.InnerImageFeignClient;
+import com.neon.niloadmin.feign.storage.InnerVideoFileFeignClient;
 import com.neon.niloadmin.mapper.*;
 import com.neon.niloadmin.repository.rabbitmq.MqRepository;
 import com.neon.niloadmin.repository.redis.AccountRedisRepository;
 import com.neon.nilocommon.entity.constants.MinioKey;
+import com.neon.nilocommon.entity.dto.comment.CommentArchiveDTO;
+import com.neon.nilocommon.entity.dto.comment.CommentRedundantDTO;
 import com.neon.nilocommon.entity.dto.VideoInfoUploadAdminJoinDTO;
+import com.neon.nilocommon.entity.enums.comment.OperationType;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.videoInfo.RecommendType;
 import com.neon.nilocommon.entity.enums.videoInfoArchive.DeleterType;
@@ -62,11 +65,7 @@ public class VideoService
 
     private final VideoInfoFileMapper <VideoInfoFile, VideoInfoFileQuery> videoInfoFileMapper;
 
-    private final VideoCommentMapper <VideoComment, VideoCommentQuery> videoCommentMapper;
-
     private final VideoDanmakuMapper <VideoDanmaku, VideoDanmakuQuery> videoDanmakuMapper;
-
-    private final UserCommentActionMapper <UserCommentAction, UserCommentActionQuery> userCommentActionMapper;
 
     private final UserVideoActionMapper <UserVideoAction, UserVideoActionQuery> userVideoActionMapper;
 
@@ -76,11 +75,7 @@ public class VideoService
 
     private final VideoInfoFileArchiveMapper <VideoInfoFileArchive, VideoInfoFileArchiveQuery> videoInfoFileArchiveMapper;
 
-    private final VideoCommentArchiveMapper <VideoCommentArchive, VideoCommentArchiveQuery> videoCommentArchiveMapper;
-
     private final VideoDanmakuArchiveMapper <VideoDanmakuArchive, VideoDanmakuArchiveQuery> videoDanmakuArchiveMapper;
-
-    private final UserCommentActionArchiveMapper <UserCommentActionArchive, UserCommentActionArchiveQuery> userCommentActionArchiveMapper;
 
     private final UserVideoActionArchiveMapper <UserVideoActionArchive, UserVideoActionArchiveQuery> userVideoActionArchiveMapper;
 
@@ -89,9 +84,9 @@ public class VideoService
     private final MqRepository mqRepository;
 
     /* Other */
-    private final ImageFeignClient imageFeignClient;
+    private final InnerImageFeignClient innerImageFeignClient;
 
-    private final VideoFileFeignClient videoFileFeignClient;
+    private final InnerVideoFileFeignClient innerVideoFileFeignClient;
 
     private final AdminConfig adminConfig;
 
@@ -386,6 +381,15 @@ public class VideoService
                 }
             }
 
+            // 检查标题是否改变，如果改变，事务提交后异步更新评论冗余标题
+            if (videoInfo != null && !Objects.equals(infoUpload.getVideoName(), videoInfo.getVideoName()))
+            {
+                CommentRedundantDTO commentUpdateDTO = new CommentRedundantDTO();
+                commentUpdateDTO.setVideoId(videoId);
+                commentUpdateDTO.setVideoName(infoUpload.getVideoName());
+                sendCommentRedundantUpdateAfterCommit(commentUpdateDTO);
+            }
+
             // 更新/填入 mysql 数据（ES 由 Canal 同步）
             videoInfoMapper.insertOrUpdate(newVideoInfo);
 
@@ -416,10 +420,17 @@ public class VideoService
 
             // --- 文件移动 ---
 
-            // 若封面改变，把新封面移动
+            // 若封面改变
             if (coverKey != null && !coverKey.isBlank() && coverChanged)
             {
+                // 把新封面移动
                 moveImage(MinioKey.PENDING_PREFIX, MinioKey.PUBLIC_PREFIX, coverKey);
+
+                // 事务提交后异步更新评论冗余封面
+                CommentRedundantDTO commentUpdateDTO = new CommentRedundantDTO();
+                commentUpdateDTO.setVideoId(videoId);
+                commentUpdateDTO.setVideoCover(coverKey);
+                sendCommentRedundantUpdateAfterCommit(commentUpdateDTO);
             }
 
             // 如果有新文件，把新文件全部移动
@@ -725,6 +736,59 @@ public class VideoService
     }
 
     /**
+     * 在事务提交后发送评论冗余字段更新消息
+     */
+    private void sendCommentRedundantUpdateAfterCommit(CommentRedundantDTO dto)
+    {
+        if (dto == null)
+        {
+            return;
+        }
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive())
+        {
+            mqRepository.sendCommentRedundantUpdate(dto);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization()
+        {
+            @Override
+            public void afterCommit()
+            {
+                mqRepository.sendCommentRedundantUpdate(dto);
+            }
+        });
+    }
+
+    /**
+     * 在事务提交后发送视频评论归档/恢复/彻底删除消息<hr/>
+     * <p>本地事务未提交成功时绝不会通知评论服务，避免出现"本地回滚但评论已归档/恢复"的不一致状态</p>
+     */
+    private void sendCommentArchiveOperationAfterCommit(CommentArchiveDTO dto)
+    {
+        if (dto == null)
+        {
+            return;
+        }
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive())
+        {
+            mqRepository.sendCommentArchiveOperation(dto);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization()
+        {
+            @Override
+            public void afterCommit()
+            {
+                mqRepository.sendCommentArchiveOperation(dto);
+            }
+        });
+    }
+
+    /**
      * 移动图片（封面+缩略图）
      *
      * @param sourcePrefix 源前缀
@@ -738,7 +802,7 @@ public class VideoService
                                                   targetPrefix + coverBaseKey,
                                                   sourcePrefix + thumbnailKey,
                                                   targetPrefix + thumbnailKey);
-        ResponseVO <Void> imageResult = imageFeignClient.batchMove(imageKeyMap);
+        ResponseVO <Void> imageResult = innerImageFeignClient.batchMove(imageKeyMap);
         if (!ResponseCode.SUCCESS.getCode().equals(imageResult.getCode()))
         {
             throw new RuntimeException("封面移动失败");
@@ -763,7 +827,7 @@ public class VideoService
         {
             videoDirectoryMap.put(sourcePrefix + baseKey, targetPrefix + baseKey);
         }
-        ResponseVO <Void> videoResult = videoFileFeignClient.batchMoveDirectory(videoDirectoryMap);
+        ResponseVO <Void> videoResult = innerVideoFileFeignClient.batchMoveDirectory(videoDirectoryMap);
         if (!ResponseCode.SUCCESS.getCode().equals(videoResult.getCode()))
         {
             throw new RuntimeException("视频文件移动失败");
@@ -805,14 +869,8 @@ public class VideoService
         videoInfoFileArchiveMapper.deleteByParam(videoInfoFileArchiveQuery);
         archiveBatch(videoInfoFileList, VideoInfoFileArchive::new, videoInfoFileArchiveMapper);
 
-        // video_comment
-        VideoCommentQuery videoCommentQuery = new VideoCommentQuery();
-        videoCommentQuery.setVideoId(videoId);
-        List <VideoComment> videoCommentList = videoCommentMapper.selectList(videoCommentQuery);
-        VideoCommentArchiveQuery videoCommentArchiveQuery = new VideoCommentArchiveQuery();
-        videoCommentArchiveQuery.setVideoId(videoId);
-        videoCommentArchiveMapper.deleteByParam(videoCommentArchiveQuery);
-        archiveBatch(videoCommentList, VideoCommentArchive::new, videoCommentArchiveMapper);
+        // video_comment + user_comment_action：事务提交后异步通知评论服务归档，保证最终一致性
+        sendCommentArchiveOperationAfterCommit(new CommentArchiveDTO(videoId, OperationType.ARCHIVE));
 
         // video_danmaku
         VideoDanmakuQuery videoDanmakuQuery = new VideoDanmakuQuery();
@@ -822,15 +880,6 @@ public class VideoService
         videoDanmakuArchiveQuery.setVideoId(videoId);
         videoDanmakuArchiveMapper.deleteByParam(videoDanmakuArchiveQuery);
         archiveBatch(videoDanmakuList, VideoDanmakuArchive::new, videoDanmakuArchiveMapper);
-
-        // user_comment_action
-        UserCommentActionQuery userCommentActionQuery = new UserCommentActionQuery();
-        userCommentActionQuery.setVideoId(videoId);
-        List <UserCommentAction> userCommentActionList = userCommentActionMapper.selectList(userCommentActionQuery);
-        UserCommentActionArchiveQuery userCommentActionArchiveQuery = new UserCommentActionArchiveQuery();
-        userCommentActionArchiveQuery.setVideoId(videoId);
-        userCommentActionArchiveMapper.deleteByParam(userCommentActionArchiveQuery);
-        archiveBatch(userCommentActionList, UserCommentActionArchive::new, userCommentActionArchiveMapper);
 
         // user_video_action
         UserVideoActionQuery userVideoActionQuery = new UserVideoActionQuery();
@@ -843,10 +892,8 @@ public class VideoService
 
         // --- 删除原业务表数据 ---
 
-        userCommentActionMapper.deleteByParam(userCommentActionQuery);
         userVideoActionMapper.deleteByParam(userVideoActionQuery);
         videoDanmakuMapper.deleteByParam(videoDanmakuQuery);
-        videoCommentMapper.deleteByParam(videoCommentQuery);
         videoInfoFileMapper.deleteByParam(videoInfoFileQuery);
         videoInfoMapper.deleteByVideoId(videoId);
 
@@ -961,15 +1008,8 @@ public class VideoService
             videoInfoFileUploadMapper.insertBatch(videoInfoFileUploadList);
         }
 
-        // video_comment
-        VideoCommentArchiveQuery videoCommentArchiveQuery = new VideoCommentArchiveQuery();
-        videoCommentArchiveQuery.setVideoId(videoId);
-        List <VideoCommentArchive> videoCommentArchiveList = videoCommentArchiveMapper.selectList(videoCommentArchiveQuery);
-
-        VideoCommentQuery videoCommentQuery = new VideoCommentQuery();
-        videoCommentQuery.setVideoId(videoId);
-        assertRecoverTargetEmpty(videoCommentQuery, videoCommentMapper);
-        archiveBatch(videoCommentArchiveList, VideoComment::new, videoCommentMapper);
+        // video_comment + user_comment_action：事务提交后异步通知评论服务恢复，保证最终一致性
+        sendCommentArchiveOperationAfterCommit(new CommentArchiveDTO(videoId, OperationType.RECOVERY));
 
         // video_danmaku
         VideoDanmakuArchiveQuery videoDanmakuArchiveQuery = new VideoDanmakuArchiveQuery();
@@ -980,17 +1020,6 @@ public class VideoService
         videoDanmakuQuery.setVideoId(videoId);
         assertRecoverTargetEmpty(videoDanmakuQuery, videoDanmakuMapper);
         archiveBatch(videoDanmakuArchiveList, VideoDanmaku::new, videoDanmakuMapper);
-
-        // user_comment_action
-        UserCommentActionArchiveQuery userCommentActionArchiveQuery = new UserCommentActionArchiveQuery();
-        userCommentActionArchiveQuery.setVideoId(videoId);
-        List <UserCommentActionArchive> userCommentActionArchiveList = userCommentActionArchiveMapper.selectList(
-                userCommentActionArchiveQuery);
-
-        UserCommentActionQuery userCommentActionQuery = new UserCommentActionQuery();
-        userCommentActionQuery.setVideoId(videoId);
-        assertRecoverTargetEmpty(userCommentActionQuery, userCommentActionMapper);
-        archiveBatch(userCommentActionArchiveList, UserCommentAction::new, userCommentActionMapper);
 
         // user_video_action
         UserVideoActionArchiveQuery userVideoActionArchiveQuery = new UserVideoActionArchiveQuery();
@@ -1005,10 +1034,8 @@ public class VideoService
 
         // --- 清理 archive 表数据 ---
 
-        userCommentActionArchiveMapper.deleteByParam(userCommentActionArchiveQuery);
         userVideoActionArchiveMapper.deleteByParam(userVideoActionArchiveQuery);
         videoDanmakuArchiveMapper.deleteByParam(videoDanmakuArchiveQuery);
-        videoCommentArchiveMapper.deleteByParam(videoCommentArchiveQuery);
         videoInfoFileArchiveMapper.deleteByParam(videoInfoFileArchiveQuery);
         videoInfoArchiveMapper.deleteByVideoId(videoId);
 
@@ -1017,4 +1044,5 @@ public class VideoService
 
         return videoInfo;
     }
+
 }

@@ -93,6 +93,12 @@
             <if test="query.colorFuzzy!= null  and query.colorFuzzy!=''">
                 and v.color like concat('%', #{colorFuzzyEscaped}, '%') ESCAPE '\\'
             </if>
+            <if test="query.displayMomentStart != null">
+                <![CDATA[ and v.display_moment >= #{query.displayMomentStart} ]]>
+            </if>
+            <if test="query.displayMomentEnd != null">
+                <![CDATA[ and v.display_moment < #{query.displayMomentEnd} ]]>
+            </if>
         </where>
     </sql>
 

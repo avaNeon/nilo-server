@@ -17,6 +17,7 @@
         <module>nilo-mq-consumer</module>
         <module>nilo-storage</module>
         <module>nilo-canal-client</module>
+        <module>nilo-comment</module>
     </modules>
 
     <url/>

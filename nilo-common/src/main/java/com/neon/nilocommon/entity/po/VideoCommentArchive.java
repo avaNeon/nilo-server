@@ -85,4 +85,29 @@ public class VideoCommentArchive
      */
     private Integer deleted;
 
+    /**
+     * 评论者昵称（冗余自 user_info.nick_name，最终一致）
+     */
+    private String nickName;
+
+    /**
+     * 评论者头像（冗余自 user_info.avatar，最终一致）
+     */
+    private String avatar;
+
+    /**
+     * 被回复者昵称（冗余，最终一致；顶层评论可为 null）
+     */
+    private String replyNickName;
+
+    /**
+     * 视频标题（冗余自 video_info.video_name，最终一致）
+     */
+    private String videoName;
+
+    /**
+     * 视频封面（冗余自 video_info.video_cover，最终一致）
+     */
+    private String videoCover;
+
 }

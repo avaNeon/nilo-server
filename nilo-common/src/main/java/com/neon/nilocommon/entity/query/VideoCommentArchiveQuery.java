@@ -87,6 +87,41 @@ public class VideoCommentArchiveQuery extends BaseQuery {
 	 */
 	private Integer deleted;
 
+	/**
+	 * 评论者昵称（冗余）
+	 */
+	private String nickName;
+
+	private String nickNameFuzzy;
+
+	/**
+	 * 评论者头像（冗余）
+	 */
+	private String avatar;
+
+	private String avatarFuzzy;
+
+	/**
+	 * 被回复者昵称（冗余）
+	 */
+	private String replyNickName;
+
+	private String replyNickNameFuzzy;
+
+	/**
+	 * 视频标题（冗余）
+	 */
+	private String videoName;
+
+	private String videoNameFuzzy;
+
+	/**
+	 * 视频封面（冗余）
+	 */
+	private String videoCover;
+
+	private String videoCoverFuzzy;
+
 
 	public void setCommentId(Long commentId){
 		this.commentId = commentId;
@@ -229,6 +264,86 @@ public class VideoCommentArchiveQuery extends BaseQuery {
 
 	public Integer getDeleted(){
 		return this.deleted;
+	}
+
+	public void setNickName(String nickName){
+		this.nickName = nickName;
+	}
+
+	public String getNickName(){
+		return this.nickName;
+	}
+
+	public void setNickNameFuzzy(String nickNameFuzzy){
+		this.nickNameFuzzy = nickNameFuzzy;
+	}
+
+	public String getNickNameFuzzy(){
+		return this.nickNameFuzzy;
+	}
+
+	public void setAvatar(String avatar){
+		this.avatar = avatar;
+	}
+
+	public String getAvatar(){
+		return this.avatar;
+	}
+
+	public void setAvatarFuzzy(String avatarFuzzy){
+		this.avatarFuzzy = avatarFuzzy;
+	}
+
+	public String getAvatarFuzzy(){
+		return this.avatarFuzzy;
+	}
+
+	public void setReplyNickName(String replyNickName){
+		this.replyNickName = replyNickName;
+	}
+
+	public String getReplyNickName(){
+		return this.replyNickName;
+	}
+
+	public void setReplyNickNameFuzzy(String replyNickNameFuzzy){
+		this.replyNickNameFuzzy = replyNickNameFuzzy;
+	}
+
+	public String getReplyNickNameFuzzy(){
+		return this.replyNickNameFuzzy;
+	}
+
+	public void setVideoName(String videoName){
+		this.videoName = videoName;
+	}
+
+	public String getVideoName(){
+		return this.videoName;
+	}
+
+	public void setVideoNameFuzzy(String videoNameFuzzy){
+		this.videoNameFuzzy = videoNameFuzzy;
+	}
+
+	public String getVideoNameFuzzy(){
+		return this.videoNameFuzzy;
+	}
+
+	public void setVideoCover(String videoCover){
+		this.videoCover = videoCover;
+	}
+
+	public String getVideoCover(){
+		return this.videoCover;
+	}
+
+	public void setVideoCoverFuzzy(String videoCoverFuzzy){
+		this.videoCoverFuzzy = videoCoverFuzzy;
+	}
+
+	public String getVideoCoverFuzzy(){
+		return this.videoCoverFuzzy;
 	}
 
 }

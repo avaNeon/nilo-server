@@ -67,4 +67,14 @@ public class VideoDanmakuQuery extends BaseQuery
      */
     private Integer displayMoment;
 
+    /**
+     * 展示时刻起始（单位：毫秒，闭区间）
+     */
+    private Integer displayMomentStart;
+
+    /**
+     * 展示时刻结束（单位：毫秒，开区间）
+     */
+    private Integer displayMomentEnd;
+
 }

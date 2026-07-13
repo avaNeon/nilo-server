@@ -50,6 +50,20 @@ public class MqInfo
     public static final String PLAY_COUNT_QUEUE = "video.play-count.queue";
     public static final String PLAY_COUNT_ROUTING_KEY = "video.play-count.routing.key";
 
+    // ————COMMENT————————————————————————————————————————————————————————
+    public static final String COMMENT_EXCHANGE = "comment.direct";
+    public static final String COMMENT_UPDATE_QUEUE = "comment.update.queue";
+    public static final String COMMENT_UPDATE_ROUTING_KEY = "comment.update";
+    // 视频评论归档/恢复/彻底删除
+    public static final String COMMENT_ARCHIVE_QUEUE = "comment.archive.queue";
+    public static final String COMMENT_ARCHIVE_ROUTING_KEY = "comment.archive";
+    // dlx
+    public static final String COMMENT_DLX = "comment.dlx";
+    public static final String COMMENT_UPDATE_DLQ = "comment.update.dlq";
+    public static final String COMMENT_UPDATE_DLK = "comment.update.dead";
+    // [死信]视频评论归档/恢复/彻底删除
+    public static final String COMMENT_ARCHIVE_DLQ = "comment.archive.dlq";
+    public static final String COMMENT_ARCHIVE_DLK = "comment.archive.dead";
 
     // ————EMAIL————————————————————————————————————————————————————————
     public static final String EMAIL_EXCHANGE = "email.direct";
@@ -61,5 +75,3 @@ public class MqInfo
     public static final String EMAIL_SEND_DLQ = "email.send.dlq";
     public static final String EMAIL_SEND_DLK = "email.send.dead";
 }
-
-

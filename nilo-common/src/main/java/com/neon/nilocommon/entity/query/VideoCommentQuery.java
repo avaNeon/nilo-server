@@ -14,7 +14,6 @@ import lombok.ToString;
 public class VideoCommentQuery extends BaseQuery
 {
 
-
     /**
      * 评论ID【对外展示】
      */
@@ -29,6 +28,20 @@ public class VideoCommentQuery extends BaseQuery
      * 视频ID
      */
     private Long videoId;
+
+    /**
+     * 视频标题（冗余）
+     */
+    private String videoName;
+
+    private String videoNameFuzzy;
+
+    /**
+     * 视频封面（冗余）
+     */
+    private String videoCover;
+
+    private String videoCoverFuzzy;
 
     /**
      * 视频用户ID
@@ -55,9 +68,30 @@ public class VideoCommentQuery extends BaseQuery
     private Long userId;
 
     /**
+     * 评论者昵称（冗余）
+     */
+    private String nickName;
+
+    private String nickNameFuzzy;
+
+    /**
+     * 评论者头像（冗余）
+     */
+    private String avatar;
+
+    private String avatarFuzzy;
+
+    /**
      * 回复人ID
      */
     private Long replyUserId;
+
+    /**
+     * 被回复者昵称（冗余）
+     */
+    private String replyNickName;
+
+    private String replyNickNameFuzzy;
 
     /**
      * 0:未置顶 1:置顶
@@ -87,6 +121,5 @@ public class VideoCommentQuery extends BaseQuery
      * 逻辑删除标记：0-未删除，1-已删除
      */
     private Integer deleted;
-
 
 }

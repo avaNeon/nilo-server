@@ -32,6 +32,16 @@ public class VideoComment
     private Long videoId;
 
     /**
+     * 视频标题（冗余自 video_info.video_name，最终一致）
+     */
+    private String videoName;
+
+    /**
+     * 视频封面（冗余自 video_info.video_cover，最终一致）
+     */
+    private String videoCover;
+
+    /**
      * 视频用户ID
      */
     private Long videoUserId;
@@ -52,9 +62,24 @@ public class VideoComment
     private Long userId;
 
     /**
+     * 评论者昵称（冗余自 user_info.nick_name，最终一致）
+     */
+    private String nickName;
+
+    /**
+     * 评论者头像（冗余自 user_info.avatar，最终一致）
+     */
+    private String avatar;
+
+    /**
      * 回复人ID
      */
     private Long replyUserId;
+
+    /**
+     * 被回复者昵称（冗余，最终一致；顶层评论可为 null）
+     */
+    private String replyNickName;
 
     /**
      * 0:未置顶 1:置顶
@@ -82,7 +107,7 @@ public class VideoComment
     private Integer replyCount;
 
     /**
-     * 逻辑删除标记：0-未删除，1-已删除
+     * 逻辑删除标记：0 未删除，1 已被用户删除，2 被视频制作者删除
      */
     private Integer deleted;
 

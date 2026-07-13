@@ -1,5 +1,6 @@
 package com.neon.niloweb.service;
 
+import com.neon.nilocommon.entity.dto.VideoSnapshotDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.videoInfo.RecommendType;
 import com.neon.nilocommon.entity.po.*;
@@ -248,6 +249,58 @@ public class VideoService
     public void playCount(long videoId)
     {
         playCountBuffer.offer(videoId);
+    }
+
+    /**
+     * 获取视频快照（跨服务内部调用）
+     *
+     * @param videoId 视频ID
+     * @return 视频快照
+     */
+    public VideoSnapshotDTO getVideoSnapshot(long videoId)
+    {
+        VideoInfo videoInfo = videoInfoMapper.selectByVideoId(videoId);
+        if (videoInfo == null)
+        {
+            throw new BusinessException(ResponseCode.WRONG_ARGUMENTS);
+        }
+        return new VideoSnapshotDTO(videoInfo.getVideoId(),
+                                    videoInfo.getUserId(),
+                                    videoInfo.getVideoName(),
+                                    videoInfo.getVideoCover(),
+                                    videoInfo.getInteraction());
+    }
+
+    /**
+     * 增加视频评论数（跨服务内部调用）
+     *
+     * @param videoId 视频ID
+     * @param delta   增量（通常为 1）
+     */
+    public void increaseCommentCount(long videoId, int delta)
+    {
+        VideoInfo videoInfo = videoInfoMapper.selectByVideoId(videoId);
+        if (videoInfo == null)
+        {
+            throw new BusinessException(ResponseCode.WRONG_ARGUMENTS);
+        }
+        videoInfoMapper.increaseByField(videoId, "comment_count", delta);
+    }
+
+    /**
+     * 减少视频评论数（跨服务内部调用）
+     *
+     * @param videoId 视频ID
+     * @param delta   减量
+     */
+    public void decreaseCommentCount(long videoId, int delta)
+    {
+        VideoInfo videoInfo = videoInfoMapper.selectByVideoId(videoId);
+        if (videoInfo == null)
+        {
+            throw new BusinessException(ResponseCode.WRONG_ARGUMENTS);
+        }
+        videoInfoMapper.decreaseByField(videoId, "comment_count", delta);
     }
 
     /**

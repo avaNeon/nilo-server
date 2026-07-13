@@ -21,7 +21,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -181,11 +181,11 @@ public class UserMessageService
      * @param replyCommentContent 回复的评论的内容
      */
     @Async("messageExecutor")
-    public CompletableFuture <Void> recordCommentMessage(long receiverUserId,
-                                                         long senderUserId,
-                                                         long videoId,
-                                                         String commentContent,
-                                                         String replyCommentContent)
+    public CompletableFuture <Void> sendCommentMessage(long receiverUserId,
+                                                       long senderUserId,
+                                                       long videoId,
+                                                       String commentContent,
+                                                       String replyCommentContent)
     {
         ExtendJson extendJson = new ExtendJson(commentContent, null);
         if (replyCommentContent != null && !replyCommentContent.isBlank())
@@ -216,7 +216,7 @@ public class UserMessageService
                                    String extendJson)
     {
         long messageId = snowflake.nextId();
-        LocalDate createdTime = LocalDate.now();
+        LocalDateTime createdTime = LocalDateTime.now();
 
         userMessageMapper.insert(new UserMessage(messageId,
                                                  userId,
@@ -241,7 +241,7 @@ public class UserMessageService
     private void insertIfNotExistsUserMessage(long userId, long videoId, MessageType messageType, Long senderUserId)
     {
         long messageId = snowflake.nextId();
-        LocalDate createdTime = LocalDate.now();
+        LocalDateTime createdTime = LocalDateTime.now();
 
         userMessageMapper.insertIfNotExists(new UserMessage(messageId,
                                                             userId,

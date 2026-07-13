@@ -37,7 +37,8 @@ public class RabbitMqConfig
     @Bean
     public Queue storageImageDeleteQueue()
     {
-        return QueueBuilder.durable(MqInfo.STORAGE_IMAGE_DELETE_QUEUE).quorum()
+        return QueueBuilder.durable(MqInfo.STORAGE_IMAGE_DELETE_QUEUE)
+                           .quorum()
                            .deadLetterExchange(MqInfo.STORAGE_DLX)
                            .deadLetterRoutingKey(MqInfo.STORAGE_IMAGE_DELETE_DLK)
                            .build();
@@ -90,8 +91,7 @@ public class RabbitMqConfig
     @Bean
     public Queue dlqStorageImageDeleteQueue()
     {
-        return QueueBuilder.durable(MqInfo.STORAGE_IMAGE_DELETE_DLQ).quorum()
-                           .build();
+        return QueueBuilder.durable(MqInfo.STORAGE_IMAGE_DELETE_DLQ).quorum().build();
     }
 
     @Bean
@@ -111,9 +111,7 @@ public class RabbitMqConfig
     @Bean
     public Binding bindingStorageTranscodingDlq()
     {
-        return BindingBuilder.bind(dlqStorageTranscodingQueue())
-                             .to(dlxStorageExchange())
-                             .with(MqInfo.STORAGE_TRANSCODING_DLK);
+        return BindingBuilder.bind(dlqStorageTranscodingQueue()).to(dlxStorageExchange()).with(MqInfo.STORAGE_TRANSCODING_DLK);
     }
 
     /* 心跳交换机 */
@@ -127,9 +125,7 @@ public class RabbitMqConfig
     @Bean
     public Queue heartbeatQueue()
     {
-        return QueueBuilder.durable(VIDEO_HEARTBEAT_QUEUE)
-                           .ttl(15000)
-                           .build();
+        return QueueBuilder.durable(VIDEO_HEARTBEAT_QUEUE).ttl(15000).build();
     }
 
     /* 队列-交换机绑定 */
@@ -175,18 +171,14 @@ public class RabbitMqConfig
     @Bean
     public Queue dlqStatisticsQueue()
     {
-        return QueueBuilder.durable(STATISTIC_DLQ)
-                           .quorum()
-                           .build();
+        return QueueBuilder.durable(STATISTIC_DLQ).quorum().build();
     }
 
     /* 统计死信队列-死信交换机绑定 */
     @Bean
     public Binding statisticsDlqBinding()
     {
-        return BindingBuilder.bind(dlqStatisticsQueue())
-                             .to(dlxStatisticsExchange())
-                             .with(STATISTIC_DLK);
+        return BindingBuilder.bind(dlqStatisticsQueue()).to(dlxStatisticsExchange()).with(STATISTIC_DLK);
     }
 
     /* 播放量刷新交换机 */
@@ -200,9 +192,7 @@ public class RabbitMqConfig
     @Bean
     public Queue playCountQueue()
     {
-        return QueueBuilder.durable(PLAY_COUNT_QUEUE)
-                           .quorum()
-                           .build();
+        return QueueBuilder.durable(PLAY_COUNT_QUEUE).quorum().build();
     }
 
     /* 播放量刷新队列-交换机绑定 */
@@ -212,4 +202,53 @@ public class RabbitMqConfig
         return BindingBuilder.bind(playCountQueue()).to(playCountExchange()).with(PLAY_COUNT_ROUTING_KEY);
     }
 
+
+    /* 邮件交换机 */
+    @Bean
+    public DirectExchange emailExchange()
+    {
+        return new DirectExchange(MqInfo.EMAIL_EXCHANGE);
+    }
+
+    /* 邮箱验证码发送队列 */
+    @Bean
+    public Queue emailSendQueue()
+    {
+        return QueueBuilder.durable(MqInfo.EMAIL_SEND_QUEUE)
+                           .quorum()
+                           .deadLetterExchange(MqInfo.EMAIL_DLX)
+                           .deadLetterRoutingKey(MqInfo.EMAIL_SEND_DLK)
+                           .build();
+    }
+
+    /* 邮箱验证码发送队列-交换机绑定 */
+    @Bean
+    public Binding emailSendBinding()
+    {
+        return BindingBuilder.bind(emailSendQueue()).to(emailExchange()).with(MqInfo.EMAIL_SEND_ROUTING_KEY);
+    }
+
+    /* 邮件死信交换机 */
+    @Bean
+    public DirectExchange dlxEmailExchange()
+    {
+        return new DirectExchange(MqInfo.EMAIL_DLX);
+    }
+
+    /* 邮箱验证码发送死信队列 */
+    @Bean
+    public Queue dlqEmailSendQueue()
+    {
+        return QueueBuilder.durable(MqInfo.EMAIL_SEND_DLQ).quorum().build();
+    }
+
+    /* 邮箱验证码发送死信队列-死信交换机绑定 */
+    @Bean
+    public Binding emailSendDlqBinding()
+    {
+        return BindingBuilder.bind(dlqEmailSendQueue()).to(dlxEmailExchange()).with(MqInfo.EMAIL_SEND_DLK);
+    }
+
 }
+
+

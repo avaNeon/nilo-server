@@ -1,6 +1,7 @@
 package com.neon.niloweb.controller;
 
 import cn.hutool.core.bean.BeanUtil;
+import com.neon.nilocommon.annotation.RateLimit;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.entity.vo.SystemConfigVO;
 import com.neon.nilocommon.repository.redis.SystemConfigRedisRepository;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @Tag(name = "系统配置")
 @RequestMapping("/system")
+@RateLimit
 @RequiredArgsConstructor
 @RestController
 public class SystemConfigController

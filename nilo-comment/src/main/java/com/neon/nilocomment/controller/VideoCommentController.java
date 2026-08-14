@@ -2,7 +2,9 @@ package com.neon.nilocomment.controller;
 
 import com.neon.nilocomment.config.CommentConfig;
 import com.neon.nilocomment.service.VideoCommentService;
+import com.neon.nilocommon.annotation.RateLimit;
 import com.neon.nilocommon.annotation.RedisAuthorized;
+import com.neon.nilocommon.entity.enums.RateLimitType;
 import com.neon.nilocommon.entity.constants.RedisKey;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.videoComment.CommentOrderType;
@@ -36,6 +38,7 @@ public class VideoCommentController
 
     private final RedisLoginState loginState;
 
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "发布视频评论", description = "发布视频评论接口，登录状态通过token传递")
     @RedisAuthorized
     @PostMapping("/comment")
@@ -63,6 +66,7 @@ public class VideoCommentController
                                                                   repliedCommentId == null ? 0 : repliedCommentId));
     }
 
+    @RateLimit
     @Operation(summary = "获取视频评论列表",
                description = "获取视频评论列表接口，登录状态通过token传递，页大小为10，子评论页大小为5，深度默认为3")
     @GetMapping(path = "/comment")
@@ -92,6 +96,7 @@ public class VideoCommentController
                                                                      depth == null ? commentConfig.getCommentSelectDepth() : depth));
     }
 
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "逻辑删除评论",
                description = "逻辑删除一条评论（删除位标记为1），登录状态通过token传递，只有评论发布者和视频发布者可以删除评论")
     @RedisAuthorized
@@ -104,6 +109,7 @@ public class VideoCommentController
         return ResponseVO.success(null);
     }
 
+    @RateLimit
     @Operation(summary = "获取顶层评论数量", description = "获取视频的第一层评论数量）")
     @GetMapping(path = "/count")
     public ResponseVO <Integer> getFirstLevelCommentCount(@RequestParam(name = "videoId") @NotNull Long videoId)
@@ -111,6 +117,7 @@ public class VideoCommentController
         return ResponseVO.success(videoCommentService.getFirstLevelCommentCount(videoId));
     }
 
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "置顶评论", description = "置顶一条评论，可以置顶多条评论，后发布的评论会排在前面")
     @RedisAuthorized
     @PostMapping(path = "/top")
@@ -122,6 +129,7 @@ public class VideoCommentController
         return ResponseVO.success(null);
     }
 
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "取消置顶评论", description = "取消置顶一条评论")
     @RedisAuthorized
     @DeleteMapping(path = "/top")

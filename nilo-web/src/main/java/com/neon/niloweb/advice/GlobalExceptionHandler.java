@@ -37,10 +37,10 @@ public class GlobalExceptionHandler
      * 业务异常处理
      */
     @ExceptionHandler(BusinessException.class)
-    ResponseVO <Object> handleBusinessException(BusinessException e, HttpServletRequest request)
+    ResponseVO <Void> handleBusinessException(BusinessException e, HttpServletRequest request)
     {
         log.info(e);
-        ResponseVO <Object> response = new ResponseVO <>();
+        ResponseVO <Void> response = new ResponseVO <>();
         response.setCode(e.getCode() == null ? ResponseCode.UNKNOWN_ERROR.getCode() : e.getCode());
         response.setInfo(e.getMessage());
         response.setStatus(STATUS_ERROR);
@@ -51,10 +51,10 @@ public class GlobalExceptionHandler
      * 唯一键重复异常处理
      */
     @ExceptionHandler(DuplicateKeyException.class)
-    ResponseVO <Object> handleDuplicateKeyException(DuplicateKeyException e, HttpServletRequest request)
+    ResponseVO <Void> handleDuplicateKeyException(DuplicateKeyException e, HttpServletRequest request)
     {
         log.warn(e);
-        ResponseVO <Object> response = new ResponseVO <>();
+        ResponseVO <Void> response = new ResponseVO <>();
         response.setCode(ResponseCode.DATA_EXISTED.getCode());
         response.setInfo(ResponseCode.DATA_EXISTED.getMsg());
         response.setStatus(STATUS_ERROR);
@@ -65,10 +65,10 @@ public class GlobalExceptionHandler
      * DTO参数不合法异常处理
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    ResponseVO <Object> handleDTOInvalidException(MethodArgumentNotValidException e, HttpServletRequest request)
+    ResponseVO <List <String>> handleDTOInvalidException(MethodArgumentNotValidException e, HttpServletRequest request)
     {
         log.info(e);
-        ResponseVO <Object> response = new ResponseVO <>();
+        ResponseVO <List <String>> response = new ResponseVO <>();
         response.setCode(ResponseCode.INVALID_ARGUMENTS.getCode());
         response.setInfo(ResponseCode.INVALID_ARGUMENTS.getMsg());
         response.setStatus(STATUS_ERROR);
@@ -86,10 +86,10 @@ public class GlobalExceptionHandler
      * 非DTO参数不合法异常处理
      */
     @ExceptionHandler(ConstraintViolationException.class)
-    ResponseVO <Object> handleArgsInvalidException(ConstraintViolationException e, HttpServletRequest request)
+    ResponseVO <List <String>> handleArgsInvalidException(ConstraintViolationException e, HttpServletRequest request)
     {
         log.info(e);
-        ResponseVO <Object> response = new ResponseVO <>();
+        ResponseVO <List <String>> response = new ResponseVO <>();
         response.setCode(ResponseCode.INVALID_ARGUMENTS.getCode());
         response.setInfo(ResponseCode.INVALID_ARGUMENTS.getMsg());
         response.setStatus(STATUS_ERROR);
@@ -103,10 +103,10 @@ public class GlobalExceptionHandler
      * 参数错误异常处理
      */
     @ExceptionHandler({BindException.class, MethodArgumentTypeMismatchException.class})
-    ResponseVO <Object> handleArgsException(Exception e, HttpServletRequest request)
+    ResponseVO <Void> handleArgsException(Exception e, HttpServletRequest request)
     {
         log.info(e);
-        ResponseVO <Object> response = new ResponseVO <>();
+        ResponseVO <Void> response = new ResponseVO <>();
         response.setCode(ResponseCode.WRONG_ARGUMENTS.getCode());
         response.setInfo(ResponseCode.WRONG_ARGUMENTS.getMsg());
         response.setStatus(STATUS_ERROR);
@@ -117,14 +117,14 @@ public class GlobalExceptionHandler
      * 没有对应静态资源异常处理（也处理NoHandlerFoundException）
      */
     @ExceptionHandler(NoResourceFoundException.class)
-    ResponseVO <Object> handleNoResourceFoundException(NoResourceFoundException e, HttpServletRequest request)
+    ResponseVO <String> handleNoResourceFoundException(NoResourceFoundException e, HttpServletRequest request)
     {
         log.info(e);
-        ResponseVO <Object> response = new ResponseVO <>();
+        ResponseVO <String> response = new ResponseVO <>();
         response.setCode(ResponseCode.NOT_FOUND.getCode());
         response.setInfo(ResponseCode.NOT_FOUND.getMsg());
         response.setStatus(STATUS_ERROR);
-        response.setData("没有对应的静态资源（也可能是没有对应的接口），请检查请求URI");
+        response.setData("没有对应的资源，请检查请求URI");
         return response;
     }
 
@@ -133,9 +133,9 @@ public class GlobalExceptionHandler
      * 目前不被使用
      */
     @ExceptionHandler(NoHandlerFoundException.class)
-    ResponseVO <Object> handleNoHandlerException(NoHandlerFoundException e, HttpServletRequest request)
+    ResponseVO <String> handleNoHandlerException(NoHandlerFoundException e, HttpServletRequest request)
     {
-        ResponseVO <Object> response = new ResponseVO <>();
+        ResponseVO <String> response = new ResponseVO <>();
         response.setCode(ResponseCode.NOT_FOUND.getCode());
         response.setInfo(ResponseCode.NOT_FOUND.getMsg());
         response.setStatus(STATUS_ERROR);
@@ -147,10 +147,10 @@ public class GlobalExceptionHandler
      * 兜底异常处理
      */
     @ExceptionHandler(Exception.class)
-    ResponseVO <Object> handleException(Exception e, HttpServletRequest request)
+    ResponseVO <Void> handleException(Exception e, HttpServletRequest request)
     {
         log.error(e); // 糟糕，出现了意想不到的错误！
-        ResponseVO <Object> response = new ResponseVO <>();
+        ResponseVO <Void> response = new ResponseVO <>();
         response.setCode(ResponseCode.SERVER_ERROR.getCode());
         response.setInfo(ResponseCode.SERVER_ERROR.getMsg());
         response.setStatus(STATUS_ERROR);

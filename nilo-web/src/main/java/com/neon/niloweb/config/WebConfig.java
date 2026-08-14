@@ -90,12 +90,12 @@ public class WebConfig
     /**
      * 热度提升阈值（单位：播放数）
      */
-    private int upgradeThreshold = 1000;
+    private int upgradeThreshold = 100;
 
     /**
      * 热度降低阈值（单位：播放数）
      */
-    private int downgradeThreshold = 500;
+    private int downgradeThreshold = 50;
 
     /**
      * 热门视频查询页大小

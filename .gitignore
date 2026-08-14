@@ -76,6 +76,12 @@ Thumbs.db
 **/application*.yml
 **/banner*.txt
 
+### Deploy (含真实密码/密钥，以及打包产物) ###
+deploy/nacos-config/
+deploy/**/*.jar
+deploy/nginx/certs/
+deploy/data/volumes/
+
 ### Migration (含 MinIO 密钥与映射产物) ###
 migration/config.yaml
 migration/mapping.jsonl

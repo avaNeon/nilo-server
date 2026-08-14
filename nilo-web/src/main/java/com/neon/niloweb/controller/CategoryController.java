@@ -1,6 +1,7 @@
 package com.neon.niloweb.controller;
 
 
+import com.neon.nilocommon.annotation.RateLimit;
 import com.neon.nilocommon.entity.vo.CategoryInfoVO;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.niloweb.service.CategoryService;
@@ -14,6 +15,7 @@ import java.util.List;
 @Tag(name = "分类管理")
 @RequiredArgsConstructor
 @RequestMapping(path = "/category")
+@RateLimit
 @RestController
 public class CategoryController
 {

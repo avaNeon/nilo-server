@@ -1,5 +1,7 @@
 package com.neon.niloweb.controller;
 
+import com.neon.nilocommon.annotation.RateLimit;
+import com.neon.nilocommon.entity.enums.RateLimitType;
 import com.neon.nilocommon.entity.dto.DanmakuDTO;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.entity.vo.danmaku.DanmakuVO;
@@ -28,6 +30,7 @@ public class VideoDanmakuController
 
     private final LoginState loginState;
 
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "发布弹幕", description = "用户发布视频弹幕")
     @PostMapping(path = "/danmaku")
     public ResponseVO <Object> postDanmaku(@RequestHeader(name = "token") String token,
@@ -38,6 +41,7 @@ public class VideoDanmakuController
         return ResponseVO.success(null);
     }
 
+    @RateLimit
     @Operation(summary = "加载弹幕",
                description = "按视频时间轴增量加载弹幕。区间为左闭右开 [fromMs, toMs)，单次跨度不得超过 5000 毫秒")
     @GetMapping(path = "/{videoId}")
@@ -49,6 +53,7 @@ public class VideoDanmakuController
         return ResponseVO.success(videoDanmakuService.loadDanmaku(videoId, fileIndex, fromMs, toMs));
     }
 
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "删除弹幕", description = "用户只能删除自己的弹幕")
     @DeleteMapping(path = "/danmaku/{danmakuId}")
     public ResponseVO <Object> deleteDanmaku(@RequestHeader(name = "token") @NotEmpty String token,

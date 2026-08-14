@@ -1,5 +1,6 @@
 package com.neon.niloweb.controller;
 
+import com.neon.nilocommon.annotation.RateLimit;
 import com.neon.nilocommon.entity.enums.videoSearch.OrderType;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.entity.vo.videoInfoDoc.VideoInfoDocVO;
@@ -22,6 +23,7 @@ import java.util.List;
 @Validated
 @RequiredArgsConstructor
 @RequestMapping("/video-search")
+@RateLimit
 @RestController
 public class VideoSearchController
 {

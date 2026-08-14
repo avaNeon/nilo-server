@@ -2,6 +2,8 @@ package com.neon.niloweb.controller;
 
 import cn.hutool.captcha.CaptchaUtil;
 import cn.hutool.captcha.LineCaptcha;
+import com.neon.nilocommon.annotation.RateLimit;
+import com.neon.nilocommon.entity.enums.RateLimitType;
 import com.neon.nilocommon.captcha.RedisCaptcha;
 import com.neon.niloweb.annotation.Authorized;
 import com.neon.nilocommon.entity.constants.Constants;
@@ -53,6 +55,7 @@ public class AccountController
      * 获取验证码<hr/>
      * 将验证码结果保存在redis中，对应的key和验证码图片封装到Map中，保存在Response的data属性里
      */
+    @RateLimit
     @Operation(summary = "获取验证码接口", description = "访问这个接口获取一个验证码图片")
     @GetMapping(path = "/captcha")
     public ResponseVO <Map <String, String>> captcha()
@@ -72,6 +75,7 @@ public class AccountController
      *
      * @param emailCodeRequestDTO 邮箱和场景
      */
+    @RateLimit
     @Operation(summary = "申请邮箱验证码接口", description = "用于注册或找回密码，返回实际生效的场景")
     @PostMapping(path = "/email")
     public ResponseVO <EmailScene> sendEmailCode(@RequestBody @Valid EmailCodeRequestDTO emailCodeRequestDTO)
@@ -85,6 +89,7 @@ public class AccountController
      *
      * @param registerUserInfoDTO 前端传入的注册信息，包括邮箱、昵称、密码和邮箱验证码
      */
+    @RateLimit
     @Operation(summary = "注册接口", description = "检验用户信息和邮箱验证码")
     @PostMapping(path = "/register")
     public ResponseVO <Void> register(@RequestBody @Valid RegisterUserInfoDTO registerUserInfoDTO)
@@ -102,6 +107,7 @@ public class AccountController
      *
      * @param resetPasswordDTO 邮箱、邮箱验证码和新密码
      */
+    @RateLimit
     @Operation(summary = "重置密码接口", description = "通过邮箱验证码重置密码，需要先调用申请邮箱验证码接口（scene传RESET_PASSWORD）")
     @PostMapping(path = "/reset")
     public ResponseVO <Object> resetPassword(@RequestBody @Valid ResetPasswordDTO resetPasswordDTO)
@@ -119,6 +125,7 @@ public class AccountController
      *
      * @return 将查询到的用户数据返回给前端
      */
+    @RateLimit
     @Operation(summary = "登录接口", description = "检验登录信息和验证码")
     @PostMapping(path = "/login")
     public ResponseVO <TokenUserInfo> login(@Parameter(hidden = true) HttpServletRequest request,
@@ -128,7 +135,9 @@ public class AccountController
         try
         {
             if (!redisCaptcha.verifyCaptchaCode(loginUserInfoDTO.getCaptchaKey(), loginUserInfoDTO.getCode()))
+            {
                 throw new BusinessException(ResponseCode.CAPTCHA_FAILED);
+            }
             String clientIp = ServletUtil.getClientIp(request);
             TokenUserInfo tokenUserInfo = accountService.login(loginUserInfoDTO.getEmail(),
                                                                loginUserInfoDTO.getPassword(),
@@ -147,6 +156,7 @@ public class AccountController
         }
     }
 
+    @RateLimit(by = RateLimitType.USER)
     @Authorized
     @Operation(summary = "自动登录接口", description = "检验token，如果token有效，则返回用户信息")
     @GetMapping(path = "/autoLogin")
@@ -155,6 +165,7 @@ public class AccountController
         return ResponseVO.success(accountService.autoLogin(token));
     }
 
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "登出接口", description = "检验token，如果token有效，则从redis和cookie中删除token")
     @GetMapping(path = "/logout")
     public ResponseVO <Boolean> logout(@Parameter(hidden = true) HttpServletRequest request,
@@ -172,6 +183,7 @@ public class AccountController
      * @param token token
      * @return 用户统计信息
      */
+    @RateLimit(by = RateLimitType.USER)
     @Authorized
     @Operation(summary = "获取统计信息", description = "获取统计信息，返回值可能为null，代表失败的情况")
     @GetMapping(path = "/state")

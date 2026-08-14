@@ -1,5 +1,7 @@
 package com.neon.niloweb.controller;
 
+import com.neon.nilocommon.annotation.RateLimit;
+import com.neon.nilocommon.entity.enums.RateLimitType;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.entity.vo.StatisticsInfoVO;
 import com.neon.niloweb.loginState.LoginState;
@@ -20,6 +22,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/statistics")
+@RateLimit(by = RateLimitType.USER)
 public class StatisticsController
 {
     private final StatisticsService statisticsService;

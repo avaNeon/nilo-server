@@ -1,6 +1,8 @@
 package com.neon.niloweb.controller;
 
 
+import com.neon.nilocommon.annotation.RateLimit;
+import com.neon.nilocommon.entity.enums.RateLimitType;
 import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.vo.ResponseVO;
@@ -44,6 +46,7 @@ public class FileController
      *
      * @return 图片文件在MinIO的key
      */
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "上传图片", description = "上传图片，自动生成缩略图")
     @Authorized
     @PutMapping("/image")
@@ -63,6 +66,7 @@ public class FileController
      * @param imgKey 图片key
      * @return 预签名URL
      */
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "获取图片预签名URL")
     @Authorized
     @GetMapping("/image")
@@ -86,6 +90,7 @@ public class FileController
      *
      * @return presigned post form
      */
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "获取 presigned post form", description = "获取上传视频文件的 presigned post form")
     @Authorized
     @PostMapping("/video")
@@ -98,11 +103,12 @@ public class FileController
         return ResponseVO.success(fileService.uploadVideo(userId, fileSize));
     }
 
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "下载未公开视频的HLS主播放列表（master.m3u8）", description = "仅限视频发布者自己观看pending类型的视频")
     @GetMapping(path = "/video/hls/{videoId}/{index}/master.m3u8")
     public void downloadVideoMasterM3u8(@Parameter(hidden = true) HttpServletRequest request,
                                         @Parameter(hidden = true) HttpServletResponse response,
-                                        @RequestHeader(name = "token", required = false) String token,
+                                        @RequestHeader(name = "token") String token,
                                         @PathVariable(name = "videoId") @NotNull Long videoId,
                                         @PathVariable(name = "index") @NotNull Integer index)
     {
@@ -110,12 +116,13 @@ public class FileController
         fileService.downloadVideoMasterM3u8(userId, videoId, index, response);
     }
 
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "下载未公开视频的HLS分辨率播放列表（index.m3u8）",
                description = "仅限视频发布者自己观看pending类型的视频；folder 为 720P 或 480P")
     @GetMapping(path = "/video/hls/{videoId}/{index}/{folder}/index.m3u8")
     public void downloadVideoPlaylistM3u8(@Parameter(hidden = true) HttpServletRequest request,
                                           @Parameter(hidden = true) HttpServletResponse response,
-                                          @RequestHeader(name = "token", required = false) String token,
+                                          @RequestHeader(name = "token") String token,
                                           @PathVariable(name = "videoId") @NotNull Long videoId,
                                           @PathVariable(name = "index") @NotNull Integer index,
                                           @PathVariable(name = "folder") @NotEmpty String folder)

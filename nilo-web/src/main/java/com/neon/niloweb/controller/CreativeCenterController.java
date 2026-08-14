@@ -1,5 +1,7 @@
 package com.neon.niloweb.controller;
 
+import com.neon.nilocommon.annotation.RateLimit;
+import com.neon.nilocommon.entity.enums.RateLimitType;
 import com.neon.nilocommon.entity.dto.VideoFileUploadDTO;
 import com.neon.nilocommon.entity.dto.VideoInfoUploadJoinDTO;
 import com.neon.nilocommon.entity.dto.VideoUploadDTO;
@@ -38,6 +40,7 @@ import java.util.stream.Collectors;
 
 @Tag(name = "创作中心视频管理")
 @RequestMapping(path = "/creativeCenter")
+@RateLimit(by = RateLimitType.USER)
 @Validated
 @RequiredArgsConstructor
 @RestController

@@ -1,5 +1,7 @@
 package com.neon.niloweb.controller;
 
+import com.neon.nilocommon.annotation.RateLimit;
+import com.neon.nilocommon.entity.enums.RateLimitType;
 import com.neon.nilocommon.entity.dto.UserMessageCount;
 import com.neon.nilocommon.entity.dto.UserMessageDTO;
 import com.neon.nilocommon.entity.vo.ResponseVO;
@@ -21,6 +23,7 @@ import java.util.List;
 @Tag(name = "消息管理")
 @Validated
 @RequestMapping(path = "/message")
+@RateLimit(by = RateLimitType.USER)
 @RequiredArgsConstructor
 @RestController
 public class UserMesssageController

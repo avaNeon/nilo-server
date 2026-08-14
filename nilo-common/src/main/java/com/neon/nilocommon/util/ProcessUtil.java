@@ -44,7 +44,7 @@ public class ProcessUtil
             inputStream.start();
 
             // 等待ffmpeg命令执行完
-            process.waitFor();
+            int exitCode = process.waitFor();
 
             // 获取执行结果字符串
             String result = errorStream.stringBuffer.append(inputStream.stringBuffer).append("\n").toString();
@@ -54,6 +54,16 @@ public class ProcessUtil
             {
                 log.info("执行命令{}结果{}", cmd, result);
             }
+
+            // 之前这里不管退出码，命令找不到（比如 exec 格式写错、可执行文件在当前系统上不存在）也会静默"成功"返回，
+            // 调用方拿着一个实际没生成的文件路径继续往下走，等到真正读文件的时候才炸出一个看起来毫不相关的 NoSuchFileException。
+            // 命令失败必须在这里就暴露出来。
+            if (exitCode != 0)
+            {
+                log.error("执行命令失败，cmd={}，exitCode={}，输出={}", cmd, exitCode, result);
+                throw new RuntimeException("命令执行失败，exitCode=" + exitCode + "，cmd=" + cmd);
+            }
+
             return result;
         }
         catch (Exception e)

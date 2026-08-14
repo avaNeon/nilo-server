@@ -1,5 +1,6 @@
 package com.neon.niloweb.controller;
 
+import com.neon.nilocommon.annotation.RateLimit;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.niloweb.service.VideoOnlineService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping(path = "/online")
+@RateLimit
 public class VideoOnlineController
 {
     private final VideoOnlineService videoOnlineService;

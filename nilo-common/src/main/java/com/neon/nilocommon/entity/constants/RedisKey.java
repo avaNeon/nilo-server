@@ -65,6 +65,12 @@ public class RedisKey
     public static final String CAPTCHA_PREFIX = REDIS_KEY_PREFIX + "captcha:";
 
     /**
+     * 登录密码错误次数前缀<hr/>
+     * <p>key: nilo:login:fail:{email}:{ip}</p>
+     */
+    public static final String LOGIN_FAILURE_PREFIX = REDIS_KEY_PREFIX + "login:fail:";
+
+    /**
      * 视频在线统计 —— 心跳连接前缀
      */
     public static final String VIDEO_HEARTBEAT_PREFIX = REDIS_KEY_PREFIX + "{video-online}:heartbeat:";

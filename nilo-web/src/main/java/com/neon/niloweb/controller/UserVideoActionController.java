@@ -1,5 +1,7 @@
 package com.neon.niloweb.controller;
 
+import com.neon.nilocommon.annotation.RateLimit;
+import com.neon.nilocommon.entity.enums.RateLimitType;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.entity.vo.UserVideoActionVO;
 import com.neon.niloweb.loginState.LoginState;
@@ -19,6 +21,7 @@ import java.util.List;
 @Validated
 @RequiredArgsConstructor
 @RequestMapping("/user/videoAction")
+@RateLimit(by = RateLimitType.USER)
 @RestController
 public class UserVideoActionController
 {

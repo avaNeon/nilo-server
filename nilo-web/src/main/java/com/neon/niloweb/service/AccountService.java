@@ -19,6 +19,7 @@ import com.neon.nilocommon.entity.vo.userInfo.BriefUserInfoVO;
 import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.repository.redis.SystemConfigRedisRepository;
 import com.neon.niloweb.config.WebConfig;
+import com.neon.niloweb.login.LoginFailureGuard;
 import com.neon.niloweb.loginState.LoginState;
 import com.neon.niloweb.mapper.FollowInfoMapper;
 import com.neon.niloweb.mapper.UserInfoMapper;
@@ -57,6 +58,8 @@ public class AccountService
     private final LoginState loginState;
 
     private final RedisEmailVerification redisEmailVerification;
+
+    private final LoginFailureGuard loginFailureGuard;
 
     private final EmailMqRepository emailMqRepository;
 
@@ -138,16 +141,20 @@ public class AccountService
      */
     public TokenUserInfo login(String email, String password, String ip)
     {
+        loginFailureGuard.checkAllowed(email, ip);
+
         UserInfo userInfo = userInfoMapper.selectByEmail(email);
-        // 校验
         if (userInfo == null || !passwordEncoder.matches(password, userInfo.getPassword()))
         {
+            loginFailureGuard.recordFailure(email, ip);
             throw new BusinessException(ResponseCode.LOGIN_FAILURE);
         }
         if (userInfo.getStatus() == UserStatus.DISABLE.status)
         {
             throw new BusinessException(ResponseCode.BANNED_USER);
         }
+
+        loginFailureGuard.clearFailures(email, ip);
         Long userId = userInfo.getUserId();
         // 更新登录信息
         UserInfo updatedUserInfo = new UserInfo();

@@ -22,6 +22,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  */
 @Slf4j
 @EnableConfigurationProperties(InternalAuthProperties.class)
+@ConditionalOnClass(RequestInterceptor.class)
 @ConditionalOnProperty(prefix = "nilo.internal", name = "enabled", havingValue = "true", matchIfMissing = true)
 @AutoConfiguration
 public class InternalAuthAutoConfiguration

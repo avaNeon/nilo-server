@@ -5,3 +5,4 @@ com.neon.nilocommon.autoconfigure.log.ExceptionLogAutoConfiguration
 com.neon.nilocommon.autoconfigure.systemConfig.SystemConfigAutoConfiguration
 com.neon.nilocommon.autoconfigure.redisAuth.RedisAuthAutoConfiguration
 com.neon.nilocommon.autoconfigure.internalAuth.InternalAuthAutoConfiguration
+com.neon.nilocommon.autoconfigure.sentinelRateLimit.SentinelRateLimitAutoConfiguration

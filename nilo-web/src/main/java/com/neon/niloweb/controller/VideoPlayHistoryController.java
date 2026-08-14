@@ -1,5 +1,7 @@
 package com.neon.niloweb.controller;
 
+import com.neon.nilocommon.annotation.RateLimit;
+import com.neon.nilocommon.entity.enums.RateLimitType;
 import com.neon.nilocommon.entity.dto.VideoPlayHistoryDTO;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.niloweb.loginState.LoginState;
@@ -22,6 +24,7 @@ import java.util.List;
 @Validated
 @RestController
 @RequestMapping("/history")
+@RateLimit(by = RateLimitType.USER)
 public class VideoPlayHistoryController
 {
     private final VideoPlayHistoryService videoPlayHistoryService;

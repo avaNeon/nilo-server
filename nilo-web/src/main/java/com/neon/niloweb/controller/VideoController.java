@@ -1,5 +1,6 @@
 package com.neon.niloweb.controller;
 
+import com.neon.nilocommon.annotation.RateLimit;
 import com.neon.nilocommon.entity.constants.RedisKey;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.po.redis.TokenUserInfo;
@@ -37,6 +38,7 @@ public class VideoController
      *
      * @return 推荐视频列表
      */
+    @RateLimit
     @Operation(summary = "查询推荐视频接口", description = "查询推荐视频列表，按照创建时间倒序排序")
     @GetMapping(path = "/recommend")
     public ResponseVO <List <BriefVideoInfoVO>> loadRecommendVideo()
@@ -49,6 +51,7 @@ public class VideoController
      *
      * @return 分页视频列表
      */
+    @RateLimit
     @Operation(summary = "查询视频接口", description = "查询视频列表，按照创建时间倒序排序")
     @GetMapping(path = "/video")
     public ResponseVO <PaginationResponseVO <BriefVideoInfoVO>> loadVideo(
@@ -65,6 +68,7 @@ public class VideoController
      * @param videoId 视频ID
      * @return 视频详细信息
      */
+    @RateLimit
     @Operation(summary = "查询视频详细信息", description = "查询视频详细信息，包括用户信息、创建时间、分类信息、标签、简介等")
     @GetMapping(path = "/video/{videoId}")
     public ResponseVO <VideoInfoVO> loadVideoInfo(@RequestHeader(name = "token", required = false) String token,
@@ -83,6 +87,7 @@ public class VideoController
         return ResponseVO.success(videoService.loadVideoInfo(userId, videoId));
     }
 
+    @RateLimit
     @Operation(summary = "获取所有分P文件信息", description = "获取所有分P文件的简单信息，只包括文件名、文件索引、持续时间")
     @GetMapping(path = "/file/{videoId}")
     public ResponseVO <List <VideoInfoFileVO>> loadVideoFile(@PathVariable(name = "videoId") @NotNull Long videoId)
@@ -90,6 +95,7 @@ public class VideoController
         return ResponseVO.success(videoService.loadVideoFile(videoId));
     }
 
+    @RateLimit
     @Operation(summary = "加载热门视频列表")
     @GetMapping(path = "/hot/{pageNo}")
     public ResponseVO <List <BriefVideoInfoVO>> loadHotVideoInfo(@PathVariable(name = "pageNo") @NotNull @Min(1) Integer pageNo)
@@ -98,6 +104,7 @@ public class VideoController
     }
 
 
+    @RateLimit
     @Operation(summary = "播放统计")
     @PostMapping(path = "/{videoId}")
     public ResponseVO <Object> playCount(@PathVariable("videoId") @NotNull Long videoId)

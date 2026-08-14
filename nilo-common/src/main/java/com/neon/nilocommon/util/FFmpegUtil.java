@@ -48,7 +48,7 @@ public class FfmpegUtil
         String thumbnailPathStr = srcPathStr.substring(0, srcPathStr.lastIndexOf(".")) + RedisKey.THUMBNAIL_SUFFIX + suffix;
 
         String cmd = """
-                ffmpeg.exe -i "%s" -vf scale=720:-1 "%s"
+                ffmpeg -i "%s" -vf scale=720:-1 "%s"
                 """.formatted(srcPathStr, thumbnailPathStr);
 
         ProcessUtil.executeCommand(cmd, showLogs);

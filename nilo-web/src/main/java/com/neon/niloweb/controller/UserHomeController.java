@@ -1,5 +1,7 @@
 package com.neon.niloweb.controller;
 
+import com.neon.nilocommon.annotation.RateLimit;
+import com.neon.nilocommon.entity.enums.RateLimitType;
 import com.neon.nilocommon.entity.constants.Constants;
 import com.neon.nilocommon.entity.constants.RedisKey;
 import com.neon.nilocommon.entity.dto.UpdatedUserInfoDTO;
@@ -44,6 +46,7 @@ public class UserHomeController
 
     private final WebConfig webConfig;
 
+    @RateLimit
     @Operation(summary = "获取用户主页信息")
     @GetMapping(path = "/user/{hostUserId}")
     public ResponseVO <UserDetailVO> getUserDetail(@RequestHeader(name = "token", required = false) String token,
@@ -61,6 +64,7 @@ public class UserHomeController
         return ResponseVO.success(userHomeService.getUserDetail(visitorUserId, hostUserId));
     }
 
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "更新用户信息", description = "如果更新了昵称或者头像，会返回新的token")
     @PostMapping(path = "/user")
     public ResponseVO <TokenUserInfoVO> updateUserInfo(@Parameter(hidden = true) HttpServletRequest request,
@@ -88,6 +92,7 @@ public class UserHomeController
         return ResponseVO.success(tokenUserInfoVO);
     }
 
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "修改个人主页主题")
     @PostMapping(path = "/theme/{themeIndex}")
     public ResponseVO <Object> saveTheme(@RequestHeader(name = "token") @NotEmpty String token,
@@ -98,6 +103,7 @@ public class UserHomeController
         return ResponseVO.success(null);
     }
 
+    @RateLimit
     @Operation(summary = "查询投稿视频列表", description = "查询视频列表，按照创建时间倒序排序")
     @GetMapping(path = "/video/{userId}")
     public ResponseVO <PaginationResponseVO <BriefVideoInfoVO>> loadVideo(@PathVariable(name = "userId") @NotNull Long userId,
@@ -113,6 +119,7 @@ public class UserHomeController
         return ResponseVO.success(userHomeService.loadVideo(userId, pageNo, pageSize, sortType, keyword));
     }
 
+    @RateLimit
     @Operation(summary = "查询收藏视频列表", description = "查询收藏视频列表，按照创建时间倒序排序")
     @GetMapping(path = "/collection/{userId}")
     public ResponseVO <PaginationResponseVO <CollectedVideoInfoVO>> loadCollection(
@@ -121,6 +128,7 @@ public class UserHomeController
         return ResponseVO.success(userHomeService.loadCollection(userId, pageNo));
     }
 
+    @RateLimit
     @Operation(summary = "获取用户系列展示")
     @GetMapping("/series/videos/{userId}")
     public ResponseVO <List <VideoSeriesWithVideosVO>> loadSeriesWithVideos(@PathVariable(name = "userId") @NotNull Long userId)

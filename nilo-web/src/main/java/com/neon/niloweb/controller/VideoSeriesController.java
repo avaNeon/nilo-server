@@ -1,5 +1,7 @@
 package com.neon.niloweb.controller;
 
+import com.neon.nilocommon.annotation.RateLimit;
+import com.neon.nilocommon.entity.enums.RateLimitType;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.entity.vo.videoInfo.BasicVideoInfo;
 import com.neon.nilocommon.entity.vo.videoSeriesInfo.VideoSeriesInfoVO;
@@ -28,6 +30,7 @@ public class VideoSeriesController
 
     private final LoginState loginState;
 
+    @RateLimit
     @Operation(summary = "获取所有视频系列", description = "每个视频系列都带有第一个视频的封面，除非没有视频")
     @GetMapping("/{userId}/series")
     public ResponseVO <List <VideoSeriesInfoVO>> loadVideoSeries(@PathVariable(name = "userId") @NotNull Long userId)
@@ -35,6 +38,7 @@ public class VideoSeriesController
         return ResponseVO.success(videoSeriesService.loadVideoSeries(userId));
     }
 
+    @RateLimit
     @Operation(summary = "根据系列ID获取视频系列信息")
     @GetMapping("/series/{seriesId}")
     public ResponseVO <VideoSeriesInfoVO> getVideoSeriesInfoBySeriesId(@PathVariable(name = "seriesId") @NotNull Long seriesId)
@@ -42,6 +46,7 @@ public class VideoSeriesController
         return ResponseVO.success(videoSeriesService.getVideoSeriesInfoBySeriesId(seriesId));
     }
 
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "重新排序视频系列")
     @PutMapping(path = "/resort")
     public ResponseVO <Object> resortVideoSeries(@RequestHeader(name = "token") @NotEmpty String token,
@@ -56,6 +61,7 @@ public class VideoSeriesController
      * 新增/修改视频系列 <hr/>
      * 可以允许系列名称重名
      */
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "新增/修改视频系列", description = "若为修改系列，则按请求体视频列表覆盖系列内视频并重新排序")
     @PostMapping(path = "/series")
     public ResponseVO <Object> saveVideoSeries(@RequestHeader(name = "token") @NotEmpty String token,
@@ -80,6 +86,7 @@ public class VideoSeriesController
         return ResponseVO.success(null);
     }
 
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "重新排序系列中的视频", description = "请求体必须包含该系列当前全部视频ID，不会新增或删除视频")
     @PutMapping(path = "/video/resort/{seriesId}")
     public ResponseVO <Object> resortSeriesVideo(@RequestHeader(name = "token") @NotEmpty String token,
@@ -91,6 +98,7 @@ public class VideoSeriesController
         return ResponseVO.success(null);
     }
 
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "向集合中添加一条视频")
     @PostMapping("/video/{seriesId}/{videoId}")
     public ResponseVO <Object> insertVideoToSeries(@RequestHeader(name = "token") @NotEmpty String token,
@@ -102,6 +110,7 @@ public class VideoSeriesController
         return ResponseVO.success(null);
     }
 
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "从系列中移除一条视频")
     @DeleteMapping("/video/{seriesId}/{videoId}")
     public ResponseVO <Object> deleteSeriesVideo(@RequestHeader(name = "token") @NotEmpty String token,
@@ -113,6 +122,7 @@ public class VideoSeriesController
         return ResponseVO.success(null);
     }
 
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "删除视频系列")
     @DeleteMapping("/series/{seriesId}")
     public ResponseVO <Object> deleteSeries(@RequestHeader(name = "token") @NotEmpty String token,
@@ -123,6 +133,7 @@ public class VideoSeriesController
         return ResponseVO.success(null);
     }
 
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "查询有多少视频不在该集合中")
     @GetMapping("/video/ex/count/{seriesId}")
     public ResponseVO <Integer> getVideoExcludingSeries(@RequestHeader(name = "token") @NotEmpty String token,
@@ -132,6 +143,7 @@ public class VideoSeriesController
         return ResponseVO.success(videoSeriesService.getVideoExcludingSeriesCount(userId, seriesId));
     }
 
+    @RateLimit(by = RateLimitType.USER)
     @Operation(summary = "查询不在该集合中的视频")
     @GetMapping("/video/ex/{seriesId}/{pageNo}")
     public ResponseVO <List <BasicVideoInfo>> loadMoreVideoExcludingSeries(@RequestHeader(name = "token") @NotEmpty String token,
@@ -144,6 +156,7 @@ public class VideoSeriesController
         return ResponseVO.success(videoSeriesService.loadMoreVideoExcludingSeries(userId, seriesId, pageNo));
     }
 
+    @RateLimit
     @Operation(summary = "查询集合中的视频数量")
     @GetMapping("/video/count/{seriesId}")
     public ResponseVO <Integer> getSeriesVideoCount(@PathVariable(name = "seriesId") @NotNull Long seriesId)
@@ -151,6 +164,7 @@ public class VideoSeriesController
         return ResponseVO.success(videoSeriesService.getSeriesVideoCount(seriesId));
     }
 
+    @RateLimit
     @Operation(summary = "查询该集合中的视频")
     @GetMapping("/video/{seriesId}")
     public ResponseVO <List <BasicVideoInfo>> loadSeriesVideo(@PathVariable(name = "seriesId") @NotNull Long seriesId)

@@ -318,8 +318,8 @@ public class HotVideoRedisRepository
         long coldWindowStartHour = currentHour - 1;
         int batchSize = 1000;
 
-        // 使用ZSCAN，创建一个cursor，迭代热表ranking记录
-        // ZSCAN可能返回重复元素，我们的逻辑有幂等性，不会受到影响
+        // 使用SCAN，创建一个cursor，迭代热表ranking记录
+        // SCAN可能返回重复元素，我们的逻辑有幂等性，不会受到影响
         try (Cursor <ZSetOperations.TypedTuple <String>> cursor = stringRedisTemplate.opsForZSet()
                                                                                      .scan(RedisKey.HOT_VIDEO_RANKING,
                                                                                            ScanOptions.scanOptions()

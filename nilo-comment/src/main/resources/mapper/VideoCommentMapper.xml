@@ -180,9 +180,11 @@
         <bind name="imgPathsFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.imgPathsFuzzy)"/>
         <bind name="nickNameFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.nickNameFuzzy)"/>
         <bind name="avatarFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.avatarFuzzy)"/>
-        <bind name="replyNickNameFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.replyNickNameFuzzy)"/>
+        <bind name="replyNickNameFuzzyEscaped"
+              value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.replyNickNameFuzzy)"/>
         <bind name="videoNameFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.videoNameFuzzy)"/>
-        <bind name="videoCoverFuzzyEscaped" value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.videoCoverFuzzy)"/>
+        <bind name="videoCoverFuzzyEscaped"
+              value="@com.neon.nilocommon.util.SqlUtil@escapeLike(query.videoCoverFuzzy)"/>
         <where>
             <include refid="base_condition_filed"/>
             <if test="query.contentFuzzy!= null  and query.contentFuzzy!=''">

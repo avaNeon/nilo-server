@@ -6,8 +6,6 @@
 
 <div align="center">
   <img src="docs/img/视频上传路径.drawio.svg" alt="视频上传路径">
-  <br>
-  <sub>视频上传路径 · <a href="docs/img/视频上传路径.drawio.svg">打开原图</a>（矢量图）</sub>
 </div>
 
 ## 2. 分布式微服务拆分
@@ -22,8 +20,6 @@
 
 <div align="center">
   <img src="docs/img/播放统计流程图.drawio.svg" alt="播放统计流程图">
-  <br>
-  <sub>播放统计流程图 · <a href="docs/img/播放统计流程图.drawio.svg">打开原图</a>（矢量图）</sub>
 </div>
 
 ## 4. Redis 实现24 小时热度视频排行榜
@@ -34,8 +30,6 @@
 
 <div align="center">
   <img src="docs/img/redis视频热度统计.drawio.svg" alt="Redis 视频热度统计">
-  <br>
-  <sub>Redis 视频热度统计 · <a href="docs/img/redis视频热度统计.drawio.svg">打开原图</a>（矢量图）</sub>
 </div>
 
 ## 5. MySQL 树形评论加载优化
@@ -44,8 +38,6 @@
 
 <div align="center">
   <img src="docs/img/树形评论加载设计.drawio.svg" alt="树形评论加载设计">
-  <br>
-  <sub>树形评论加载设计 · <a href="docs/img/树形评论加载设计.drawio.svg">打开原图</a>（矢量图）</sub>
 </div>
 
 ## 6. InnoDB 死锁分析
@@ -58,6 +50,4 @@
 
 <div align="center">
   <img src="docs/img/上传视频文件流程图.drawio.svg" alt="上传视频文件流程图">
-  <br>
-  <sub>上传视频文件流程图 · 第 6、7 点共用 · <a href="docs/img/上传视频文件流程图.drawio.svg">打开原图</a>（矢量图）</sub>
 </div>

@@ -64,6 +64,8 @@
 
 <a href="nilo-web/src/main/java/com/neon/niloweb/task/HotVideoTask.java">冷表刷新接口，16行：refreshColdCount；热表刷新接口，25行：refreshHotCount</a> -> <a href="nilo-web/src/main/java/com/neon/niloweb/repository/redis/HotVideoRedisRepository.java">冷表处理逻辑，48行：refreshColdCount；热表处理逻辑，200行：refreshHotCount</a>
 
+<a href="docs/script">相关lua脚本（带注释）</a>
+
 <div align="center">
   <img src="docs/img/redis视频热度统计.drawio.svg" alt="Redis 视频热度统计">
 </div>

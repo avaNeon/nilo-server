@@ -1,5 +1,6 @@
 package com.neon.niloai.entity.vo;
 
+import com.neon.niloai.entity.enums.IntentType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -17,4 +18,9 @@ public class VideoAskVO
     private String answer;
 
     private List <CitedVideoVO> videos;
+
+    /**
+     * 这次请求被判成了哪种行为，便于排查和统计拒绝率
+     */
+    private IntentType intent;
 }

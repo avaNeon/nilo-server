@@ -1,15 +1,17 @@
 package com.neon.niloai.service;
 
+import com.neon.niloai.entity.enums.IntentType;
 import com.neon.niloai.entity.vo.CitedVideoVO;
 import com.neon.niloai.entity.vo.VideoAskVO;
+import com.neon.niloai.guard.IntentClassifier;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.exception.BusinessException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -20,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
-@RequiredArgsConstructor
 @Service
 public class VideoAskService
 {
@@ -34,20 +35,85 @@ public class VideoAskService
      */
     private static final int SNIPPET_MAX = 400;
 
+    /**
+     * 白名单之外的统一话术。不调模型，避免把用户的越界要求再送进模型一次。
+     */
+    private static final String REJECT_ANSWER = "我只负责在 Nilo 站内找视频。你可以直接说想看什么，比如「有没有讲多线程的视频」。";
+
     private final VectorStore vectorStore;
 
-    private final ChatClient chatClient;
+    private final ChatClient videoSearchChatClient;
+
+    private final ChatClient selfIntroChatClient;
+
+    private final IntentClassifier intentClassifier;
+
+    public VideoAskService(VectorStore vectorStore,
+                           @Qualifier("videoSearchChatClient") ChatClient videoSearchChatClient,
+                           @Qualifier("selfIntroChatClient") ChatClient selfIntroChatClient,
+                           IntentClassifier intentClassifier)
+    {
+        this.vectorStore = vectorStore;
+        this.videoSearchChatClient = videoSearchChatClient;
+        this.selfIntroChatClient = selfIntroChatClient;
+        this.intentClassifier = intentClassifier;
+    }
+
+    /**
+     * 先过一遍白名单，再按命中的行为分派
+     */
+    public VideoAskVO ask(String question)
+    {
+        IntentType intent = intentClassifier.classify(question);
+        return switch (intent)
+        {
+            case VIDEO_SEARCH -> searchAndAnswer(question);
+            case SELF_INTRO -> selfIntro(question);
+            case REJECT -> reject(question);
+        };
+    }
+
+    /**
+     * 白名单之外，直接回固定话术并留痕，供后面统计拒绝率、判断白名单要不要扩
+     */
+    private VideoAskVO reject(String question)
+    {
+        log.info("请求不在白名单内，已拒绝, question={}", question);
+        return new VideoAskVO(REJECT_ANSWER, List.of(), IntentType.REJECT);
+    }
+
+    /**
+     * 让模型介绍自身能力。这个 ChatClient 没有注册任何工具，主题由系统提示词锁死。
+     */
+    private VideoAskVO selfIntro(String question)
+    {
+        String answer;
+        try
+        {
+            answer = selfIntroChatClient.prompt().user(question).call().content();
+        }
+        catch (RuntimeException e)
+        {
+            log.error("生成自我介绍失败, question={}", question, e);
+            throw new BusinessException(ResponseCode.SERVER_ERROR.getCode(), "模型调用失败，请稍后重试");
+        }
+        if (!StringUtils.hasText(answer))
+        {
+            throw new BusinessException(ResponseCode.SERVER_ERROR.getCode(), "模型没有返回内容，请稍后重试");
+        }
+        return new VideoAskVO(answer.trim(), List.of(), IntentType.SELF_INTRO);
+    }
 
     /**
      * 检索相关视频并基于检索结果生成回答
      */
-    public VideoAskVO ask(String question)
+    private VideoAskVO searchAndAnswer(String question)
     {
         List <Document> documents = searchVideos(question);
         String answer;
         try
         {
-            answer = chatClient.prompt().user(buildUserMessage(question, documents)).call().content();
+            answer = videoSearchChatClient.prompt().user(buildUserMessage(question, documents)).call().content();
         }
         catch (RestClientResponseException e)
         {
@@ -67,7 +133,7 @@ public class VideoAskService
         {
             throw new BusinessException(ResponseCode.SERVER_ERROR.getCode(), "模型没有返回内容，请稍后重试");
         }
-        return new VideoAskVO(answer.trim(), toCitedVideos(documents));
+        return new VideoAskVO(answer.trim(), toCitedVideos(documents), IntentType.VIDEO_SEARCH);
     }
 
     /**

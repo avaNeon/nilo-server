@@ -10,6 +10,4 @@ import lombok.NoArgsConstructor;
 public class EvalFixtureOpVO
 {
     private Integer vectorCount;
-
-    private Integer keywordCount;
 }

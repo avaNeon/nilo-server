@@ -28,7 +28,7 @@ public class EvalFixtureController
     private final EvalFixtureService evalFixtureService;
 
     /**
-     * 把固定 videoId 的假视频写入向量索引和 video_info_doc
+     * 把固定 videoId 的假视频写入向量索引
      */
     @Operation(summary = "灌入检索评测样例")
     @PostMapping("/fixtures")

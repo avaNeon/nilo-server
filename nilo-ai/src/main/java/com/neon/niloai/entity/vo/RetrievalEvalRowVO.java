@@ -17,7 +17,10 @@ public class RetrievalEvalRowVO
 
     private List <Long> expectedVideoIds;
 
-    private List <Long> retrievedVideoIds;
+    /**
+     * 召回的前 5 条，带原始文本
+     */
+    private List <RetrievedDocVO> retrieved;
 
     /**
      * 期望视频是否出现在前 5

@@ -24,5 +24,15 @@ public class RetrievalEvalReportVO
 
     private Double hitAt1Rate;
 
+    /**
+     * 平均倒数排名，整体口径
+     */
+    private Double mrr;
+
+    /**
+     * 按 exact / semantic 分开的统计，对比两版时主要看这里
+     */
+    private List <RetrievalEvalGroupVO> groups;
+
     private List <RetrievalEvalRowVO> rows;
 }

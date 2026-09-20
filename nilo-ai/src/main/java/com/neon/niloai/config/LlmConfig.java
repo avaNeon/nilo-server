@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import java.time.Duration;
 
 @Configuration
-public class DeepSeekConfig
+public class LlmConfig
 {
     /**
      * 对接 DeepSeek 的 ChatClient，系统提示词约束模型只能依据检索列表回答

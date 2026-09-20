@@ -32,7 +32,7 @@ public class VideoSearchService
 
     private final UserInfoMapper <UserInfo, UserInfoQuery> userInfoMapper;
 
-    // ----- Redis Repository -----
+    // ----- Repository -----
 
     private final VideoInfoDocRepository videoInfoDocRepository;
 

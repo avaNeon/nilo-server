@@ -2,6 +2,7 @@ package com.neon.niloai.controller;
 
 import com.neon.niloai.entity.vo.VideoAskVO;
 import com.neon.niloai.service.VideoAskService;
+import com.neon.niloai.service.VideoVectorIndexService;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,6 +24,8 @@ public class VideoAskController
 {
     private final VideoAskService videoAskService;
 
+    private final VideoVectorIndexService videoVectorIndexService;
+
     /**
      * 检索相关视频并让模型基于检索结果回答
      */
@@ -31,5 +34,15 @@ public class VideoAskController
     public ResponseVO <VideoAskVO> ask(@RequestParam(name = "question") @NotBlank @Size(max = 100) String question)
     {
         return ResponseVO.success(videoAskService.ask(question));
+    }
+
+    /**
+     * 从 MySQL 分页读取标题、标签、简介并写入向量索引
+     */
+    @Operation(summary = "全量灌入视频向量")
+    @PostMapping("/index/full")
+    public ResponseVO <Integer> fullIndex()
+    {
+        return ResponseVO.success(videoVectorIndexService.fullIndex());
     }
 }

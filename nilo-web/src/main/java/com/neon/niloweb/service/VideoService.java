@@ -1,5 +1,6 @@
 package com.neon.niloweb.service;
 
+import com.neon.nilocommon.entity.dto.VideoEmbedSourceDTO;
 import com.neon.nilocommon.entity.dto.VideoSnapshotDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.videoInfo.RecommendType;
@@ -444,5 +445,30 @@ public class VideoService
                 playCountMqRepository.sendPlayCountFlushMessage(batch);
             }
         }
+    }
+
+    /**
+     * 分页读取已发布视频的标题、标签、简介
+     */
+    public PaginationResponseVO <VideoEmbedSourceDTO> listEmbedSource(Integer pageNo, Integer pageSize)
+    {
+        VideoInfoQuery query = new VideoInfoQuery();
+        query.setOrderBy("video_id asc");
+        Integer count = videoInfoMapper.selectCount(query);
+        if (count == null) count = 0;
+        PageCalculator pageCalculator = new PageCalculator(pageNo, count, pageSize);
+        query.setPageCalculator(pageCalculator);
+        List <VideoInfo> videoInfoList = count == 0 ? List.of() : videoInfoMapper.selectList(query);
+        List <VideoEmbedSourceDTO> dtoList = videoInfoList.stream()
+                                                          .map(video -> new VideoEmbedSourceDTO(video.getVideoId(),
+                                                                                                video.getVideoName(),
+                                                                                                video.getTags(),
+                                                                                                video.getIntroduction()))
+                                                          .toList();
+        return new PaginationResponseVO <>(count,
+                                           pageCalculator.getPageSize(),
+                                           pageCalculator.getPageNo(),
+                                           pageCalculator.getPageTotal(),
+                                           dtoList);
     }
 }

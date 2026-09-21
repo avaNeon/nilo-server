@@ -1,44 +1,54 @@
 package com.neon.niloai.eval;
 
+import com.neon.niloai.service.VideoVectorIndexService;
+import com.neon.nilocommon.entity.dto.VideoEmbedSourceDTO;
+import org.springframework.ai.document.Document;
+
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * 检索评测假数据。
+ * 检索评测样例<hr/>
  *
- * <p>设计原则：
- * <ul>
- *   <li>exact 题——标准答案是"用户点名要的那一个"好视频，诱饵是<b>同系列的兄弟</b>：同一歌手的其它歌、
- *       同一产品线的其它版本。诱饵在语义上和答案几乎无法区分，唯一的区别就是那个确切的词
- *       （8.4 / 17 / 晴天 / Anti-Hero）。向量把版本号、歌名压得很扁，这类题应该丢分；
- *       BM25 认字面，应该一击必中。v2 的提升就来自这里。</li>
- *   <li>semantic 题——用户用同义说法提问，标题里没有原词。v1 本来就擅长，
- *       它的作用是<b>回归测试</b>：确认 v2 加了关键词召回之后没有把语义能力弄坏。</li>
- * </ul>
+ * <p>exact 题：标准答案是用户点名要的那一个好视频，诱饵是同系列的兄弟（同一产品线的其它版本、同一歌手的其它歌），
+ * 语义上几乎无法区分，唯一的区别就是那个确切的词。用来检验向量是否分得清 8.4 和 8.0、晴天和七里香。
  *
- * <p>标准答案必须无争议：任何人看了都会同意"用户要的就是它"。上一版把答案写成工单、备忘这类
- * 垃圾文档，结果系统把真正有用的视频排第一反而被判错，那样的题说明不了任何问题。
+ * <p>semantic 题：用户用同义说法提问，标题里没有原词。作为回归测试，确认改动没把语义能力弄坏。
  *
- * <p>语料约 100 条，topK=5，随机基线约 5%。
+ * <p>标准答案必须无争议：任何人看了都会同意用户要的就是它。
  */
-public final class EvalFixtureCatalog
+final class EvalFixtureCatalog
 {
     private EvalFixtureCatalog()
     {
     }
 
-    public static List <EvalVideo> videos()
+    /**
+     * 约 100 条语料，文本和 metadata 与正式灌入完全一致
+     */
+    static List <Document> videos()
     {
         return List.of(
                 // ==================== MySQL 版本族（答案 990101） ====================
-                video(990101L, "MySQL 8.4 新特性详解", "MySQL,8.4", "逐条过一遍这一版的改动：默认认证插件切换、组复制参数调整、若干旧语法移除。"),
+                video(990101L,
+                      "MySQL 8.4 新特性详解",
+                      "MySQL,8.4",
+                      "逐条过一遍这一版的改动：默认认证插件切换、组复制参数调整、若干旧语法移除。"),
                 video(990102L, "MySQL 8.0 新特性详解", "MySQL,8.0", "窗口函数、CTE、原子 DDL 和 JSON 增强，逐条讲这一版带来的变化。"),
-                video(990103L, "MySQL 5.7 升级到 8.0 实战", "MySQL,升级", "认证插件、保留字冲突和字符集变更，按真实工单走一遍升级流程。"),
+                video(990103L,
+                      "MySQL 5.7 升级到 8.0 实战",
+                      "MySQL,升级",
+                      "认证插件、保留字冲突和字符集变更，按真实工单走一遍升级流程。"),
                 video(990104L, "MySQL 主从复制配置", "MySQL,复制", "从零搭一主两从，讲清位点、半同步和延迟排查。"),
                 video(990105L, "InnoDB 索引优化大全", "MySQL,索引", "B+树结构、覆盖索引、函数索引和联合索引的最左前缀。"),
                 video(990106L, "MySQL 慢查询排查", "MySQL,性能", "开慢日志、看执行计划、定位没走索引的语句。"),
 
                 // ==================== JDK 版本族（答案 990111） ====================
-                video(990111L, "JDK 17 新增了什么", "Java,JDK17", "密封类、模式匹配预览、增强的伪随机数生成器，以及这一版移除了哪些东西。"),
+                video(990111L,
+                      "JDK 17 新增了什么",
+                      "Java,JDK17",
+                      "密封类、模式匹配预览、增强的伪随机数生成器，以及这一版移除了哪些东西。"),
                 video(990112L, "JDK 21 新增了什么", "Java,JDK21", "虚拟线程、结构化并发、记录模式，逐条过这一版的新能力。"),
                 video(990113L, "JDK 11 新增了什么", "Java,JDK11", "HTTP Client 正式版、var 用于 lambda 参数、单文件源码直接运行。"),
                 video(990114L, "Java 8 Lambda 与 Stream", "Java,Java8", "函数式接口、流水线操作和收集器，打基础用。"),
@@ -46,15 +56,24 @@ public final class EvalFixtureCatalog
                 video(990116L, "Java 并发编程入门", "Java,并发", "线程、锁、volatile 和内存可见性的基本盘。"),
 
                 // ==================== Spring Boot 版本族（答案 990121） ====================
-                video(990121L, "Spring Boot 3.3 升级指南", "Spring,Boot3.3", "这一版的配置项变更、依赖对齐清单和需要注意的破坏性改动。"),
-                video(990122L, "Spring Boot 3.2 升级指南", "Spring,Boot3.2", "虚拟线程支持、RestClient 引入，以及从上一版升上来要改什么。"),
+                video(990121L,
+                      "Spring Boot 3.3 升级指南",
+                      "Spring,Boot3.3",
+                      "这一版的配置项变更、依赖对齐清单和需要注意的破坏性改动。"),
+                video(990122L,
+                      "Spring Boot 3.2 升级指南",
+                      "Spring,Boot3.2",
+                      "虚拟线程支持、RestClient 引入，以及从上一版升上来要改什么。"),
                 video(990123L, "Spring Boot 2.7 升级指南", "Spring,Boot2.7", "自动配置注册方式变更，为跨大版本升级做准备。"),
                 video(990124L, "Spring Boot 自动配置原理", "Spring,原理", "条件注解、starter 机制和自动配置类的加载顺序。"),
                 video(990125L, "Spring Bean 生命周期", "Spring,IoC", "构造、依赖注入、初始化回调、销毁钩子，以及各扩展点的触发时机。"),
                 video(990126L, "Spring Cloud 微服务入门", "Spring,微服务", "注册中心、配置中心、网关和服务间调用。"),
 
                 // ==================== Elasticsearch 版本族（答案 990131） ====================
-                video(990131L, "Elasticsearch 8.19 向量检索实战", "ES,8.19", "这一版的 dense_vector 字段配置、kNN 查询写法和索引参数调整。"),
+                video(990131L,
+                      "Elasticsearch 8.19 向量检索实战",
+                      "ES,8.19",
+                      "这一版的 dense_vector 字段配置、kNN 查询写法和索引参数调整。"),
                 video(990132L, "Elasticsearch 8.0 升级要点", "ES,8.0", "安全默认开启、REST 客户端替换和映射变更。"),
                 video(990133L, "Elasticsearch 7.17 集群运维", "ES,7.17", "滚动重启、分片分配和这一版的监控指标。"),
                 video(990134L, "倒排索引原理详解", "ES,搜索", "词项怎么指向文档列表，和正排存储的差别，以及打分是怎么算出来的。"),
@@ -63,7 +82,10 @@ public final class EvalFixtureCatalog
                 // ==================== Redis 版本族（答案 990141） ====================
                 video(990141L, "Redis 7.2 有什么变化", "Redis,7.2", "这一版的函数增强、客户端信息和若干命令行为调整。"),
                 video(990142L, "Redis 6.2 有什么变化", "Redis,6.2", "多线程 IO、ACL 细化和过期策略改动。"),
-                video(990143L, "Redis 缓存击穿与雪崩", "Redis,缓存", "热点 key 失效瞬间大量请求压到数据库，以及大批 key 同时过期的连锁反应，顺带对比穿透。"),
+                video(990143L,
+                      "Redis 缓存击穿与雪崩",
+                      "Redis,缓存",
+                      "热点 key 失效瞬间大量请求压到数据库，以及大批 key 同时过期的连锁反应，顺带对比穿透。"),
                 video(990144L, "Redis 持久化 RDB 与 AOF", "Redis,持久化", "两种落盘方式的取舍和混合持久化。"),
 
                 // ==================== Kubernetes 版本族（答案 990151） ====================
@@ -144,14 +166,26 @@ public final class EvalFixtureCatalog
 
                 // ==================== 氛围音乐族（semantic 答案 990311 / 990312 / 990313 / 990314） ====================
                 video(990311L, "吉他指弹：夜雨声烦", "吉他,纯音乐", "整轨只有木吉他演奏，从头到尾没有唱词。"),
-                video(990312L, "Lo-fi 循环：深夜书房", "lo-fi,循环", "低保真鼓组配轻钢琴，很多人拿它当写程序时的背景垫底，不会抢注意力。"),
+                video(990312L,
+                      "Lo-fi 循环：深夜书房",
+                      "lo-fi,循环",
+                      "低保真鼓组配轻钢琴，很多人拿它当写程序时的背景垫底，不会抢注意力。"),
                 video(990313L, "钢琴纯音乐合辑", "钢琴,纯音乐", "三小时演奏，无唱词，适合长时间播放。"),
-                video(990314L, "失恋疗伤歌单混剪", "情歌,失恋", "把错过、告别、深夜独酌的那些曲子剪在一起，适合刚结束一段关系的时候听。"),
+                video(990314L,
+                      "失恋疗伤歌单混剪",
+                      "情歌,失恋",
+                      "把错过、告别、深夜独酌的那些曲子剪在一起，适合刚结束一段关系的时候听。"),
                 video(990315L, "华语情歌编年史", "情歌,华语", "从千禧年前后一路梳理到近年，讲这些歌为什么会流行。"),
 
                 // ==================== AI / 搜索族（semantic 答案 990321 / 990322） ====================
-                video(990321L, "RAG 检索增强生成入门", "RAG,LLM", "先从知识库里查出依据再让模型作答，这样它就不会凭空捏造站内不存在的内容。"),
-                video(990322L, "binlog 到 Elasticsearch 的增量同步", "MySQL,ES,同步", "监听变更日志、解析行镜像，让底层表一有改动，搜索侧的索引就跟着更新。"),
+                video(990321L,
+                      "RAG 检索增强生成入门",
+                      "RAG,LLM",
+                      "先从知识库里查出依据再让模型作答，这样它就不会凭空捏造站内不存在的内容。"),
+                video(990322L,
+                      "binlog 到 Elasticsearch 的增量同步",
+                      "MySQL,ES,同步",
+                      "监听变更日志、解析行镜像，让底层表一有改动，搜索侧的索引就跟着更新。"),
                 video(990323L, "向量检索与关键词检索的差别", "搜索,向量", "一个比意思像不像，一个比字面有没有，各自擅长什么。"),
                 video(990324L, "Embedding 与文本切块", "Embedding,切块", "文字怎么变成一串数，长文为什么要切开分别处理。"),
 
@@ -159,77 +193,80 @@ public final class EvalFixtureCatalog
                 video(990331L, "HashMap 源码剖析", "Java,集合", "数组加链表转红黑树，扩容与哈希扰动。"),
                 video(990332L, "ConcurrentHashMap 原理", "Java,并发", "分段思路的演进与 CAS 加 synchronized 的组合。"),
                 video(990333L, "synchronized 与 Lock 对比", "Java,锁", "偏向、轻量、重量级的升级路径与可重入锁的差别。"),
-                video(990334L, "线程池参数详解", "Java,线程池", "核心数、最大数、队列容量和拒绝策略怎么搭，任务堆积时该往哪个方向调。"),
+                video(990334L,
+                      "线程池参数详解",
+                      "Java,线程池",
+                      "核心数、最大数、队列容量和拒绝策略怎么搭，任务堆积时该往哪个方向调。"),
                 video(990335L, "动态规划入门", "算法,DP", "状态定义、转移方程和边界处理。"),
                 video(990336L, "二叉树遍历全解", "算法,树", "前中后序与层序，递归和迭代两种写法。"),
                 video(990337L, "红黑树图解", "算法,树", "五条性质、旋转与变色。"),
                 video(990338L, "一致性哈希原理", "算法,分布式", "哈希环、虚拟节点与数据迁移量。"),
 
                 // ==================== 网络族（semantic 答案 990341 / 990345） ====================
-                video(990341L, "TCP 三次握手与四次挥手", "网络,TCP", "两端从零开始协商序号、确认彼此收发能力，直到通道可用的全过程。"),
+                video(990341L,
+                      "TCP 三次握手与四次挥手",
+                      "网络,TCP",
+                      "两端从零开始协商序号、确认彼此收发能力，直到通道可用的全过程。"),
                 video(990342L, "HTTP/2 与 HTTP/3", "网络,HTTP", "多路复用、头部压缩和底层协议的更换。"),
                 video(990343L, "HTTPS 握手过程", "网络,HTTPS", "证书校验、密钥协商与对称加密切换。"),
                 video(990344L, "DNS 解析流程", "网络,DNS", "递归与迭代查询，各级缓存的作用。"),
-                video(990345L, "负载均衡策略对比", "网络,负载均衡", "轮询、加权、最少连接和一致性哈希，把请求摊到多台机器上避免单点被压垮。"));
+                video(990345L,
+                      "负载均衡策略对比",
+                      "网络,负载均衡",
+                      "轮询、加权、最少连接和一致性哈希，把请求摊到多台机器上避免单点被压垮。"));
     }
 
     /**
-     * exact：查询里带一个确切的词（版本号 / 歌名 / 人名），语料里有一群语义几乎相同的兄弟。
-     * semantic：用户用同义说法提问，标题没有原词；v1 本来就该中，用来确认 v2 没弄坏它。
+     * 问题 → 期望命中的 videoId。查询里带一个确切的词，语料里有一群语义几乎相同的兄弟
      */
-    public static List <EvalCase> cases()
+    static Map <String, List <Long>> exactCases()
     {
-        return List.of(
-                // ---------- exact：答案必须是用户点名要的那一个 ----------
-                evalCase("MySQL 8.4 有哪些新特性", "exact", 990101L),
-                evalCase("JDK 17 新增了什么", "exact", 990111L),
-                evalCase("Spring Boot 3.3 怎么升级", "exact", 990121L),
-                evalCase("Elasticsearch 8.19 的向量检索怎么用", "exact", 990131L),
-                evalCase("Redis 7.2 有什么变化", "exact", 990141L),
-                evalCase("Kubernetes 1.30 更新了什么", "exact", 990151L),
-                evalCase("Vue 3.4 有什么新东西", "exact", 990161L),
-                evalCase("RocketMQ 5.0 新特性", "exact", 990181L),
-                evalCase("周杰伦的晴天", "exact", 990201L),
-                evalCase("林俊杰的江南", "exact", 990211L),
-                evalCase("Taylor Swift 的 Anti-Hero", "exact", 990221L),
-                evalCase("薛之谦的天份现场", "exact", 990231L),
-                evalCase("王小波写的黄金时代", "exact", 990241L),
-
-                // ---------- semantic：同义说法，v2 不许把它们弄坏 ----------
-                evalCase("垃圾回收是怎么回事", "semantic", 990171L, 990172L),
-                evalCase("缓存被打穿了怎么办", "semantic", 990143L),
-                evalCase("Bean 从创建到销毁经历了什么", "semantic", 990125L),
-                evalCase("搜索引擎是怎么找到文档的", "semantic", 990134L),
-                evalCase("怎么让大模型别瞎编", "semantic", 990321L),
-                evalCase("数据库改了怎么让搜索也跟着变", "semantic", 990322L),
-                evalCase("写代码的时候适合放什么背景音乐", "semantic", 990312L),
-                evalCase("想听没有人声的演奏", "semantic", 990311L, 990313L),
-                evalCase("刚分手想听点歌", "semantic", 990314L),
-                evalCase("并发量上来了线程该怎么管", "semantic", 990334L),
-                evalCase("两台机器建立连接的过程", "semantic", 990341L),
-                evalCase("请求太多怎么摊到多台机器上", "semantic", 990345L));
+        Map <String, List <Long>> cases = new LinkedHashMap <>();
+        cases.put("MySQL 8.4 有哪些新特性", List.of(990101L));
+        cases.put("JDK 17 新增了什么", List.of(990111L));
+        cases.put("Spring Boot 3.3 怎么升级", List.of(990121L));
+        cases.put("Elasticsearch 8.19 的向量检索怎么用", List.of(990131L));
+        cases.put("Redis 7.2 有什么变化", List.of(990141L));
+        cases.put("Kubernetes 1.30 更新了什么", List.of(990151L));
+        cases.put("Vue 3.4 有什么新东西", List.of(990161L));
+        cases.put("RocketMQ 5.0 新特性", List.of(990181L));
+        cases.put("周杰伦的晴天", List.of(990201L));
+        cases.put("林俊杰的江南", List.of(990211L));
+        cases.put("Taylor Swift 的 Anti-Hero", List.of(990221L));
+        cases.put("薛之谦的天份现场", List.of(990231L));
+        cases.put("王小波写的黄金时代", List.of(990241L));
+        return cases;
     }
 
-    public static List <Long> videoIds()
+    /**
+     * 问题 → 期望命中的 videoId。同义说法，标题里没有原词
+     */
+    static Map <String, List <Long>> semanticCases()
     {
-        return videos().stream().map(EvalVideo::videoId).toList();
+        Map <String, List <Long>> cases = new LinkedHashMap <>();
+        cases.put("垃圾回收是怎么回事", List.of(990171L, 990172L));
+        cases.put("缓存被打穿了怎么办", List.of(990143L));
+        cases.put("Bean 从创建到销毁经历了什么", List.of(990125L));
+        cases.put("搜索引擎是怎么找到文档的", List.of(990134L));
+        cases.put("怎么让大模型别瞎编", List.of(990321L));
+        cases.put("数据库改了怎么让搜索也跟着变", List.of(990322L));
+        cases.put("写代码的时候适合放什么背景音乐", List.of(990312L));
+        cases.put("想听没有人声的演奏", List.of(990311L, 990313L));
+        cases.put("刚分手想听点歌", List.of(990314L));
+        cases.put("并发量上来了线程该怎么管", List.of(990334L));
+        cases.put("两台机器建立连接的过程", List.of(990341L));
+        cases.put("请求太多怎么摊到多台机器上", List.of(990345L));
+        return cases;
     }
 
-    private static EvalVideo video(long videoId, String videoName, String tags, String introduction)
+    private static Document video(long videoId, String videoName, String tags, String introduction)
     {
-        return new EvalVideo(videoId, videoName, tags, introduction);
-    }
-
-    private static EvalCase evalCase(String question, String type, Long... expectedVideoIds)
-    {
-        return new EvalCase(question, type, List.of(expectedVideoIds));
-    }
-
-    public record EvalVideo(Long videoId, String videoName, String tags, String introduction)
-    {
-    }
-
-    public record EvalCase(String question, String type, List <Long> expectedVideoIds)
-    {
+        String text = VideoVectorIndexService.buildEmbedText(new VideoEmbedSourceDTO(videoId, videoName, tags, introduction));
+        return new Document(String.valueOf(videoId),
+                            text,
+                            Map.of(VideoVectorIndexService.META_VIDEO_ID,
+                                   videoId,
+                                   VideoVectorIndexService.META_VIDEO_NAME,
+                                   videoName));
     }
 }

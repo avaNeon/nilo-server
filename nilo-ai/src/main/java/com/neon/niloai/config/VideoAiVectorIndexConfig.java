@@ -1,6 +1,9 @@
 package com.neon.niloai.config;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.json.JsonpMapper;
+import co.elastic.clients.json.jackson.JacksonJsonpMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +18,17 @@ public class VideoAiVectorIndexConfig
 {
     @Value("${spring.ai.vectorstore.elasticsearch.index-name:video_ai_vector}")
     private String indexName;
+
+    /**
+     * ES 客户端改用项目的 ObjectMapper<hr/>
+     * Spring Boot 默认给 ES 客户端 new 一个裸的 ObjectMapper，读不了 VideoInfoDoc 的 lastUpdateTime，也不认 _class 字段。
+     * 换成全局配置过的这个就能直接复用 VideoInfoDoc。Spring AI 的向量库自己 new ObjectMapper，不受影响。
+     */
+    @Bean
+    JsonpMapper jsonpMapper(ObjectMapper objectMapper)
+    {
+        return new JacksonJsonpMapper(objectMapper);
+    }
 
     /**
      * Spring AI 建索引不设副本数，ES 默认 replicas=1；单机需要改成 0

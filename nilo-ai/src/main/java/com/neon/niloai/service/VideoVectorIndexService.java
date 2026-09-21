@@ -27,9 +27,9 @@ public class VideoVectorIndexService
 {
     private static final int PAGE_SIZE = 20;
 
-    static final String META_VIDEO_ID = "videoId";
+    public static final String META_VIDEO_ID = "videoId";
 
-    static final String META_VIDEO_NAME = "videoName";
+    public static final String META_VIDEO_NAME = "videoName";
 
     private final InnerVideoFeignClient innerVideoFeignClient;
 
@@ -139,7 +139,7 @@ public class VideoVectorIndexService
     /**
      * 标题、标签、简介拼成一条待向量化文本
      */
-    static String buildEmbedText(VideoEmbedSourceDTO source)
+    public static String buildEmbedText(VideoEmbedSourceDTO source)
     {
         StringBuilder builder = new StringBuilder();
         appendLine(builder, "标题", source.getVideoName());

@@ -1,6 +1,7 @@
 package com.neon.niloai.controller;
 
 import com.neon.niloai.entity.vo.VideoAskVO;
+import com.neon.niloai.service.SubtitleChunkService;
 import com.neon.niloai.service.VideoAskService;
 import com.neon.niloai.service.VideoVectorIndexService;
 import com.neon.nilocommon.entity.vo.ResponseVO;
@@ -27,18 +28,22 @@ public class VideoAskController
 
     private final VideoVectorIndexService videoVectorIndexService;
 
+    private final SubtitleChunkService subtitleChunkService;
+
     /**
      * 检索相关视频并让模型基于检索结果回答，同一个 conversationId 内支持多轮追问
      *
      * @param conversationId 前端生成，只允许字母、数字和短横线，因为它会直接拼进 Redis key
+     * @param videoId        视频页提问时带上当前视频，字幕只搜这个视频；首页不传
      */
     @Operation(summary = "检索视频并让模型回答")
     @PostMapping("/ask")
     public ResponseVO <VideoAskVO> ask(@RequestParam(name = "question") @NotBlank @Size(max = 100) String question,
                                        @RequestParam(name = "conversationId") @NotBlank @Pattern(regexp = "[A-Za-z0-9-]{1,64}")
-                                       String conversationId)
+                                       String conversationId,
+                                       @RequestParam(name = "videoId", required = false) Long videoId)
     {
-        return ResponseVO.success(videoAskService.ask(question, conversationId));
+        return ResponseVO.success(videoAskService.ask(question, conversationId, videoId));
     }
 
     /**
@@ -49,5 +54,18 @@ public class VideoAskController
     public ResponseVO <Integer> fullIndex()
     {
         return ResponseVO.success(videoVectorIndexService.fullIndex());
+    }
+
+    /**
+     * 读已发布视频的字幕，按 30 秒一块切开写入字幕块索引
+     *
+     * @param videoId 只重建这一个视频；不传就清空后全量重建
+     * @return 写入的块数
+     */
+    @Operation(summary = "灌入字幕块向量")
+    @PostMapping("/index/subtitle")
+    public ResponseVO <Integer> indexSubtitle(@RequestParam(name = "videoId", required = false) Long videoId)
+    {
+        return ResponseVO.success(videoId == null ? subtitleChunkService.fullIndex() : subtitleChunkService.indexVideo(videoId));
     }
 }

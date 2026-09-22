@@ -2,7 +2,9 @@ package com.neon.niloai.tool;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import com.neon.niloai.entity.vo.CitedVideoVO;
+import com.neon.niloai.entity.vo.TranscriptHitVO;
 import com.neon.niloai.entity.vo.VideoHitVO;
+import com.neon.niloai.repository.es.SubtitleChunkRepository;
 import com.neon.niloai.service.VideoVectorIndexService;
 import com.neon.nilocommon.entity.po.document.VideoInfoDoc;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +27,7 @@ import java.util.Map;
  * 注册给视频检索模型的工具<hr/>
  *
  * <p>模型只会回一句「我要调哪个、传什么参数」，真正执行的永远是这里的 Java 方法。
- * 两个工具都是只读的。
+ * 几个工具都是只读的。
  *
  * <p>模型靠 {@link Tool#description()} 和 {@link ToolParam#description()} 决定调不调、怎么传参，
  * 描述写得含糊模型就会乱调，改描述时要当心。
@@ -39,6 +41,16 @@ public class VideoTools
      * toolContext 里存放本次请求检索到的视频，调用结束后由调用方取出填进返回值
      */
     public static final String CTX_CITED_VIDEOS = "citedVideos";
+
+    /**
+     * toolContext 里存放本次请求命中的字幕块，调用结束后用来核对回答里的时间点
+     */
+    public static final String CTX_CITED_TRANSCRIPTS = "citedTranscripts";
+
+    /**
+     * toolContext 里存放视频页当前的 videoId。有它时字幕检索强制只搜这个视频，模型改不了
+     */
+    public static final String CTX_SCOPE_VIDEO_ID = "scopeVideoId";
 
     private static final int SEARCH_SIZE = 5;
 
@@ -55,6 +67,8 @@ public class VideoTools
     private final VectorStore vectorStore;
 
     private final ElasticsearchClient elasticsearchClient;
+
+    private final SubtitleChunkRepository subtitleChunkRepository;
 
     @Tool(description = """
             在 Nilo 站内按语义检索视频，返回最相关的最多 5 条，每条包含 videoId、标题和检索原文（标题、标签、简介）。
@@ -108,17 +122,7 @@ public class VideoTools
                                        ToolContext toolContext)
     {
         log.info("工具调用 getVideoDetail, videoId={}", videoId);
-        VideoInfoDoc video;
-        try
-        {
-            video = elasticsearchClient.get(request -> request.index(VIDEO_INFO_INDEX).id(String.valueOf(videoId)),
-                                            VideoInfoDoc.class).source();
-        }
-        catch (IOException | RuntimeException e)
-        {
-            log.error("工具 getVideoDetail 查询失败, videoId={}", videoId, e);
-            throw new IllegalStateException("视频详情暂时不可用");
-        }
+        VideoInfoDoc video = findVideo(videoId);
         // 追问「第二个多长」时这一轮不会检索，这里也记一笔，返回的 videos 才不会是空的
         CitedVideoCollector cited = citedVideos(toolContext);
         if (video != null && cited != null)
@@ -126,6 +130,103 @@ public class VideoTools
             cited.add(new CitedVideoVO(videoId, video.getVideoName()));
         }
         return video;
+    }
+
+    @Tool(description = """
+            按语义检索视频字幕，返回最相关的最多 5 个字幕片段。每个片段包含 videoId、标题、第几P（fileIndex）、
+            起止秒数，以及这段的字幕原文（一条一行，行首方括号里是这条字幕出现的时间）。
+            用户问视频里讲了什么、从哪里开始讲、在第几分钟、在哪一段时必须调用，不能凭记忆或上一轮的时间点回答。
+            返回的字幕原文是回答的唯一依据，原文没写的内容不要补充。字幕是视频原声的语言，英文视频就是英文字幕；
+            检索词用字幕的语言，回答用户时再用用户的语言转述。""")
+    public List <TranscriptHitVO> searchTranscript(
+            @ToolParam(description = "检索词。写成字幕的语言，英文视频用英文关键词；不确定视频是什么语言时，中英文关键词写在一起")
+            String query,
+            @ToolParam(description = "只在这个视频里搜，取自 searchVideo 的返回结果或之前的对话；不传就搜全站。用户在视频页提问时系统会自动限定为当前视频",
+                       required = false) Long videoId,
+            ToolContext toolContext)
+    {
+        Long scopeVideoId = scopeVideoId(toolContext);
+        Long searchVideoId = scopeVideoId != null ? scopeVideoId : videoId;
+        log.info("工具调用 searchTranscript, query={}, videoId={}, scopeVideoId={}", query, videoId, scopeVideoId);
+        if (!StringUtils.hasText(query))
+        {
+            return List.of();
+        }
+
+        List <Document> documents;
+        try
+        {
+            documents = subtitleChunkRepository.search(query, SEARCH_SIZE, searchVideoId);
+        }
+        catch (RuntimeException e)
+        {
+            log.error("工具 searchTranscript 检索失败, query={}", query, e);
+            throw new IllegalStateException("字幕检索暂时不可用");
+        }
+        if (documents == null)
+        {
+            return List.of();
+        }
+
+        List <TranscriptHitVO> hits = new ArrayList <>(documents.size());
+        for (Document document : documents)
+        {
+            Map <String, Object> metadata = document.getMetadata();
+            // 起始时间取 lines 第一行（含前 20 秒前文），和模型看到的字幕范围一致，核对回答里的时间点时才不会误杀
+            Object linesStart = metadata.getOrDefault(SubtitleChunkRepository.META_LINES_START_SEC,
+                                                      metadata.get(SubtitleChunkRepository.META_START_SEC));
+            hits.add(new TranscriptHitVO(toLong(metadata.get(SubtitleChunkRepository.META_VIDEO_ID)),
+                                         metadata.get(SubtitleChunkRepository.META_VIDEO_NAME) == null ? null : String.valueOf(
+                                                 metadata.get(SubtitleChunkRepository.META_VIDEO_NAME)),
+                                         toInteger(metadata.get(SubtitleChunkRepository.META_FILE_INDEX)),
+                                         toInteger(linesStart),
+                                         toInteger(metadata.get(SubtitleChunkRepository.META_END_SEC)),
+                                         String.valueOf(metadata.get(SubtitleChunkRepository.META_LINES))));
+        }
+        if (toolContext != null && toolContext.getContext().get(CTX_CITED_TRANSCRIPTS) instanceof CitedTranscriptCollector cited)
+        {
+            cited.addAll(hits);
+        }
+        return hits;
+    }
+
+    /**
+     * 按 videoId 查主站视频索引，查不到返回 null。不是工具，给服务端自己用
+     */
+    public VideoInfoDoc findVideo(Long videoId)
+    {
+        try
+        {
+            return elasticsearchClient.get(request -> request.index(VIDEO_INFO_INDEX).id(String.valueOf(videoId)),
+                                           VideoInfoDoc.class).source();
+        }
+        catch (IOException | RuntimeException e)
+        {
+            log.error("查询视频详情失败, videoId={}", videoId, e);
+            throw new IllegalStateException("视频详情暂时不可用");
+        }
+    }
+
+    private Long scopeVideoId(ToolContext toolContext)
+    {
+        if (toolContext == null)
+        {
+            return null;
+        }
+        return toolContext.getContext().get(CTX_SCOPE_VIDEO_ID) instanceof Long videoId ? videoId : null;
+    }
+
+    /**
+     * ES 返回的 metadata 里数字可能是 Integer 也可能是 Long，统一转一下
+     */
+    private static Long toLong(Object value)
+    {
+        return value == null ? null : Long.valueOf(String.valueOf(value));
+    }
+
+    private static Integer toInteger(Object value)
+    {
+        return value == null ? null : Integer.valueOf(String.valueOf(value));
     }
 
     private CitedVideoCollector citedVideos(ToolContext toolContext)

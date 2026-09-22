@@ -24,6 +24,10 @@ public class IntentClassifier
 
     private static final String REPLY_CLOSE_TAG = "</上一轮助手回复>";
 
+    private static final String VIDEO_OPEN_TAG = "<当前视频>";
+
+    private static final String VIDEO_CLOSE_TAG = "</当前视频>";
+
     private final ChatClient classifierChatClient;
 
     public IntentClassifier(@Qualifier("classifierChatClient") ChatClient classifierChatClient)
@@ -32,10 +36,11 @@ public class IntentClassifier
     }
 
     /**
-     * @param lastReply 上一轮助手的回复，对话第一句时为 null。单看「第二个多长」判断不出意图，得结合上文
+     * @param lastReply        上一轮助手的回复，对话第一句时为 null。单看「第二个多长」判断不出意图，得结合上文
+     * @param currentVideoName 视频页提问时是当前视频的标题，首页为 null。单看「他讲 OBS 是在哪儿」也判断不出是在问视频内容
      * @return 命中的白名单行为；无法判定或出错时返回 REJECT
      */
-    public IntentType classify(String question, String lastReply)
+    public IntentType classify(String question, String lastReply, String currentVideoName)
     {
         if (!StringUtils.hasText(question))
         {
@@ -45,7 +50,7 @@ public class IntentClassifier
         IntentDecision decision;
         try
         {
-            decision = classifierChatClient.prompt().user(wrap(question, lastReply)).call().entity(IntentDecision.class);
+            decision = classifierChatClient.prompt().user(wrap(question, lastReply, currentVideoName)).call().entity(IntentDecision.class);
         }
         catch (RuntimeException e)
         {
@@ -64,16 +69,20 @@ public class IntentClassifier
     }
 
     /**
-     * 用标签把用户输入（以及上一轮回复）框起来当数据看待
+     * 用标签把用户输入（以及上一轮回复、当前视频标题）框起来当数据看待
      */
-    private String wrap(String question, String lastReply)
+    private String wrap(String question, String lastReply, String currentVideoName)
     {
         String input = OPEN_TAG + "\n" + sanitize(question) + "\n" + CLOSE_TAG;
-        if (!StringUtils.hasText(lastReply))
+        if (StringUtils.hasText(lastReply))
         {
-            return input;
+            input = REPLY_OPEN_TAG + "\n" + sanitize(lastReply) + "\n" + REPLY_CLOSE_TAG + "\n" + input;
         }
-        return REPLY_OPEN_TAG + "\n" + sanitize(lastReply) + "\n" + REPLY_CLOSE_TAG + "\n" + input;
+        if (StringUtils.hasText(currentVideoName))
+        {
+            input = VIDEO_OPEN_TAG + "\n" + sanitize(currentVideoName) + "\n" + VIDEO_CLOSE_TAG + "\n" + input;
+        }
+        return input;
     }
 
     /**
@@ -81,7 +90,12 @@ public class IntentClassifier
      */
     private String sanitize(String text)
     {
-        return text.replace(OPEN_TAG, "").replace(CLOSE_TAG, "").replace(REPLY_OPEN_TAG, "").replace(REPLY_CLOSE_TAG, "");
+        return text.replace(OPEN_TAG, "")
+                   .replace(CLOSE_TAG, "")
+                   .replace(REPLY_OPEN_TAG, "")
+                   .replace(REPLY_CLOSE_TAG, "")
+                   .replace(VIDEO_OPEN_TAG, "")
+                   .replace(VIDEO_CLOSE_TAG, "");
     }
 
     /**

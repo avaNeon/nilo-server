@@ -1,6 +1,7 @@
 package com.neon.niloweb.controller.inner;
 
 import com.neon.nilocommon.entity.dto.VideoEmbedSourceDTO;
+import com.neon.nilocommon.entity.dto.VideoFileSourceDTO;
 import com.neon.nilocommon.entity.dto.VideoSnapshotDTO;
 import com.neon.nilocommon.entity.vo.PaginationResponseVO;
 import com.neon.nilocommon.entity.vo.ResponseVO;
@@ -33,6 +34,21 @@ public class InnerVideoController
             @RequestParam(name = "pageSize", defaultValue = "20") @Min(1) @Max(20) Integer pageSize)
     {
         return ResponseVO.success(videoService.listEmbedSource(pageNo, pageSize));
+    }
+
+    /**
+     * 分页提供已发布视频的分P文件，供 AI 服务读字幕切块
+     *
+     * @param videoId 只查这一个视频；不传就是全部
+     */
+    @Operation(summary = "分页获取已发布视频的分P文件")
+    @GetMapping("/file-source")
+    public ResponseVO <PaginationResponseVO <VideoFileSourceDTO>> listFileSource(
+            @RequestParam(name = "pageNo", defaultValue = "1") @Min(1) Integer pageNo,
+            @RequestParam(name = "pageSize", defaultValue = "20") @Min(1) @Max(20) Integer pageSize,
+            @RequestParam(name = "videoId", required = false) Long videoId)
+    {
+        return ResponseVO.success(videoService.listFileSource(pageNo, pageSize, videoId));
     }
 
     @Operation(summary = "获取视频快照")

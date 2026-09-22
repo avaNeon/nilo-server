@@ -103,20 +103,29 @@ public class VideoTools
 
     @Tool(description = """
             按 videoId 查询视频详情，包括时长 duration（单位：秒）、播放量 playCount、弹幕数 danmakuCount、收藏数 collectCount。
-            只能传 searchVideo 返回过的 videoId。站内查不到时返回 null。""")
-    public VideoInfoDoc getVideoDetail(@ToolParam(description = "视频 id，取自 searchVideo 的返回结果") Long videoId)
+            只能传 searchVideo 返回过、或者之前对话里出现过的 videoId。站内查不到时返回 null。""")
+    public VideoInfoDoc getVideoDetail(@ToolParam(description = "视频 id，取自 searchVideo 的返回结果或之前的对话") Long videoId,
+                                       ToolContext toolContext)
     {
         log.info("工具调用 getVideoDetail, videoId={}", videoId);
+        VideoInfoDoc video;
         try
         {
-            return elasticsearchClient.get(request -> request.index(VIDEO_INFO_INDEX).id(String.valueOf(videoId)),
-                                           VideoInfoDoc.class).source();
+            video = elasticsearchClient.get(request -> request.index(VIDEO_INFO_INDEX).id(String.valueOf(videoId)),
+                                            VideoInfoDoc.class).source();
         }
         catch (IOException | RuntimeException e)
         {
             log.error("工具 getVideoDetail 查询失败, videoId={}", videoId, e);
             throw new IllegalStateException("视频详情暂时不可用");
         }
+        // 追问「第二个多长」时这一轮不会检索，这里也记一笔，返回的 videos 才不会是空的
+        CitedVideoCollector cited = citedVideos(toolContext);
+        if (video != null && cited != null)
+        {
+            cited.add(new CitedVideoVO(videoId, video.getVideoName()));
+        }
+        return video;
     }
 
     private CitedVideoCollector citedVideos(ToolContext toolContext)

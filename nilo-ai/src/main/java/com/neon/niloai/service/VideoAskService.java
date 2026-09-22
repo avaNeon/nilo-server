@@ -10,6 +10,9 @@ import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -27,33 +30,55 @@ public class VideoAskService
      */
     private static final String REJECT_ANSWER = "我只负责在 Nilo 站内找视频。你可以直接说想看什么，比如「有没有讲多线程的视频」。";
 
-    private final ChatClient videoSearchChatClient;
+    private final IntentClassifier intentClassifier;
 
     private final ChatClient selfIntroChatClient;
 
-    private final IntentClassifier intentClassifier;
+    private final ChatClient videoSearchChatClient;
+
+    private final ChatMemory chatMemory;
 
     public VideoAskService(@Qualifier("videoSearchChatClient") ChatClient videoSearchChatClient,
                            @Qualifier("selfIntroChatClient") ChatClient selfIntroChatClient,
-                           IntentClassifier intentClassifier)
+                           IntentClassifier intentClassifier,
+                           ChatMemory chatMemory)
     {
         this.videoSearchChatClient = videoSearchChatClient;
         this.selfIntroChatClient = selfIntroChatClient;
         this.intentClassifier = intentClassifier;
+        this.chatMemory = chatMemory;
     }
 
     /**
      * 先过一遍白名单，再按命中的行为分派
+     *
+     * @param conversationId 前端生成的会话 id，同一个 id 就是同一段对话
      */
-    public VideoAskVO ask(String question)
+    public VideoAskVO ask(String question, String conversationId)
     {
-        IntentType intent = intentClassifier.classify(question);
+        IntentType intent = intentClassifier.classify(question, lastReply(conversationId));
         return switch (intent)
         {
-            case VIDEO_SEARCH -> searchAndAnswer(question);
+            case VIDEO_SEARCH -> searchAndAnswer(question, conversationId);
             case SELF_INTRO -> selfIntro(question);
             case REJECT -> reject(question);
         };
+    }
+
+    /**
+     * 这段对话里助手的最后一条回复，给分类器理解追问用；对话第一句时返回 null
+     */
+    private String lastReply(String conversationId)
+    {
+        List <Message> history = chatMemory.get(conversationId);
+        for (int i = history.size() - 1 ; i >= 0 ; i--)
+        {
+            if (history.get(i) instanceof AssistantMessage reply)
+            {
+                return reply.getText();
+            }
+        }
+        return null;
     }
 
     /**
@@ -95,7 +120,7 @@ public class VideoAskService
      * <p>工具执行时会把检索到的视频记进 toolContext，调用结束后只保留回答里提到了 videoId 的那些：
      * 检索结果不一定都相关，是否相关以模型的回答为准；模型若编造了检索里没有的 videoId，也进不了返回值。</p>
      */
-    private VideoAskVO searchAndAnswer(String question)
+    private VideoAskVO searchAndAnswer(String question, String conversationId)
     {
         CitedVideoCollector cited = new CitedVideoCollector();
         String answer;
@@ -103,6 +128,7 @@ public class VideoAskService
         {
             answer = videoSearchChatClient.prompt()
                                           .user(question)
+                                          .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID, conversationId))
                                           .toolContext(Map.of(VideoTools.CTX_CITED_VIDEOS, cited))
                                           .call()
                                           .content();

@@ -7,6 +7,7 @@ import com.neon.nilocommon.entity.vo.ResponseVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
@@ -27,13 +28,17 @@ public class VideoAskController
     private final VideoVectorIndexService videoVectorIndexService;
 
     /**
-     * 检索相关视频并让模型基于检索结果回答
+     * 检索相关视频并让模型基于检索结果回答，同一个 conversationId 内支持多轮追问
+     *
+     * @param conversationId 前端生成，只允许字母、数字和短横线，因为它会直接拼进 Redis key
      */
     @Operation(summary = "检索视频并让模型回答")
     @PostMapping("/ask")
-    public ResponseVO <VideoAskVO> ask(@RequestParam(name = "question") @NotBlank @Size(max = 100) String question)
+    public ResponseVO <VideoAskVO> ask(@RequestParam(name = "question") @NotBlank @Size(max = 100) String question,
+                                       @RequestParam(name = "conversationId") @NotBlank @Pattern(regexp = "[A-Za-z0-9-]{1,64}")
+                                       String conversationId)
     {
-        return ResponseVO.success(videoAskService.ask(question));
+        return ResponseVO.success(videoAskService.ask(question, conversationId));
     }
 
     /**

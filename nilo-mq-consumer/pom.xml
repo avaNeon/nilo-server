@@ -27,6 +27,8 @@
     </scm>
 
     <properties>
+        <!-- 打 manual 标签的测试会上传文件、调收费接口，默认跳过；命令行要跑时加 -Dtest.excluded.groups=none -->
+        <test.excluded.groups>manual</test.excluded.groups>
     </properties>
 
     <dependencies>
@@ -82,10 +84,24 @@
             <artifactId>minio</artifactId>
         </dependency>
 
+        <!-- 字幕质检和翻译调大模型用；语音识别 Spring AI 不支持，还是自己发 HTTP -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-openai</artifactId>
+        </dependency>
+
     </dependencies>
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <excludedGroups>${test.excluded.groups}</excludedGroups>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

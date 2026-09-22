@@ -42,6 +42,11 @@ public class Constants
      */
     public static final String SUBTITLE_NAME = "subtitle.srt";
 
+    /**
+     * 原文不是中文时，大模型翻译出的中文字幕，时间轴和原文字幕逐条对应
+     */
+    public static final String SUBTITLE_ZH_NAME = "subtitle.zh.srt";
+
     /* cookie key相关 */
 
     /**

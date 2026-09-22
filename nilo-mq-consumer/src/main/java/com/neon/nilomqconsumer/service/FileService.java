@@ -201,6 +201,10 @@ public class FileService
         {
             return "video/mp2t";
         }
+        if (name.endsWith(".srt"))
+        {
+            return "text/plain; charset=utf-8";
+        }
         return "application/octet-stream";
     }
 }

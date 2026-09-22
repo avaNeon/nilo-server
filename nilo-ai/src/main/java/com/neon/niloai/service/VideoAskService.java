@@ -1,12 +1,16 @@
 package com.neon.niloai.service;
 
 import com.neon.niloai.entity.enums.IntentType;
+import com.neon.niloai.entity.vo.CitedSegmentVO;
 import com.neon.niloai.entity.vo.CitedVideoVO;
+import com.neon.niloai.entity.vo.TranscriptHitVO;
 import com.neon.niloai.entity.vo.VideoAskVO;
 import com.neon.niloai.guard.IntentClassifier;
+import com.neon.niloai.tool.CitedTranscriptCollector;
 import com.neon.niloai.tool.CitedVideoCollector;
 import com.neon.niloai.tool.VideoTools;
 import com.neon.nilocommon.entity.enums.ResponseCode;
+import com.neon.nilocommon.entity.po.document.VideoInfoDoc;
 import com.neon.nilocommon.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -18,8 +22,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientResponseException;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
@@ -28,7 +33,26 @@ public class VideoAskService
     /**
      * 白名单之外的统一话术
      */
-    private static final String REJECT_ANSWER = "我只负责在 Nilo 站内找视频。你可以直接说想看什么，比如「有没有讲多线程的视频」。";
+    private static final String REJECT_ANSWER = "我只负责在 Nilo 站内找视频、回答视频内容相关的问题。你可以直接说想看什么，比如「有没有讲多线程的视频」。";
+
+    private static final String CURRENT_VIDEO_OPEN_TAG = "<当前视频>";
+
+    private static final String CURRENT_VIDEO_CLOSE_TAG = "</当前视频>";
+
+    /**
+     * 回答里的片段标记，比如「【P1 5:29】」
+     */
+    private static final Pattern SEGMENT_MARK = Pattern.compile("【P(\\d+)\\s*((?:\\d+:)?\\d{1,2}:\\d{2})】");
+
+    /**
+     * 回答里「《标题》（videoId）」这种写法中的 videoId
+     */
+    private static final Pattern VIDEO_ID_MARK = Pattern.compile("（(\\d{6,})）");
+
+    /**
+     * 回答里的时间点允许超出命中字幕块起止范围的秒数
+     */
+    private static final int SEGMENT_TOLERANCE_SEC = 5;
 
     private final IntentClassifier intentClassifier;
 
@@ -38,28 +62,34 @@ public class VideoAskService
 
     private final ChatMemory chatMemory;
 
+    private final VideoTools videoTools;
+
     public VideoAskService(@Qualifier("videoSearchChatClient") ChatClient videoSearchChatClient,
                            @Qualifier("selfIntroChatClient") ChatClient selfIntroChatClient,
                            IntentClassifier intentClassifier,
-                           ChatMemory chatMemory)
+                           ChatMemory chatMemory,
+                           VideoTools videoTools)
     {
         this.videoSearchChatClient = videoSearchChatClient;
         this.selfIntroChatClient = selfIntroChatClient;
         this.intentClassifier = intentClassifier;
         this.chatMemory = chatMemory;
+        this.videoTools = videoTools;
     }
 
     /**
      * 先过一遍白名单，再按命中的行为分派
      *
      * @param conversationId 前端生成的会话 id，同一个 id 就是同一段对话
+     * @param videoId        视频页提问时是当前视频，问题默认针对它、字幕只搜它；首页提问时为 null
      */
-    public VideoAskVO ask(String question, String conversationId)
+    public VideoAskVO ask(String question, String conversationId, Long videoId)
     {
-        IntentType intent = intentClassifier.classify(question, lastReply(conversationId));
+        String currentVideoName = videoId == null ? null : currentVideoName(videoId);
+        IntentType intent = intentClassifier.classify(question, lastReply(conversationId), currentVideoName);
         return switch (intent)
         {
-            case VIDEO_SEARCH -> searchAndAnswer(question, conversationId);
+            case VIDEO_SEARCH -> searchAndAnswer(question, conversationId, videoId, currentVideoName);
             case SELF_INTRO -> selfIntro(question);
             case REJECT -> reject(question);
         };
@@ -82,13 +112,34 @@ public class VideoAskService
     }
 
     /**
+     * 视频页当前视频的标题，查不到说明 videoId 不对
+     */
+    private String currentVideoName(Long videoId)
+    {
+        VideoInfoDoc video;
+        try
+        {
+            video = videoTools.findVideo(videoId);
+        }
+        catch (RuntimeException e)
+        {
+            throw new BusinessException(ResponseCode.SERVER_ERROR.getCode(), "查询视频失败，请稍后重试");
+        }
+        if (video == null)
+        {
+            throw new BusinessException(ResponseCode.WRONG_ARGUMENTS.getCode(), "视频不存在");
+        }
+        return video.getVideoName();
+    }
+
+    /**
      * 拒绝<hr/>
      * 请求在白名单之外，直接回固定话术并留痕，供后面统计拒绝率、判断白名单要不要扩
      */
     private VideoAskVO reject(String question)
     {
         log.info("请求不在白名单内，已拒绝, question={}", question);
-        return new VideoAskVO(REJECT_ANSWER, List.of(), IntentType.REJECT);
+        return new VideoAskVO(REJECT_ANSWER, List.of(), List.of(), IntentType.REJECT);
     }
 
     /**
@@ -111,7 +162,7 @@ public class VideoAskService
         {
             throw new BusinessException(ResponseCode.SERVER_ERROR.getCode(), "模型没有返回内容，请稍后重试");
         }
-        return new VideoAskVO(answer.trim(), List.of(), IntentType.SELF_INTRO);
+        return new VideoAskVO(answer.trim(), List.of(), List.of(), IntentType.SELF_INTRO);
     }
 
     /**
@@ -119,17 +170,32 @@ public class VideoAskService
      * <p>把问题交给带工具的模型，查什么、查几次由模型自己决定。</p>
      * <p>工具执行时会把检索到的视频记进 toolContext，调用结束后只保留回答里提到了 videoId 的那些：
      * 检索结果不一定都相关，是否相关以模型的回答为准；模型若编造了检索里没有的 videoId，也进不了返回值。</p>
+     * <p>视频页提问时，当前 videoId 放进 toolContext，字幕检索强制只搜这个视频；同时在问题前面注明用户正在看哪个视频。</p>
+     *
+     * @param scopeVideoId 视频页当前视频，首页提问时为 null
      */
-    private VideoAskVO searchAndAnswer(String question, String conversationId)
+    private VideoAskVO searchAndAnswer(String question, String conversationId, Long scopeVideoId, String currentVideoName)
     {
         CitedVideoCollector cited = new CitedVideoCollector();
+        CitedTranscriptCollector transcripts = new CitedTranscriptCollector();
+        Map <String, Object> toolContext = new HashMap <>();
+        toolContext.put(VideoTools.CTX_CITED_VIDEOS, cited);
+        toolContext.put(VideoTools.CTX_CITED_TRANSCRIPTS, transcripts);
+        String userText = question;
+        if (scopeVideoId != null)
+        {
+            toolContext.put(VideoTools.CTX_SCOPE_VIDEO_ID, scopeVideoId);
+            userText = CURRENT_VIDEO_OPEN_TAG + "《" + sanitize(currentVideoName) + "》（" + scopeVideoId + "）" + CURRENT_VIDEO_CLOSE_TAG
+                       + "\n" + question;
+        }
+
         String answer;
         try
         {
             answer = videoSearchChatClient.prompt()
-                                          .user(question)
+                                          .user(userText)
                                           .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID, conversationId))
-                                          .toolContext(Map.of(VideoTools.CTX_CITED_VIDEOS, cited))
+                                          .toolContext(toolContext)
                                           .call()
                                           .content();
         }
@@ -152,10 +218,133 @@ public class VideoAskService
             throw new BusinessException(ResponseCode.SERVER_ERROR.getCode(), "模型没有返回内容，请稍后重试");
         }
         String trimmedAnswer = answer.trim();
+        List <CitedSegmentVO> segments = extractSegments(trimmedAnswer, transcripts.list(), scopeVideoId);
+        // 模型没检索字幕却写了时间点，或写的时间和命中对不上：这些时间不能留给用户
+        final String shownAnswer;
+        if (SEGMENT_MARK.matcher(trimmedAnswer).find() && segments.isEmpty())
+        {
+            log.info("回答里的时间点没有字幕依据，已改为未找到, question={}", question);
+            shownAnswer = "字幕里没有查到对应位置。";
+        }
+        else
+        {
+            shownAnswer = dropUngroundedMarks(trimmedAnswer, segments);
+        }
         List <CitedVideoVO> videos = cited.list()
                                           .stream()
-                                          .filter(video -> trimmedAnswer.contains(String.valueOf(video.getVideoId())))
+                                          .filter(video -> shownAnswer.contains(String.valueOf(video.getVideoId())))
                                           .toList();
-        return new VideoAskVO(trimmedAnswer, videos, IntentType.VIDEO_SEARCH);
+        return new VideoAskVO(shownAnswer, videos, segments, IntentType.VIDEO_SEARCH);
+    }
+
+    /**
+     * 从回答里找出「【P1 5:29】」这样的片段标记，逐个和字幕命中核对<hr/>
+     * <p>标记属于哪个视频：视频页就是当前视频；首页看标记前面最近一次出现的「（videoId）」。</p>
+     * <p>时间点必须落在同一视频、同一分P某个命中块的时间范围里，否则丢弃：模型编的时间点跳不过去。</p>
+     */
+    private List <CitedSegmentVO> extractSegments(String answer, List <TranscriptHitVO> hits, Long scopeVideoId)
+    {
+        if (hits.isEmpty())
+        {
+            return List.of();
+        }
+        Map <String, CitedSegmentVO> segments = new LinkedHashMap <>();
+        Matcher matcher = SEGMENT_MARK.matcher(answer);
+        while (matcher.find())
+        {
+            int fileIndex = Integer.parseInt(matcher.group(1));
+            int second = parseSeconds(matcher.group(2));
+            Long videoId = scopeVideoId != null ? scopeVideoId : lastVideoIdBefore(answer, matcher.start());
+            TranscriptHitVO hit = matchHit(hits, videoId, fileIndex, second);
+            if (hit == null)
+            {
+                log.info("回答里的片段对不上字幕命中，已丢弃, mark={}, videoId={}", matcher.group(), videoId);
+                continue;
+            }
+            segments.putIfAbsent(hit.getVideoId() + "-" + fileIndex + "-" + second,
+                                 new CitedSegmentVO(hit.getVideoId(), hit.getVideoName(), fileIndex, second));
+        }
+        return new ArrayList <>(segments.values());
+    }
+
+    /**
+     * @param videoId 为 null 时不限视频，但对得上的命中必须都来自同一个视频，否则不猜
+     */
+    private TranscriptHitVO matchHit(List <TranscriptHitVO> hits, Long videoId, int fileIndex, int second)
+    {
+        TranscriptHitVO found = null;
+        for (TranscriptHitVO hit : hits)
+        {
+            if (hit.getVideoId() == null || hit.getStartSec() == null || hit.getEndSec() == null
+                || !Objects.equals(hit.getFileIndex(), fileIndex))
+            {
+                continue;
+            }
+            if (second < hit.getStartSec() - SEGMENT_TOLERANCE_SEC || second > hit.getEndSec() + SEGMENT_TOLERANCE_SEC)
+            {
+                continue;
+            }
+            if (videoId != null && !videoId.equals(hit.getVideoId()))
+            {
+                continue;
+            }
+            if (found != null && !found.getVideoId().equals(hit.getVideoId()))
+            {
+                return null;
+            }
+            found = hit;
+        }
+        return found;
+    }
+
+    private Long lastVideoIdBefore(String answer, int position)
+    {
+        Long videoId = null;
+        Matcher matcher = VIDEO_ID_MARK.matcher(answer);
+        while (matcher.find() && matcher.end() <= position)
+        {
+            videoId = Long.valueOf(matcher.group(1));
+        }
+        return videoId;
+    }
+
+    /**
+     * 去掉回答里对不上字幕命中的「【P1 5:29】」。对得上的标记原样留下
+     */
+    private String dropUngroundedMarks(String answer, List <CitedSegmentVO> segments)
+    {
+        Matcher matcher = SEGMENT_MARK.matcher(answer);
+        StringBuilder kept = new StringBuilder();
+        while (matcher.find())
+        {
+            int fileIndex = Integer.parseInt(matcher.group(1));
+            int second = parseSeconds(matcher.group(2));
+            boolean grounded = segments.stream()
+                                       .anyMatch(segment -> fileIndex == segment.getFileIndex() && second == segment.getStartSec());
+            matcher.appendReplacement(kept, grounded ? Matcher.quoteReplacement(matcher.group()) : "");
+        }
+        matcher.appendTail(kept);
+        return kept.toString();
+    }
+
+    /**
+     * 「5:29」或「1:05:29」转成秒
+     */
+    private int parseSeconds(String time)
+    {
+        int seconds = 0;
+        for (String part : time.split(":"))
+        {
+            seconds = seconds * 60 + Integer.parseInt(part);
+        }
+        return seconds;
+    }
+
+    /**
+     * 视频标题是用户填的，剔除里面的同名标签，避免提前闭合跳出包裹
+     */
+    private String sanitize(String text)
+    {
+        return text == null ? "" : text.replace(CURRENT_VIDEO_OPEN_TAG, "").replace(CURRENT_VIDEO_CLOSE_TAG, "");
     }
 }

@@ -1,6 +1,7 @@
 package com.neon.niloweb.service;
 
 import com.neon.nilocommon.entity.dto.VideoEmbedSourceDTO;
+import com.neon.nilocommon.entity.dto.VideoFileSourceDTO;
 import com.neon.nilocommon.entity.dto.VideoSnapshotDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.videoInfo.RecommendType;
@@ -465,6 +466,46 @@ public class VideoService
                                                                                                 video.getTags(),
                                                                                                 video.getIntroduction()))
                                                           .toList();
+        return new PaginationResponseVO <>(count,
+                                           pageCalculator.getPageSize(),
+                                           pageCalculator.getPageNo(),
+                                           pageCalculator.getPageTotal(),
+                                           dtoList);
+    }
+
+    /**
+     * 分页读取已发布视频的分P文件，视频标题按本页的 videoId 批量补上
+     *
+     * @param videoId 只查这一个视频；为 null 时查全部
+     */
+    public PaginationResponseVO <VideoFileSourceDTO> listFileSource(Integer pageNo, Integer pageSize, Long videoId)
+    {
+        VideoInfoFileQuery query = new VideoInfoFileQuery();
+        query.setVideoId(videoId);
+        query.setOrderBy("video_id asc, file_index asc");
+        Integer count = videoInfoFileMapper.selectCount(query);
+        if (count == null) count = 0;
+        PageCalculator pageCalculator = new PageCalculator(pageNo, count, pageSize);
+        query.setPageCalculator(pageCalculator);
+        List <VideoInfoFile> fileList = count == 0 ? List.of() : videoInfoFileMapper.selectList(query);
+
+        Map <Long, String> videoNameMap = new HashMap <>();
+        List <Long> videoIdList = fileList.stream().map(VideoInfoFile::getVideoId).distinct().toList();
+        if (!videoIdList.isEmpty())
+        {
+            for (BriefVideoInfoVO video : videoInfoMapper.selectBriefVoListByVideoIdBatch(videoIdList))
+            {
+                videoNameMap.put(video.getVideoId(), video.getVideoName());
+            }
+        }
+        List <VideoFileSourceDTO> dtoList = fileList.stream()
+                                                    .map(file -> new VideoFileSourceDTO(file.getVideoId(),
+                                                                                        videoNameMap.get(file.getVideoId()),
+                                                                                        file.getFileId(),
+                                                                                        file.getFileIndex(),
+                                                                                        file.getFilePath(),
+                                                                                        file.getDuration()))
+                                                    .toList();
         return new PaginationResponseVO <>(count,
                                            pageCalculator.getPageSize(),
                                            pageCalculator.getPageNo(),

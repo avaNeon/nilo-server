@@ -4,12 +4,15 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.json.JsonpMapper;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.neon.niloai.repository.es.SubtitleChunkRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.List;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -31,22 +34,24 @@ public class VideoAiVectorIndexConfig
     }
 
     /**
-     * Spring AI 建索引不设副本数，ES 默认 replicas=1；单机需要改成 0
+     * Spring AI 建索引不设副本数，ES 默认 replicas=1；单机需要改成 0。视频索引和字幕块索引都要改
      */
     @Bean
     ApplicationRunner videoAiVectorReplicaZero(ElasticsearchClient elasticsearchClient)
     {
         return args ->
         {
-            if (!elasticsearchClient.indices().exists(request -> request.index(indexName)).value())
+            for (String index : List.of(indexName, SubtitleChunkRepository.INDEX_NAME))
             {
-                log.warn("向量索引不存在，跳过副本设置, index={}", indexName);
-                return;
+                if (!elasticsearchClient.indices().exists(request -> request.index(index)).value())
+                {
+                    log.warn("向量索引不存在，跳过副本设置, index={}", index);
+                    continue;
+                }
+                elasticsearchClient.indices()
+                                   .putSettings(request -> request.index(index).settings(settings -> settings.numberOfReplicas("0")));
+                log.info("已将向量索引副本数设为 0, index={}", index);
             }
-            elasticsearchClient.indices()
-                               .putSettings(request -> request.index(indexName)
-                                                              .settings(settings -> settings.numberOfReplicas("0")));
-            log.info("已将向量索引副本数设为 0, index={}", indexName);
         };
     }
 }

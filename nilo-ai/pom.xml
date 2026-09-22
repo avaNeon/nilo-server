@@ -12,6 +12,11 @@
     <name>nilo-ai</name>
     <description>nilo-ai</description>
 
+    <properties>
+        <!-- 命令行要跑评测时加 -Dtest.excluded.groups=none -->
+        <test.excluded.groups>eval</test.excluded.groups>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.neon</groupId>
@@ -37,6 +42,12 @@
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-vector-store-elasticsearch</artifactId>
+        </dependency>
+
+        <!-- 读已发布视频的字幕文件，切块灌入向量库 -->
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
         </dependency>
 
         <!-- Spring AI 1.0 按 8.15.5 编译（KnnSearch.k(Integer)）；Boot 3.3.4 BOM 会压成 8.13.4（k(Long)） -->
@@ -75,7 +86,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
                 <configuration>
-                    <excludedGroups>eval</excludedGroups>
+                    <excludedGroups>${test.excluded.groups}</excludedGroups>
                 </configuration>
             </plugin>
             <plugin>

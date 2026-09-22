@@ -20,6 +20,7 @@ import com.neon.nilomqconsumer.mapper.VideoInfoFileUploadMapper;
 import com.neon.nilomqconsumer.mapper.VideoInfoUploadMapper;
 import com.neon.nilomqconsumer.service.FileService;
 import com.neon.nilomqconsumer.service.LocalFileService;
+import com.neon.nilomqconsumer.service.SubtitleService;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -55,13 +56,17 @@ public class VideoTransCodingConsumer
 
     private final MediaOwnershipMapper <MediaOwnership, MediaOwnershipQuery> mediaOwnershipMapper;
 
+    private final SubtitleService subtitleService;
+
     /**
      * 消费转码视频文件的任务<hr/>
      * 任务流程：<br/>
      * <ol>
      *      <li>从MinIO查询转码文件的记录，获取文件地址</li>
+     *      <li>抽出音轨提交语音识别任务（在云端和下面的转码同时进行）</li>
      *      <li>将文件合并、转码为TS文件</li>
      *      <li>将TS文件分割并生成m3u8</li>
+     *      <li>取回识别结果，生成字幕文件 subtitle.srt。字幕只是锦上添花，这一步和上面提交任务失败都不影响转码</li>
      *      <li>将当前文件标记为转码成功，并查询所有该视频下文件转码信息</li>
      *      <li>若有视频文件转码失败，将视频文件状态标记为转码失败</li>
      *      <li>若所有视频文件转码成功，计算视频总时长并将视频标记为待审核状态，再将所有分P上传至MinIO并删除原始源文件</li>
@@ -100,8 +105,14 @@ public class VideoTransCodingConsumer
             fileUpload.setFileSize(Files.size(localPath));
             fileUpload.setFilePath(baseKey);
 
+            // 语音识别在云端跑，先把任务提交上去，正好和下面的转码同时进行
+            String asrTaskId = submitSubtitleTask(localPath);
+
             // 将视频转换为分段TS文件（tsFolder/xxxx.ts 不足4位会补0补到4位）和m3u8（index.m3u8）
             convertVideoToTs(localPath);
+
+            // 转码完再取识别结果，写成字幕文件放进同一目录，之后随整个目录一起上传
+            writeSubtitle(asrTaskId, localPath.resolveSibling(Constants.SUBTITLE_NAME));
 
             fileUpload.setTransferResult(VideoFileStatus.TRANSCODING_SUCCESS.getStatus());
 
@@ -207,6 +218,49 @@ public class VideoTransCodingConsumer
                 }
             }
 
+        }
+    }
+
+    /**
+     * 提交字幕识别任务<hr/>
+     * 字幕是锦上添花，任何失败都只记日志，不影响转码
+     *
+     * @param videoPath 原视频路径
+     * @return 识别任务 id；视频没有声音或提交失败时返回 null
+     */
+    private String submitSubtitleTask(Path videoPath)
+    {
+        try
+        {
+            return subtitleService.submit(videoPath);
+        }
+        catch (RuntimeException e)
+        {
+            log.warn("提交字幕识别任务失败，这个分P将没有字幕, videoPath={}", videoPath, e);
+            return null;
+        }
+    }
+
+    /**
+     * 等识别结果出来，写成字幕文件<hr/>
+     * 同样只记日志，不影响转码
+     *
+     * @param asrTaskId    识别任务 id，为 null 时什么都不做
+     * @param subtitlePath 字幕文件保存路径
+     */
+    private void writeSubtitle(String asrTaskId, Path subtitlePath)
+    {
+        if (asrTaskId == null)
+        {
+            return;
+        }
+        try
+        {
+            subtitleService.writeSrt(asrTaskId, subtitlePath);
+        }
+        catch (RuntimeException e)
+        {
+            log.warn("生成字幕失败，这个分P将没有字幕, taskId={}, subtitlePath={}", asrTaskId, subtitlePath, e);
         }
     }
 

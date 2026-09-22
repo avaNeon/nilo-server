@@ -37,6 +37,11 @@ public class Constants
 
     public static final String TS_FOLDER_NAME = "tsFolder";
 
+    /**
+     * 语音识别生成的字幕文件，和 master.m3u8 放在同一目录
+     */
+    public static final String SUBTITLE_NAME = "subtitle.srt";
+
     /* cookie key相关 */
 
     /**

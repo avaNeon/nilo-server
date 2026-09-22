@@ -97,6 +97,40 @@ public class FfmpegUtil
     }
 
     /**
+     * 检查文件是否包含音频流
+     *
+     * @param filePath 文件路径
+     * @return true-包含音频流, false-不包含
+     */
+    public static boolean hasAudioStream(String filePath)
+    {
+        String cmd = """
+                ffprobe -v error -select_streams a:0 -show_entries stream=codec_type -of default=noprint_wrappers=1:nokey=1 "%s"
+                """.formatted(filePath);
+
+        String result = ProcessUtil.executeCommand(cmd, false);
+
+        return "audio".equals(result.trim());
+    }
+
+    /**
+     * 抽出音轨，转成语音识别常用的 16kHz 单声道<hr/>
+     * 用 ffmpeg 自带的 aac 编码器，不依赖额外编译的库；输出文件后缀用 .m4a
+     *
+     * @param srcPathStr   原视频路径
+     * @param audioPathStr 输出音频路径
+     * @param showLogs     是否显示ffmpeg的日志信息
+     */
+    public static void extractAudio(String srcPathStr, String audioPathStr, boolean showLogs)
+    {
+        String cmd = """
+                ffmpeg -y -i "%s" -vn -ac 1 -ar 16000 -c:a aac -b:a 48k "%s"
+                """.formatted(srcPathStr, audioPathStr);
+
+        ProcessUtil.executeCommand(cmd, showLogs);
+    }
+
+    /**
      * 获取视频第一路视频流的宽高
      *
      * @param videoPathStr 视频路径

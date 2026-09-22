@@ -23,6 +23,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientResponseException;
 
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -53,6 +54,11 @@ public class VideoAskService
      * 回答里的时间点允许超出命中字幕块起止范围的秒数
      */
     private static final int SEGMENT_TOLERANCE_SEC = 5;
+
+    /**
+     * 视频检索开始前告诉调用方的进度。拒绝和自我介绍不走检索，不发这条
+     */
+    static final String SEARCHING_STATUS = "正在查站内视频和字幕";
 
     private final IntentClassifier intentClassifier;
 
@@ -85,11 +91,25 @@ public class VideoAskService
      */
     public VideoAskVO ask(String question, String conversationId, Long videoId)
     {
+        return ask(question, conversationId, videoId, status -> { });
+    }
+
+    /**
+     * 和 {@link #ask(String, String, Long)} 相同，检索开始前多回调一次进度
+     *
+     * @param onStatus 只在要查视频或字幕时调用，参数是给用户看的一句进度
+     */
+    public VideoAskVO ask(String question, String conversationId, Long videoId, Consumer <String> onStatus)
+    {
         String currentVideoName = videoId == null ? null : currentVideoName(videoId);
         IntentType intent = intentClassifier.classify(question, lastReply(conversationId), currentVideoName);
         return switch (intent)
         {
-            case VIDEO_SEARCH -> searchAndAnswer(question, conversationId, videoId, currentVideoName);
+            case VIDEO_SEARCH ->
+            {
+                onStatus.accept(SEARCHING_STATUS);
+                yield searchAndAnswer(question, conversationId, videoId, currentVideoName);
+            }
             case SELF_INTRO -> selfIntro(question);
             case REJECT -> reject(question);
         };

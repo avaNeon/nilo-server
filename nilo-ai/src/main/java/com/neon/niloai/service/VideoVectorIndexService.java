@@ -29,6 +29,12 @@ public class VideoVectorIndexService
 {
     private static final int PAGE_SIZE = 20;
 
+    /**
+     * 阿里云 embedding 单次最多 20 条，Spring AI 默认只按 token 数分批，不管条数<hr/>
+     * 一个视频的简介会切成多块，一页 20 个视频早就不止 20 条了，不能再指望页大小兜着
+     */
+    private static final int EMBED_BATCH_SIZE = 20;
+
     public static final String META_VIDEO_ID = "videoId";
 
     public static final String META_VIDEO_NAME = "videoName";
@@ -142,7 +148,10 @@ public class VideoVectorIndexService
             // 简介变短时块数会变少，先按 videoId 删掉旧的，免得留下对不上的残块
             List <Object> videoIds = documents.stream().map(document -> document.getMetadata().get(META_VIDEO_ID)).distinct().toList();
             vectorStore.delete(new FilterExpressionBuilder().in(META_VIDEO_ID, videoIds).build());
-            vectorStore.add(documents);
+            for (int start = 0 ; start < documents.size() ; start += EMBED_BATCH_SIZE)
+            {
+                vectorStore.add(documents.subList(start, Math.min(start + EMBED_BATCH_SIZE, documents.size())));
+            }
         }
         catch (RestClientResponseException e)
         {

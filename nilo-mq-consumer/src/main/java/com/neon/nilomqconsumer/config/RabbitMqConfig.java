@@ -326,4 +326,82 @@ public class RabbitMqConfig
         return BindingBuilder.bind(dlqEmailSendQueue()).to(dlxEmailExchange()).with(MqInfo.EMAIL_SEND_DLK);
     }
 
+    /* AI 索引交换机 */
+    @Bean
+    public DirectExchange aiIndexExchange()
+    {
+        return new DirectExchange(MqInfo.AI_INDEX_EXCHANGE);
+    }
+
+    /* 视频向量重建队列 */
+    @Bean
+    public Queue aiVideoIndexQueue()
+    {
+        return QueueBuilder.durable(MqInfo.AI_VIDEO_INDEX_QUEUE)
+                           .quorum()
+                           .deadLetterExchange(MqInfo.AI_INDEX_DLX)
+                           .deadLetterRoutingKey(MqInfo.AI_VIDEO_INDEX_DLK)
+                           .build();
+    }
+
+    /* 视频向量重建队列-交换机绑定 */
+    @Bean
+    public Binding aiVideoIndexBinding()
+    {
+        return BindingBuilder.bind(aiVideoIndexQueue()).to(aiIndexExchange()).with(MqInfo.AI_VIDEO_INDEX_ROUTING_KEY);
+    }
+
+    /* 字幕块重建队列，和视频向量分开：重建要读 MinIO 再整片切块向量化，慢得多，不该互相堵着 */
+    @Bean
+    public Queue aiSubtitleIndexQueue()
+    {
+        return QueueBuilder.durable(MqInfo.AI_SUBTITLE_INDEX_QUEUE)
+                           .quorum()
+                           .deadLetterExchange(MqInfo.AI_INDEX_DLX)
+                           .deadLetterRoutingKey(MqInfo.AI_SUBTITLE_INDEX_DLK)
+                           .build();
+    }
+
+    /* 字幕块重建队列-交换机绑定 */
+    @Bean
+    public Binding aiSubtitleIndexBinding()
+    {
+        return BindingBuilder.bind(aiSubtitleIndexQueue()).to(aiIndexExchange()).with(MqInfo.AI_SUBTITLE_INDEX_ROUTING_KEY);
+    }
+
+    /* AI 索引死信交换机 */
+    @Bean
+    public DirectExchange dlxAiIndexExchange()
+    {
+        return new DirectExchange(MqInfo.AI_INDEX_DLX);
+    }
+
+    /* 视频向量重建死信队列 */
+    @Bean
+    public Queue dlqAiVideoIndexQueue()
+    {
+        return QueueBuilder.durable(MqInfo.AI_VIDEO_INDEX_DLQ).quorum().build();
+    }
+
+    /* 视频向量重建死信队列-死信交换机绑定 */
+    @Bean
+    public Binding aiVideoIndexDlqBinding()
+    {
+        return BindingBuilder.bind(dlqAiVideoIndexQueue()).to(dlxAiIndexExchange()).with(MqInfo.AI_VIDEO_INDEX_DLK);
+    }
+
+    /* 字幕块重建死信队列 */
+    @Bean
+    public Queue dlqAiSubtitleIndexQueue()
+    {
+        return QueueBuilder.durable(MqInfo.AI_SUBTITLE_INDEX_DLQ).quorum().build();
+    }
+
+    /* 字幕块重建死信队列-死信交换机绑定 */
+    @Bean
+    public Binding aiSubtitleIndexDlqBinding()
+    {
+        return BindingBuilder.bind(dlqAiSubtitleIndexQueue()).to(dlxAiIndexExchange()).with(MqInfo.AI_SUBTITLE_INDEX_DLK);
+    }
+
 }

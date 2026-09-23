@@ -50,6 +50,12 @@
             <artifactId>minio</artifactId>
         </dependency>
 
+        <!-- 接收 canal 发来的视频发布、改信息、下架消息，重建向量索引 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+
         <!-- Spring AI 1.0 按 8.15.5 编译（KnnSearch.k(Integer)）；Boot 3.3.4 BOM 会压成 8.13.4（k(Long)） -->
         <dependency>
             <groupId>co.elastic.clients</groupId>

@@ -47,6 +47,11 @@ public class Constants
      */
     public static final String SUBTITLE_ZH_NAME = "subtitle.zh.srt";
 
+    /**
+     * 转码时大模型根据字幕生成的总结和章节，和字幕放在同一目录。前端直接读，不再让 AI 现算
+     */
+    public static final String SUMMARY_NAME = "summary.json";
+
     /* cookie key相关 */
 
     /**

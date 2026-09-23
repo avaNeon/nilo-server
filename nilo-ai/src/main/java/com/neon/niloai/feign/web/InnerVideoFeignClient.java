@@ -16,7 +16,9 @@ public interface InnerVideoFeignClient
      */
     @GetMapping("/embed-source")
     ResponseVO <PaginationResponseVO <VideoEmbedSourceDTO>> listEmbedSource(@RequestParam(name = "pageNo") Integer pageNo,
-                                                                            @RequestParam(name = "pageSize") Integer pageSize);
+                                                                            @RequestParam(name = "pageSize") Integer pageSize,
+                                                                            @RequestParam(name = "videoId", required = false)
+                                                                            Long videoId);
 
     /**
      * 分页拉取已发布视频的分P文件，用于字幕切块灌入

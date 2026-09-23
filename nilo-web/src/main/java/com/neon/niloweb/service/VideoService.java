@@ -451,9 +451,10 @@ public class VideoService
     /**
      * 分页读取已发布视频的标题、标签、简介
      */
-    public PaginationResponseVO <VideoEmbedSourceDTO> listEmbedSource(Integer pageNo, Integer pageSize)
+    public PaginationResponseVO <VideoEmbedSourceDTO> listEmbedSource(Integer pageNo, Integer pageSize, Long videoId)
     {
         VideoInfoQuery query = new VideoInfoQuery();
+        query.setVideoId(videoId);
         query.setOrderBy("video_id asc");
         Integer count = videoInfoMapper.selectCount(query);
         if (count == null) count = 0;

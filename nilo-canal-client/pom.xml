@@ -34,6 +34,12 @@
             <artifactId>spring-boot-starter-data-elasticsearch</artifactId>
         </dependency>
 
+        <!-- 视频发布、改信息、下架时通知 nilo-ai 重建向量索引 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

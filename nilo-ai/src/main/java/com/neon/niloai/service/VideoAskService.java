@@ -34,7 +34,7 @@ public class VideoAskService
     /**
      * 白名单之外的统一话术
      */
-    private static final String REJECT_ANSWER = "我只负责在 Nilo 站内找视频、回答视频内容相关的问题。你可以直接说想看什么，比如「有没有讲多线程的视频」。";
+    private static final String REJECT_ANSWER = "我只负责在 Nilo 站内找视频、回答视频里讲到的问题。你可以直接说想看什么，比如「有没有讲多线程的视频」，或者在视频页问我某段内容在第几分钟。";
 
     private static final String CURRENT_VIDEO_OPEN_TAG = "<当前视频>";
 
@@ -56,9 +56,15 @@ public class VideoAskService
     private static final int SEGMENT_TOLERANCE_SEC = 5;
 
     /**
-     * 视频检索开始前告诉调用方的进度。拒绝和自我介绍不走检索，不发这条
+     * 视频检索开始前告诉调用方的进度。拒绝和自我介绍不发进度
      */
     static final String SEARCHING_STATUS = "正在查站内视频和字幕";
+
+    /**
+     * 要总结时的固定话术<hr/>
+     * 总结在转码时就算好存成文件了，页面上点开就能看。同一个视频被一百个人问，没必要让模型算一百遍
+     */
+    private static final String SUMMARY_ANSWER = "播放器下面有「AI 总结」，点开就能看到视频的总结，里面还带章节，点一下能跳到对应时间。" + "你也可以直接问我某段内容在第几分钟。";
 
     private final IntentClassifier intentClassifier;
 
@@ -91,7 +97,9 @@ public class VideoAskService
      */
     public VideoAskVO ask(String question, String conversationId, Long videoId)
     {
-        return ask(question, conversationId, videoId, status -> { });
+        return ask(question, conversationId, videoId, status ->
+        {
+        });
     }
 
     /**
@@ -110,6 +118,7 @@ public class VideoAskService
                 onStatus.accept(SEARCHING_STATUS);
                 yield searchAndAnswer(question, conversationId, videoId, currentVideoName);
             }
+            case VIDEO_SUMMARY -> summaryHint();
             case SELF_INTRO -> selfIntro(question);
             case REJECT -> reject(question);
         };
@@ -163,6 +172,15 @@ public class VideoAskService
     }
 
     /**
+     * 要总结整个视频<hr/>
+     * 不调模型，直接指向页面上那份转码时就算好的总结
+     */
+    private VideoAskVO summaryHint()
+    {
+        return new VideoAskVO(SUMMARY_ANSWER, List.of(), List.of(), IntentType.VIDEO_SUMMARY);
+    }
+
+    /**
      * 自我介绍<hr/>
      * 让模型介绍自身能力。这个 ChatClient 没有注册任何工具，主题由系统提示词锁死。
      */
@@ -205,8 +223,7 @@ public class VideoAskService
         if (scopeVideoId != null)
         {
             toolContext.put(VideoTools.CTX_SCOPE_VIDEO_ID, scopeVideoId);
-            userText = CURRENT_VIDEO_OPEN_TAG + "《" + sanitize(currentVideoName) + "》（" + scopeVideoId + "）" + CURRENT_VIDEO_CLOSE_TAG
-                       + "\n" + question;
+            userText = CURRENT_VIDEO_OPEN_TAG + "《" + sanitize(currentVideoName) + "》（" + scopeVideoId + "）" + CURRENT_VIDEO_CLOSE_TAG + "\n" + question;
         }
 
         String answer;
@@ -257,6 +274,7 @@ public class VideoAskService
         return new VideoAskVO(shownAnswer, videos, segments, IntentType.VIDEO_SEARCH);
     }
 
+
     /**
      * 从回答里找出「【P1 5:29】」这样的片段标记，逐个和字幕命中核对<hr/>
      * <p>标记属于哪个视频：视频页就是当前视频；首页看标记前面最近一次出现的「（videoId）」。</p>
@@ -295,8 +313,8 @@ public class VideoAskService
         TranscriptHitVO found = null;
         for (TranscriptHitVO hit : hits)
         {
-            if (hit.getVideoId() == null || hit.getStartSec() == null || hit.getEndSec() == null
-                || !Objects.equals(hit.getFileIndex(), fileIndex))
+            if (hit.getVideoId() == null || hit.getStartSec() == null || hit.getEndSec() == null || !Objects.equals(hit.getFileIndex(),
+                                                                                                                    fileIndex))
             {
                 continue;
             }

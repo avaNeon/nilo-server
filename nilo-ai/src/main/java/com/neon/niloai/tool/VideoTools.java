@@ -20,8 +20,10 @@ import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 注册给视频检索模型的工具<hr/>
@@ -86,7 +88,8 @@ public class VideoTools
         List <Document> documents;
         try
         {
-            documents = vectorStore.similaritySearch(SearchRequest.builder().query(query).topK(SEARCH_SIZE).build());
+            // 一个视频的简介会切成多块，多召回一些再按视频去重，才凑得齐 5 个视频
+            documents = vectorStore.similaritySearch(SearchRequest.builder().query(query).topK(SEARCH_SIZE * 3).build());
         }
         catch (RuntimeException e)
         {
@@ -99,17 +102,27 @@ public class VideoTools
         }
 
         CitedVideoCollector cited = citedVideos(toolContext);
-        List <VideoHitVO> hits = new ArrayList <>(documents.size());
+        List <VideoHitVO> hits = new ArrayList <>(SEARCH_SIZE);
+        Set <Long> seen = new HashSet <>();
         for (Document document : documents)
         {
             Map <String, Object> metadata = document.getMetadata();
             Long videoId = Long.valueOf(String.valueOf(metadata.get(VideoVectorIndexService.META_VIDEO_ID)));
+            // 同一个视频只保留排得最靠前的那一块
+            if (!seen.add(videoId))
+            {
+                continue;
+            }
             Object name = metadata.get(VideoVectorIndexService.META_VIDEO_NAME);
             String videoName = name == null ? null : String.valueOf(name);
             hits.add(new VideoHitVO(videoId, videoName, snippet(document.getText())));
             if (cited != null)
             {
                 cited.add(new CitedVideoVO(videoId, videoName));
+            }
+            if (hits.size() >= SEARCH_SIZE)
+            {
+                break;
             }
         }
         return hits;

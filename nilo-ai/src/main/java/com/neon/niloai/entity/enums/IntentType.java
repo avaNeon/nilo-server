@@ -22,6 +22,11 @@ public enum IntentType
     VIDEO_SEARCH,
 
     /**
+     * 用户要总结某一个视频的整体内容
+     */
+    VIDEO_SUMMARY,
+
+    /**
      * 白名单之外的一切。分类失败、超时、返回了非法值时也落到这里（fail closed）
      */
     REJECT

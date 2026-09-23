@@ -31,9 +31,10 @@ public class InnerVideoController
     @GetMapping("/embed-source")
     public ResponseVO <PaginationResponseVO <VideoEmbedSourceDTO>> listEmbedSource(
             @RequestParam(name = "pageNo", defaultValue = "1") @Min(1) Integer pageNo,
-            @RequestParam(name = "pageSize", defaultValue = "20") @Min(1) @Max(20) Integer pageSize)
+            @RequestParam(name = "pageSize", defaultValue = "20") @Min(1) @Max(20) Integer pageSize,
+            @RequestParam(name = "videoId", required = false) Long videoId)
     {
-        return ResponseVO.success(videoService.listEmbedSource(pageNo, pageSize));
+        return ResponseVO.success(videoService.listEmbedSource(pageNo, pageSize, videoId));
     }
 
     /**

@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neon.nilocommon.entity.constants.Constants;
+import com.neon.nilocommon.entity.dto.subtitle.SubtitleChapterDTO;
+import com.neon.nilocommon.entity.dto.subtitle.SubtitleSummaryDTO;
 import com.neon.nilocommon.entity.enums.subtitle.SubtitleResult;
 import com.neon.nilocommon.util.FfmpegUtil;
 import com.neon.nilomqconsumer.config.properties.AsrProperties;
@@ -26,8 +28,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -148,10 +153,12 @@ public class SubtitleService
     public SubtitleResult writeSrt(String taskId, Path subtitlePath)
     {
         Path chinesePath = subtitlePath.resolveSibling(Constants.SUBTITLE_ZH_NAME);
+        Path summaryPath = subtitlePath.resolveSibling(Constants.SUMMARY_NAME);
         // 先清掉上次留下的文件。乱码、没人声、原文已是中文时不再生成对应文件，
         // 否则旧字幕会跟着转码目录一起上传
         deleteIfExists(subtitlePath);
         deleteIfExists(chinesePath);
+        deleteIfExists(summaryPath);
 
         String transcriptionUrl = waitForResult(taskId);
         if (transcriptionUrl == null)
@@ -193,6 +200,7 @@ public class SubtitleService
         }
         writeFile(subtitlePath, cues);
         log.info("字幕生成成功, taskId={}, lines={}, subtitlePath={}", taskId, cues.size(), subtitlePath);
+        writeSummary(taskId, summaryPath, sentences, sentenceTexts);
 
         if (isChinese(sentenceTexts))
         {
@@ -222,6 +230,90 @@ public class SubtitleService
         writeFile(chinesePath, chineseCues);
         log.info("中文翻译字幕生成成功, taskId={}, lines={}", taskId, chineseCues.size());
         return SubtitleResult.TRANSLATED;
+    }
+
+    /**
+     * 让大模型总结这一P讲了什么并切出章节，结果写成 summary.json<hr/>
+     * <p>转码时算一次存起来，用户看的时候前端直接读文件，不用每次都让模型现算。</p>
+     * <p>失败只记日志：总结是附加内容，不值得让整条转码流程重来。</p>
+     */
+    private void writeSummary(String taskId, Path summaryPath, JsonNode sentences, List <String> sentenceTexts)
+    {
+        try
+        {
+            SubtitleSummaryDTO summary = subtitleLlmService.summarize(toTimedLines(sentences, sentenceTexts));
+            summary.setChapters(alignChapters(summary.getChapters(), sentences));
+            writeFile(summaryPath, objectMapper.writeValueAsString(summary));
+            log.info("视频总结生成成功, taskId={}, chapters={}", taskId, summary.getChapters().size());
+        }
+        catch (RuntimeException | IOException e)
+        {
+            log.warn("生成视频总结失败，跳过, taskId={}", taskId, e);
+        }
+    }
+
+    /**
+     * 拼成「[秒数] 台词」一行一句，行首直接给秒数，省得模型自己换算时间
+     */
+    private static String toTimedLines(JsonNode sentences, List <String> sentenceTexts)
+    {
+        StringBuilder lines = new StringBuilder();
+        for (int i = 0 ; i < sentenceTexts.size() ; i++)
+        {
+            if (!lines.isEmpty())
+            {
+                lines.append('\n');
+            }
+            lines.append('[').append(sentences.get(i).path("begin_time").asLong() / 1000).append("] ").append(sentenceTexts.get(i));
+        }
+        return lines.toString();
+    }
+
+    /**
+     * 把模型给的章节时间吸附到最近一句台词的开始时间<hr/>
+     * 模型偶尔会给一个字幕里不存在的秒数，跳过去就落在半句话中间；超出字幕范围、标题为空、时间重复的一并丢掉
+     */
+    private static List <SubtitleChapterDTO> alignChapters(List <SubtitleChapterDTO> chapters, JsonNode sentences)
+    {
+        List <SubtitleChapterDTO> aligned = new ArrayList <>();
+        if (chapters == null)
+        {
+            return aligned;
+        }
+        long lastSec = sentences.get(sentences.size() - 1).path("end_time").asLong() / 1000;
+        Set <Integer> used = new HashSet <>();
+        for (SubtitleChapterDTO chapter : chapters)
+        {
+            if (chapter == null || chapter.getStartSec() == null || !StringUtils.hasText(chapter.getTitle()) || chapter.getStartSec() < 0
+                || chapter.getStartSec() > lastSec)
+            {
+                continue;
+            }
+            int startSec = nearestSentenceSec(sentences, chapter.getStartSec());
+            if (used.add(startSec))
+            {
+                aligned.add(new SubtitleChapterDTO(startSec, chapter.getTitle().trim()));
+            }
+        }
+        aligned.sort(Comparator.comparing(SubtitleChapterDTO::getStartSec));
+        return aligned;
+    }
+
+    private static int nearestSentenceSec(JsonNode sentences, int startSec)
+    {
+        int nearest = 0;
+        long minGap = Long.MAX_VALUE;
+        for (JsonNode sentence : sentences)
+        {
+            int sec = (int) (sentence.path("begin_time").asLong() / 1000);
+            long gap = Math.abs(sec - startSec);
+            if (gap < minGap)
+            {
+                minGap = gap;
+                nearest = sec;
+            }
+        }
+        return nearest;
     }
 
     /**
@@ -281,6 +373,11 @@ public class SubtitleService
         {
             srt.append(i + 1).append('\n').append(cues.get(i)).append("\n\n");
         }
+        writeFile(path, srt.toString());
+    }
+
+    private void writeFile(Path path, String content)
+    {
         try
         {
             Path parent = path.getParent();
@@ -288,7 +385,7 @@ public class SubtitleService
             {
                 Files.createDirectories(parent);
             }
-            Files.writeString(path, srt.toString(), StandardCharsets.UTF_8);
+            Files.writeString(path, content, StandardCharsets.UTF_8);
         }
         catch (IOException e)
         {

@@ -74,4 +74,19 @@ public class MqInfo
     public static final String EMAIL_DLX = "email.dlx";
     public static final String EMAIL_SEND_DLQ = "email.send.dlq";
     public static final String EMAIL_SEND_DLK = "email.send.dead";
+
+    // ————AI 索引————————————————————————————————————————————————————————
+    public static final String AI_INDEX_EXCHANGE = "ai.index.direct";
+    // 视频的标题标签简介向量，由 canal 监听 video_info 触发
+    public static final String AI_VIDEO_INDEX_QUEUE = "ai.video.index.queue";
+    public static final String AI_VIDEO_INDEX_ROUTING_KEY = "ai.video.index";
+    // 分P字幕切块向量，由 canal 监听 video_info_file 触发。和上面分开是因为数据源是两张表，重建代价也差一个量级
+    public static final String AI_SUBTITLE_INDEX_QUEUE = "ai.subtitle.index.queue";
+    public static final String AI_SUBTITLE_INDEX_ROUTING_KEY = "ai.subtitle.index";
+    // dlx
+    public static final String AI_INDEX_DLX = "ai.index.dlx";
+    public static final String AI_VIDEO_INDEX_DLQ = "ai.video.index.dlq";
+    public static final String AI_VIDEO_INDEX_DLK = "ai.video.index.dead";
+    public static final String AI_SUBTITLE_INDEX_DLQ = "ai.subtitle.index.dlq";
+    public static final String AI_SUBTITLE_INDEX_DLK = "ai.subtitle.index.dead";
 }

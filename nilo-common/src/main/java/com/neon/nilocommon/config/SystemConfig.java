@@ -79,12 +79,6 @@ public class SystemConfig
     // 硬币奖励与消耗
 
     /**
-     * 注册用户初始赠送硬币数
-     */
-    @Min(0)
-    private Integer registerCoin = 10;
-
-    /**
      * 每个上传的视频奖励硬币数
      */
     @Min(0)

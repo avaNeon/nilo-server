@@ -17,7 +17,6 @@ import com.neon.nilocommon.entity.query.FollowInfoQuery;
 import com.neon.nilocommon.entity.query.UserInfoQuery;
 import com.neon.nilocommon.entity.vo.userInfo.BriefUserInfoVO;
 import com.neon.nilocommon.exception.BusinessException;
-import com.neon.nilocommon.repository.redis.SystemConfigRedisRepository;
 import com.neon.niloweb.config.WebConfig;
 import com.neon.niloweb.login.LoginFailureGuard;
 import com.neon.niloweb.loginState.LoginState;
@@ -52,8 +51,6 @@ public class AccountService
     private final RedissonClient redisson;
 
     private final WebConfig webConfig;
-
-    private final SystemConfigRedisRepository systemConfigRedisRepository;
 
     private final LoginState loginState;
 
@@ -129,9 +126,6 @@ public class AccountService
         // 注意时区
         userInfo.setRegisterTime(LocalDateTime.now());
         userInfo.setGender(UserGender.UNKNOWN.gender);
-
-        // 设置用户初始硬币数
-        userInfo.setTotalCoin(systemConfigRedisRepository.getSystemConfig().getRegisterCoin());
 
         userInfoMapper.insert(userInfo);
     }

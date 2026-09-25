@@ -101,11 +101,6 @@ public class UserInfoQuery extends BaseQuery
     private String noticeInfoFuzzy;
 
     /**
-     * 硬币总数
-     */
-    private Integer totalCoin;
-
-    /**
      * 当前硬币数
      */
     private Integer currentCoin;

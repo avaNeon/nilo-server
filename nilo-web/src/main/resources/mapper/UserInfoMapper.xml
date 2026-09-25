@@ -32,8 +32,6 @@
         <result column="status" property="status"/>
         <!--空间公告-->
         <result column="notice_info" property="noticeInfo"/>
-        <!--硬币总数里-->
-        <result column="total_coin" property="totalCoin"/>
         <!--当前硬币数-->
         <result column="current_coin" property="currentCoin"/>
         <!--主题-->
@@ -45,7 +43,7 @@
     <sql id="base_column_list">
         u.user_id,u.nick_name,u.avatar,u.email,u.password,u.gender,
 		 u.birthday,u.school,u.personal_introduction,u.register_time,u.last_login_time,
-		 u.last_login_ip,u.status,u.notice_info,u.total_coin,u.current_coin,
+		 u.last_login_ip,u.status,u.notice_info,u.current_coin,
 		 u.theme
     </sql>
 
@@ -89,9 +87,6 @@
         </if>
         <if test="query.noticeInfo != null and query.noticeInfo!=''">
             and u.notice_info = #{query.noticeInfo}
-        </if>
-        <if test="query.totalCoin != null">
-            and u.total_coin = #{query.totalCoin}
         </if>
         <if test="query.currentCoin != null">
             and u.current_coin = #{query.currentCoin}
@@ -218,9 +213,6 @@
             <if test="bean.noticeInfo != null">
                 notice_info,
             </if>
-            <if test="bean.totalCoin != null">
-                total_coin,
-            </if>
             <if test="bean.currentCoin != null">
                 current_coin,
             </if>
@@ -270,9 +262,6 @@
             </if>
             <if test="bean.noticeInfo!=null">
                 #{bean.noticeInfo},
-            </if>
-            <if test="bean.totalCoin!=null">
-                #{bean.totalCoin},
             </if>
             <if test="bean.currentCoin!=null">
                 #{bean.currentCoin},
@@ -329,9 +318,6 @@
             <if test="bean.noticeInfo != null">
                 notice_info,
             </if>
-            <if test="bean.totalCoin != null">
-                total_coin,
-            </if>
             <if test="bean.currentCoin != null">
                 current_coin,
             </if>
@@ -381,9 +367,6 @@
             </if>
             <if test="bean.noticeInfo!=null">
                 #{bean.noticeInfo},
-            </if>
-            <if test="bean.totalCoin!=null">
-                #{bean.totalCoin},
             </if>
             <if test="bean.currentCoin!=null">
                 #{bean.currentCoin},
@@ -436,9 +419,6 @@
             <if test="bean.noticeInfo!=null">
                 notice_info = VALUES(notice_info),
             </if>
-            <if test="bean.totalCoin!=null">
-                total_coin = VALUES(total_coin),
-            </if>
             <if test="bean.currentCoin!=null">
                 current_coin = VALUES(current_coin),
             </if>
@@ -465,7 +445,6 @@
         last_login_ip,
         status,
         notice_info,
-        total_coin,
         current_coin,
         theme
         )values
@@ -485,7 +464,6 @@
             #{item.lastLoginIp},
             #{item.status},
             #{item.noticeInfo},
-            #{item.totalCoin},
             #{item.currentCoin},
             #{item.theme}
             )
@@ -509,7 +487,6 @@
         last_login_ip,
         status,
         notice_info,
-        total_coin,
         current_coin,
         theme
         )values
@@ -529,7 +506,6 @@
             #{item.lastLoginIp},
             #{item.status},
             #{item.noticeInfo},
-            #{item.totalCoin},
             #{item.currentCoin},
             #{item.theme}
             )
@@ -549,7 +525,6 @@
         last_login_ip = VALUES(last_login_ip),
         status = VALUES(status),
         notice_info = VALUES(notice_info),
-        total_coin = VALUES(total_coin),
         current_coin = VALUES(current_coin),
         theme = VALUES(theme)
     </insert>
@@ -599,9 +574,6 @@
             </if>
             <if test="bean.noticeInfo != null">
                 notice_info = #{bean.noticeInfo},
-            </if>
-            <if test="bean.totalCoin != null">
-                total_coin = #{bean.totalCoin},
             </if>
             <if test="bean.currentCoin != null">
                 current_coin = #{bean.currentCoin},
@@ -661,9 +633,6 @@
             </if>
             <if test="bean.noticeInfo != null">
                 notice_info = #{bean.noticeInfo},
-            </if>
-            <if test="bean.totalCoin != null">
-                total_coin = #{bean.totalCoin},
             </if>
             <if test="bean.currentCoin != null">
                 current_coin = #{bean.currentCoin},
@@ -732,9 +701,6 @@
             <if test="bean.noticeInfo != null">
                 notice_info = #{bean.noticeInfo},
             </if>
-            <if test="bean.totalCoin != null">
-                total_coin = #{bean.totalCoin},
-            </if>
             <if test="bean.currentCoin != null">
                 current_coin = #{bean.currentCoin},
             </if>
@@ -801,9 +767,6 @@
             </if>
             <if test="bean.noticeInfo != null">
                 notice_info = #{bean.noticeInfo},
-            </if>
-            <if test="bean.totalCoin != null">
-                total_coin = #{bean.totalCoin},
             </if>
             <if test="bean.currentCoin != null">
                 current_coin = #{bean.currentCoin},

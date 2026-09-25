@@ -39,8 +39,6 @@ public class UserInfo
 
     private String noticeInfo;
 
-    private Integer totalCoin;
-
     private Integer currentCoin;
 
     private Short theme;

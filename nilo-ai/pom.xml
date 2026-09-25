@@ -44,6 +44,12 @@
             <artifactId>spring-ai-starter-vector-store-elasticsearch</artifactId>
         </dependency>
 
+        <!-- 把 VideoTools 以 SSE 暴露给 Cursor 等外部客户端，端点 /sse -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+        </dependency>
+
         <!-- 读已发布视频的字幕文件，切块灌入向量库 -->
         <dependency>
             <groupId>io.minio</groupId>

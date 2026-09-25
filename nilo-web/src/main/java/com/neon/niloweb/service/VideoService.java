@@ -77,7 +77,7 @@ public class VideoService
     public List <BriefVideoInfoVO> loadRecommendVideo()
     {
         VideoInfoQuery infoQuery = new VideoInfoQuery();
-        infoQuery.setOrderBy("create_time desc");
+        infoQuery.setOrderBy("last_update_time desc");
         infoQuery.setRecommendType(RecommendType.RECOMMENDED.getType());
         List <BriefVideoInfoVO> list = videoInfoMapper.selectBriefVoListByParam(infoQuery);
         fillCategoryNumbers(list);

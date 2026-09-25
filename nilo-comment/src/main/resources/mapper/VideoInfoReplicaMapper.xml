@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neon.nilocomment.mapper.VideoInfoReplicaMapper">
+    <select id="selectByVideoId" resultType="com.neon.nilocommon.entity.dto.VideoSnapshotDTO">
+        SELECT video_id, user_id, video_name, video_cover, interaction
+        FROM video_info_replica
+        WHERE video_id = #{videoId}
+    </select>
+
+    <update id="updateVideoNameByVideoId">
+        UPDATE video_info_replica
+        SET video_name = #{videoName}
+        WHERE video_id = #{videoId}
+    </update>
+
+    <update id="updateVideoCoverByVideoId">
+        UPDATE video_info_replica
+        SET video_cover = #{videoCover}
+        WHERE video_id = #{videoId}
+    </update>
+</mapper>

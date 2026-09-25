@@ -126,22 +126,6 @@ public interface VideoCommentMapper<T, P> extends BaseMapper <T, P>
                                                          @Param("pageSize") Integer pageSize);
 
     /**
-     * 按评论者 user_id 批量更新冗余昵称
-     */
-    Integer updateNickNameByUserId(@Param("userId") Long userId, @Param("nickName") String nickName);
-
-    /**
-     * 按被回复者 reply_user_id 批量更新冗余回复昵称
-     */
-    Integer updateReplyNickNameByReplyUserId(@Param("replyUserId") Long replyUserId,
-                                             @Param("replyNickName") String replyNickName);
-
-    /**
-     * 按评论者 user_id 批量更新冗余头像
-     */
-    Integer updateAvatarByUserId(@Param("userId") Long userId, @Param("avatar") String avatar);
-
-    /**
      * 根据评论ID列表批量查询评论信息
      */
     List <VideoComment> selectBatchByCommentIdList(@Param("commentIdList") List <Long> commentIdList);
@@ -188,16 +172,6 @@ public interface VideoCommentMapper<T, P> extends BaseMapper <T, P>
     List <CommentManagementAdmin> selectCommentManagement(@Param("nameFuzzy") String nameFuzzy,
                                                           @Param("start") Integer start,
                                                           @Param("pageSize") Integer pageSize);
-
-    /**
-     * 按 video_id 批量更新冗余视频标题
-     */
-    Integer updateVideoNameByVideoId(@Param("videoId") Long videoId, @Param("videoName") String videoName);
-
-    /**
-     * 按 video_id 批量更新冗余视频封面
-     */
-    Integer updateVideoCoverByVideoId(@Param("videoId") Long videoId, @Param("videoCover") String videoCover);
 
     /**
      * 按视频作者聚合指定时间范围内收到的评论数（仅未删除）

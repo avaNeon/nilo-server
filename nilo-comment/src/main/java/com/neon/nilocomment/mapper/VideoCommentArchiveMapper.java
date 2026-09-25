@@ -25,30 +25,4 @@ public interface VideoCommentArchiveMapper<T, P> extends BaseMapper <T, P>
      */
     T selectByCommentId(@Param("commentId") Long commentId);
 
-    /**
-     * 按评论者 user_id 批量更新冗余昵称
-     */
-    Integer updateNickNameByUserId(@Param("userId") Long userId, @Param("nickName") String nickName);
-
-    /**
-     * 按被回复者 reply_user_id 批量更新冗余回复昵称
-     */
-    Integer updateReplyNickNameByReplyUserId(@Param("replyUserId") Long replyUserId,
-                                             @Param("replyNickName") String replyNickName);
-
-    /**
-     * 按评论者 user_id 批量更新冗余头像
-     */
-    Integer updateAvatarByUserId(@Param("userId") Long userId, @Param("avatar") String avatar);
-
-    /**
-     * 按 video_id 批量更新冗余视频标题
-     */
-    Integer updateVideoNameByVideoId(@Param("videoId") Long videoId, @Param("videoName") String videoName);
-
-    /**
-     * 按 video_id 批量更新冗余视频封面
-     */
-    Integer updateVideoCoverByVideoId(@Param("videoId") Long videoId, @Param("videoCover") String videoCover);
-
 }

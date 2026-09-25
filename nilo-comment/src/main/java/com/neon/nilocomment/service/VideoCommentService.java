@@ -4,19 +4,16 @@ import cn.hutool.core.lang.Snowflake;
 import com.neon.nilocomment.config.CommentConfig;
 import com.neon.nilocomment.feign.storage.InnerImageFeignClient;
 import com.neon.nilocomment.feign.web.InnerMediaOwnershipFeignClient;
-import com.neon.nilocomment.feign.web.InnerUserFeignClient;
 import com.neon.nilocomment.feign.web.InnerUserMessageFeignClient;
 import com.neon.nilocomment.feign.web.InnerVideoFeignClient;
 import com.neon.nilocomment.mapper.*;
 import com.neon.nilocommon.entity.constants.MinioKey;
 import com.neon.nilocommon.entity.dto.CommentMessageDTO;
 import com.neon.nilocommon.entity.dto.MediaOwnershipBatchDTO;
-import com.neon.nilocommon.entity.dto.UserInfoDTO;
 import com.neon.nilocommon.entity.dto.VideoSnapshotDTO;
 import com.neon.nilocommon.entity.dto.comment.CommentDailyStatisticsDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.userCommentAction.CommentActionType;
-import com.neon.nilocommon.entity.enums.userInfo.UserStatus;
 import com.neon.nilocommon.entity.enums.videoComment.CommentOrderType;
 import com.neon.nilocommon.entity.enums.videoComment.CommentTopType;
 import com.neon.nilocommon.entity.enums.videoComment.DeleteType;
@@ -58,8 +55,6 @@ public class VideoCommentService
 
     private final InnerVideoFeignClient innerVideoFeignClient;
 
-    private final InnerUserFeignClient innerUserFeignClient;
-
     private final InnerMediaOwnershipFeignClient innerMediaOwnershipFeignClient;
 
     private final InnerUserMessageFeignClient innerUserMessageFeignClient;
@@ -69,6 +64,10 @@ public class VideoCommentService
     /* Repository */
 
     private final VideoCommentMapper <VideoComment, VideoCommentQuery> videoCommentMapper;
+
+    private final VideoInfoReplicaMapper videoInfoReplicaMapper;
+
+    private final UserInfoReplicaMapper userInfoReplicaMapper;
 
     private final VideoCommentArchiveMapper <VideoCommentArchive, VideoCommentArchiveQuery> videoCommentArchiveMapper;
 
@@ -100,7 +99,11 @@ public class VideoCommentService
     @GlobalTransactional(rollbackFor = Exception.class)
     public Long postComment(long userId, long videoId, String content, String imgKeys, long parentCommentId)
     {
-        VideoSnapshotDTO videoInfo = getVideoInfo(videoId);
+        VideoSnapshotDTO videoInfo = videoInfoReplicaMapper.selectByVideoId(videoId);
+        if (videoInfo == null)
+        {
+            throw new BusinessException(ResponseCode.WRONG_ARGUMENTS);
+        }
 
         // 校验是否允许评论
         String interaction = videoInfo.getInteraction();
@@ -114,13 +117,6 @@ public class VideoCommentService
 
         VideoComment parentComment = null;
 
-        // 检查用户是否存在且可用
-        UserInfoDTO userInfo = getUserInfo(userId);
-        if (userInfo == null || Objects.equals(userInfo.getStatus(), UserStatus.DISABLE.status))
-        {
-            throw new BusinessException(ResponseCode.NOT_FOUND);
-        }
-
         // 校验父级评论是否合法
         if (parentCommentId != 0)
         {
@@ -130,15 +126,10 @@ public class VideoCommentService
                 throw new BusinessException("禁止发布评论");
             }
             videoComment.setReplyUserId(parentComment.getUserId());
-            videoComment.setReplyNickName(parentComment.getNickName());
         }
 
         videoComment.setVideoId(videoId);
-        videoComment.setVideoName(videoInfo.getVideoName());
-        videoComment.setVideoCover(videoInfo.getVideoCover());
         videoComment.setVideoUserId(videoInfo.getUserId());
-        videoComment.setNickName(userInfo.getNickName());
-        videoComment.setAvatar(userInfo.getAvatar());
         if (content != null)
         {
             videoComment.setContent(content);
@@ -240,7 +231,8 @@ public class VideoCommentService
         // 如果父评论存在并且回复的不是自己的评论，就给回复者发通知
         if (parentCommentId != 0 && !Objects.equals(parentComment.getUserId(), userId))
         {
-            String replyCommentContent = formatReplyCommentContent(parentComment);
+            String replyNickName = userInfoReplicaMapper.selectNickNameByUserId(parentComment.getUserId());
+            String replyCommentContent = formatReplyCommentContent(replyNickName, parentComment);
             String postedCommentContent = formatPostedCommentContent(content, imgKeys);
             sendCommentMessageSafely(videoComment.getReplyUserId(),
                                      userId,
@@ -284,8 +276,12 @@ public class VideoCommentService
                                                 String orderType,
                                                 int depth)
     {
-        // 校验视频是否存在
-        getVideoInfo(videoId);
+        // 校验视频是否存在（走 replica 表，不再打 Feign）
+        if (videoInfoReplicaMapper.selectByVideoId(videoId) == null)
+        {
+            throw new BusinessException(ResponseCode.WRONG_ARGUMENTS);
+        }
+
         if (parentCommentId != 0)
         {
             // 校验父评论是否存在本视频下
@@ -325,8 +321,11 @@ public class VideoCommentService
      */
     public int getFirstLevelCommentCount(long videoId)
     {
-        // 校验视频是否存在
-        getVideoInfo(videoId);
+        // 校验视频是否存在（走 replica 表，不再打 Feign）
+        if (videoInfoReplicaMapper.selectByVideoId(videoId) == null)
+        {
+            throw new BusinessException(ResponseCode.WRONG_ARGUMENTS);
+        }
         VideoCommentQuery query = new VideoCommentQuery();
         query.setVideoId(videoId);
         query.setParentCommentId(0L);
@@ -627,45 +626,43 @@ public class VideoCommentService
     }
 
     /**
-     * 同步视频标题到评论冗余字段（含归档）
+     * 同步视频标题到 video_info_replica<hr/>
+     * 由 web 端 video_info.video_name 变更时调用，与 web 端方法共处同一个 Seata AT 全局事务（本方法只是分支）
      */
     @Transactional(rollbackFor = Exception.class)
     public void updateVideoNameByVideoId(long videoId, String videoName)
     {
-        videoCommentMapper.updateVideoNameByVideoId(videoId, videoName);
-        videoCommentArchiveMapper.updateVideoNameByVideoId(videoId, videoName);
+        videoInfoReplicaMapper.updateVideoNameByVideoId(videoId, videoName);
     }
 
     /**
-     * 同步视频封面到评论冗余字段（含归档）
+     * 同步视频封面到 video_info_replica<hr/>
+     * 由 web 端 video_info.video_cover 变更时调用，与 web 端方法共处同一个 Seata AT 全局事务（本方法只是分支）
      */
     @Transactional(rollbackFor = Exception.class)
     public void updateVideoCoverByVideoId(long videoId, String videoCover)
     {
-        videoCommentMapper.updateVideoCoverByVideoId(videoId, videoCover);
-        videoCommentArchiveMapper.updateVideoCoverByVideoId(videoId, videoCover);
+        videoInfoReplicaMapper.updateVideoCoverByVideoId(videoId, videoCover);
     }
 
     /**
-     * 同步用户昵称到评论冗余字段（含归档）
+     * 同步用户昵称到 user_info_replica<hr/>
+     * 由 web 端 user_info.nick_name 变更时调用，与 web 端方法共处同一个 Seata AT 全局事务（本方法只是分支）
      */
     @Transactional(rollbackFor = Exception.class)
     public void updateNickNameByUserId(long userId, String nickName)
     {
-        videoCommentMapper.updateNickNameByUserId(userId, nickName);
-        videoCommentArchiveMapper.updateNickNameByUserId(userId, nickName);
-        videoCommentMapper.updateReplyNickNameByReplyUserId(userId, nickName);
-        videoCommentArchiveMapper.updateReplyNickNameByReplyUserId(userId, nickName);
+        userInfoReplicaMapper.updateNickNameByUserId(userId, nickName);
     }
 
     /**
-     * 同步用户头像到评论冗余字段（含归档）
+     * 同步用户头像到 user_info_replica<hr/>
+     * 由 web 端 user_info.avatar 变更时调用，与 web 端方法共处同一个 Seata AT 全局事务（本方法只是分支）
      */
     @Transactional(rollbackFor = Exception.class)
     public void updateAvatarByUserId(long userId, String avatar)
     {
-        videoCommentMapper.updateAvatarByUserId(userId, avatar);
-        videoCommentArchiveMapper.updateAvatarByUserId(userId, avatar);
+        userInfoReplicaMapper.updateAvatarByUserId(userId, avatar);
     }
 
     /**
@@ -808,39 +805,6 @@ public class VideoCommentService
     }
 
     /**
-     * 根据videoId获取视频快照<hr/>
-     * 自动校验视频是否存在，不存在会抛出异常
-     *
-     * @param videoId 视频ID
-     * @return VideoSnapshotDTO
-     */
-    private VideoSnapshotDTO getVideoInfo(long videoId)
-    {
-        ResponseVO <VideoSnapshotDTO> result = innerVideoFeignClient.getVideoSnapshot(videoId);
-        if (!ResponseCode.SUCCESS.getCode().equals(result.getCode()) || result.getData() == null)
-        {
-            throw new BusinessException(ResponseCode.WRONG_ARGUMENTS);
-        }
-        return result.getData();
-    }
-
-    /**
-     * 获取用户资料快照
-     *
-     * @param userId 用户ID
-     * @return 用户资料，不存在时返回 null
-     */
-    private UserInfoDTO getUserInfo(long userId)
-    {
-        ResponseVO <UserInfoDTO> result = innerUserFeignClient.getUserInfo(userId);
-        if (!ResponseCode.SUCCESS.getCode().equals(result.getCode()))
-        {
-            throw new BusinessException(ResponseCode.NOT_FOUND);
-        }
-        return result.getData();
-    }
-
-    /**
      * 发送评论站内信；失败仅记日志，不影响发评主流程
      */
     private void sendCommentMessageSafely(long receiverUserId,
@@ -891,13 +855,12 @@ public class VideoCommentService
     /**
      * 构建评论消息回复区内容
      *
+     * @param nickName      父评论作者昵称，快照缺失时为空
      * @param parentComment 父评论
      * @return 回复消息内容
      */
-    private String formatReplyCommentContent(VideoComment parentComment)
+    private String formatReplyCommentContent(String nickName, VideoComment parentComment)
     {
-        String nickName = parentComment.getNickName();
-        // 如果找不到昵称（不太可能），兜底返回UID
         if (nickName == null || nickName.isBlank())
         {
             nickName = String.valueOf(parentComment.getUserId());

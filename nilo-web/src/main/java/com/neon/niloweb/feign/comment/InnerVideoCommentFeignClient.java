@@ -24,14 +24,6 @@ public interface InnerVideoCommentFeignClient
             @RequestParam(name = "videoId", required = false) Long videoId,
             @RequestParam(name = "nameFuzzy", required = false) String nameFuzzy);
 
-    @PutMapping("/user/{userId}/nickName")
-    ResponseVO <Void> updateNickNameByUserId(@PathVariable(name = "userId") Long userId,
-                                             @RequestParam(name = "nickName") String nickName);
-
-    @PutMapping("/user/{userId}/avatar")
-    ResponseVO <Void> updateAvatarByUserId(@PathVariable(name = "userId") Long userId,
-                                           @RequestParam(name = "avatar") String avatar);
-
     @GetMapping("/user/{userId}/upvoteCount")
     ResponseVO <Long> getUpvoteCountByUserId(@PathVariable(name = "userId") Long userId);
 }

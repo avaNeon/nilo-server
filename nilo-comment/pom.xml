@@ -28,6 +28,8 @@
 
     <properties>
         <java.version>17</java.version>
+        <!-- 灌主库数据的测试会写复制表，默认跳过；要跑时加 -Dtest.excluded.groups=none -->
+        <test.excluded.groups>manual</test.excluded.groups>
     </properties>
 
     <dependencies>
@@ -77,6 +79,14 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <excludedGroups>${test.excluded.groups}</excludedGroups>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

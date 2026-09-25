@@ -2,6 +2,7 @@ package com.neon.niloai.service;
 
 import com.neon.niloai.entity.vo.AskStreamDoneVO;
 import com.neon.niloai.entity.vo.VideoAskVO;
+import com.neon.niloai.repository.redis.WebTokenRedisRepository;
 import com.neon.nilocommon.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -42,24 +43,33 @@ public class VideoAskStreamService
 
     private final VideoAskService videoAskService;
 
+    private final WebTokenRedisRepository webTokenRedisRepository;
+
+    private final AskQuotaService askQuotaService;
+
     private final Executor askStreamExecutor;
 
-    public VideoAskStreamService(VideoAskService videoAskService, @Qualifier("askStreamExecutor") Executor askStreamExecutor)
+    public VideoAskStreamService(VideoAskService videoAskService,
+                                 WebTokenRedisRepository webTokenRedisRepository,
+                                 AskQuotaService askQuotaService,
+                                 @Qualifier("askStreamExecutor") Executor askStreamExecutor)
     {
         this.videoAskService = videoAskService;
+        this.webTokenRedisRepository = webTokenRedisRepository;
+        this.askQuotaService = askQuotaService;
         this.askStreamExecutor = askStreamExecutor;
     }
 
     /**
      * 打开一条 SSE。真正的提问在 {@link #askStreamExecutor} 里跑
      */
-    public SseEmitter open(String question, String conversationId, Long videoId)
+    public SseEmitter open(String token, String question, String conversationId, Long videoId)
     {
         SseEmitter emitter = new SseEmitter(TIMEOUT_MS);
         emitter.onTimeout(emitter::complete);
         try
         {
-            askStreamExecutor.execute(() -> write(emitter, question, conversationId, videoId));
+            askStreamExecutor.execute(() -> write(emitter, token, question, conversationId, videoId));
         }
         catch (RuntimeException e)
         {
@@ -70,15 +80,26 @@ public class VideoAskStreamService
         return emitter;
     }
 
-    private void write(SseEmitter emitter, String question, String conversationId, Long videoId)
+    private void write(SseEmitter emitter, String token, String question, String conversationId, Long videoId)
     {
         try
         {
-            send(emitter, event("status", Map.of("text", LOOKING_STATUS)));
-            VideoAskVO result = videoAskService.ask(question,
-                                                    conversationId,
-                                                    videoId,
-                                                    status -> send(emitter, event("status", Map.of("text", status))));
+            long userId = webTokenRedisRepository.getUserId(token);
+            String quotaKey = askQuotaService.consume(userId);
+            VideoAskVO result;
+            try
+            {
+                send(emitter, event("status", Map.of("text", LOOKING_STATUS)));
+                result = videoAskService.ask(question,
+                                             conversationId,
+                                             videoId,
+                                             status -> send(emitter, event("status", Map.of("text", status))));
+            }
+            catch (RuntimeException e)
+            {
+                askQuotaService.refund(quotaKey);
+                throw e;
+            }
             String answer = result.getAnswer() == null ? "" : result.getAnswer();
             List <String> chunks = chunks(answer);
             for (int i = 0 ; i < chunks.size() ; i++)
@@ -99,8 +120,15 @@ public class VideoAskStreamService
         catch (BusinessException e)
         {
             log.warn("问答失败, question={}", question, e);
-            sendQuietly(emitter, event("error", Map.of("text", e.getMessage() == null ? ERROR_TEXT : e.getMessage())));
-            completeQuietly(emitter);
+            try
+            {
+                send(emitter, event("error", Map.of("text", e.getMessage() == null ? ERROR_TEXT : e.getMessage())));
+                emitter.complete();
+            }
+            catch (ClientClosedException closed)
+            {
+                log.info("浏览器关掉了问答连接, question={}", question);
+            }
         }
         catch (InterruptedException e)
         {

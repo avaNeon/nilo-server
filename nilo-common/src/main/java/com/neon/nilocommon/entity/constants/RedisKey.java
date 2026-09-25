@@ -151,4 +151,10 @@ public class RedisKey
      * <p>key: nilo:ai:chat:memory:{conversationId}</p>
      */
     public static final String AI_CHAT_MEMORY_PREFIX = REDIS_KEY_PREFIX + "ai:chat:memory:";
+
+    /**
+     * AI 助手每日提问次数前缀<hr/>
+     * <p>key: nilo:ai:ask:quota:{userId}:{yyyyMMdd}</p>
+     */
+    public static final String AI_ASK_QUOTA_PREFIX = REDIS_KEY_PREFIX + "ai:ask:quota:";
 }

@@ -34,7 +34,13 @@ public class VideoAskService
     /**
      * 白名单之外的统一话术
      */
-    private static final String REJECT_ANSWER = "我只负责在 Nilo 站内找视频、回答视频里讲到的问题。你可以直接说想看什么，比如「有没有讲多线程的视频」，或者在视频页问我某段内容在第几分钟。";
+    private static final String REJECT_ANSWER = "我只负责在 Nilo 站内找视频、回答视频里讲到的问题，也可以介绍这个站、说说怎么投稿、怎么注册登录。你可以直接说想看什么，比如「有没有讲多线程的视频」，或者在视频页问我某段内容在第几分钟。";
+
+    private static final String SITE_INTRO_ANSWER = "Nilo 是一个视频网站。首页可以看推荐和热门，也可以按关键词搜索。打开视频就能播放，多分P可以切换分P。播放器下面有「AI 总结」，点开能看章节。视频页可以发弹幕和评论，也可以点赞、投币、收藏。看过的在播放历史里，收藏在个人主页。也可以关注别的用户，看他们的投稿和合集。想找某个主题的视频，或者问某段内容在第几分钟，直接问我就行。";
+
+    private static final String UPLOAD_HELP_ANSWER = "登录后打开创作中心就能投稿。先上传视频文件，再填写标题、封面、简介、分区和标签，然后发布。每天有上传额度。发布之后可以在创作中心管理自己的视频、评论和弹幕，也可以把视频放进合集。";
+
+    private static final String ACCOUNT_HELP_ANSWER = "注册时填写账号信息，并用邮箱验证码完成验证。登录时需要图形验证码。忘记密码可以用邮箱验证码重置。登录之后可以修改昵称和头像。";
 
     private static final String CURRENT_VIDEO_OPEN_TAG = "<当前视频>";
 
@@ -120,7 +126,15 @@ public class VideoAskService
             }
             case VIDEO_SUMMARY -> summaryHint();
             case SELF_INTRO -> selfIntro(question);
+            case SITE_INTRO -> canned(SITE_INTRO_ANSWER, IntentType.SITE_INTRO);
+            case UPLOAD_HELP -> canned(UPLOAD_HELP_ANSWER, IntentType.UPLOAD_HELP);
+            case ACCOUNT_HELP -> canned(ACCOUNT_HELP_ANSWER, IntentType.ACCOUNT_HELP);
             case REJECT -> reject(question);
+            default ->
+            {
+                log.warn("未识别的意图，已按拒绝处理, intent={}", intent);
+                yield reject(question);
+            }
         };
     }
 
@@ -169,6 +183,14 @@ public class VideoAskService
     {
         log.info("请求不在白名单内，已拒绝, question={}", question);
         return new VideoAskVO(REJECT_ANSWER, List.of(), List.of(), IntentType.REJECT);
+    }
+
+    /**
+     * 固定话术，不调模型
+     */
+    private VideoAskVO canned(String answer, IntentType intent)
+    {
+        return new VideoAskVO(answer, List.of(), List.of(), intent);
     }
 
     /**

@@ -17,6 +17,21 @@ public enum IntentType
     SELF_INTRO,
 
     /**
+     * 用户在问 Nilo 这个网站是什么、怎么看视频
+     */
+    SITE_INTRO,
+
+    /**
+     * 用户在问怎么投稿、上传视频
+     */
+    UPLOAD_HELP,
+
+    /**
+     * 用户在问注册、登录、忘记密码
+     */
+    ACCOUNT_HELP,
+
+    /**
      * 用户想找视频，或者问站内有没有某类内容
      */
     VIDEO_SEARCH,

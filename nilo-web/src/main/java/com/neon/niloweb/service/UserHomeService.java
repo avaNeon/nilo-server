@@ -1,9 +1,9 @@
 package com.neon.niloweb.service;
 
 import com.neon.nilocommon.entity.constants.MinioKey;
-import com.neon.nilocommon.entity.dto.comment.CommentRedundantDTO;
 import com.neon.nilocommon.entity.dto.UpdatedUserInfoDTO;
 import com.neon.nilocommon.entity.dto.UserInfoDTO;
+import com.neon.nilocommon.entity.dto.comment.CommentRedundantDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.userInfo.UserGender;
 import com.neon.nilocommon.entity.enums.userInfo.UserTheme;
@@ -472,15 +472,18 @@ public class UserHomeService
                                                                          .collect(Collectors.toMap(UserVideoAction::getVideoId,
                                                                                                    userVideoAction -> userVideoAction));
 
-            List <CollectedVideoInfoVO> voList = briefVideoInfoVOList.stream().map(item ->
-                                                                                   {
-                                                                                       UserVideoAction videoAction = idActionMap.get(
-                                                                                               item.getVideoId());
-                                                                                       CollectedVideoInfoVO vo = new CollectedVideoInfoVO();
-                                                                                       BeanUtils.copyProperties(item, vo);
-                                                                                       vo.setCollectDate(videoAction.getActionTime());
-                                                                                       return vo;
-                                                                                   }).toList();
+            List <CollectedVideoInfoVO> voList = briefVideoInfoVOList.stream()
+                                                                     .map(item ->
+                                                                          {
+                                                                              UserVideoAction videoAction = idActionMap.get(item.getVideoId());
+                                                                              CollectedVideoInfoVO vo = new CollectedVideoInfoVO();
+                                                                              BeanUtils.copyProperties(item, vo);
+                                                                              vo.setCollectDate(videoAction.getActionTime());
+                                                                              return vo;
+                                                                          })
+                                                                     .sorted(Comparator.comparing(CollectedVideoInfoVO::getCollectDate,
+                                                                                                  Comparator.nullsLast(Comparator.reverseOrder())))
+                                                                     .toList();
 
             return new PaginationResponseVO <>(totalCount, pageSize, pageNo, voList);
         }

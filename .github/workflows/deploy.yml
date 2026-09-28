@@ -1,0 +1,44 @@
+name: Deploy
+
+# 手动触发，不跟 push/PR 挂钩。用来优雅地启停服务器上那套 docker compose
+# 全部容器
+#
+# 使用方法：GitHub 仓库页面 -> Actions -> "Deploy" -> Run workflow
+# -> 选 up / down / restart。
+#
+# 需要提前在仓库 Settings -> Secrets and variables -> Actions 里配置：
+#   Secrets（敏感信息）：
+#     SSH_HOST         服务器的 Elastic IP
+#     SSH_USER         SSH 登录用户名，固定用专门创建的最小权限账号 deploy
+#                       （已通过 sudo 白名单限制只能跑 docker compose，
+#                       并在 authorized_keys 里用 command= 强制只认
+#                       up/down/restart 三个动作，不能执行任意命令）
+#     SSH_PRIVATE_KEY  deploy 账号专用的部署私钥内容（不要用日常登录用的私钥）
+#
+# docker-compose.yaml 的路径已经写死在服务器上的
+# /usr/local/bin/deploy-ctl.sh 里，这里不再需要传路径变量。
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: '要执行的操作'
+        required: true
+        type: choice
+        options:
+          - up
+          - down
+          - restart
+        default: up
+
+jobs:
+  manage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: docker compose ${{ inputs.action }} on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: ${{ inputs.action }}

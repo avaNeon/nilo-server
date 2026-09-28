@@ -1,0 +1,11 @@
+# 减小 docker build 上下文体积，加快构建
+# 注意：不排除 **/target/**，因为 app.Dockerfile 要读取 ${MODULE}/target/*.jar
+# （dockerignore 一旦排除了父目录，里面的文件没法再用 ! 规则找回来）
+.git
+.github
+.idea
+.vscode
+**/*.iml
+.env
+.env.local
+*.md

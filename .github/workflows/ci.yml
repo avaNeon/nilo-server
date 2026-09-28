@@ -1,0 +1,27 @@
+name: CI
+
+# 每次 push 或提 PR 都跑：只做编译/打包检查，不跑 mvn test。
+# 原因：各模块的 XxxApplicationTests 是完整 Spring 上下文测试，会尝试连接
+# Nacos/Redis/MySQL/RabbitMQ 等真实中间件，CI 的云端 runner 上没有这些服务，
+# 跑起来会是"假失败"。等以后补充用 mock/Testcontainers 写的真单测，再把
+# -DskipTests 去掉。
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build (compile + package, skip tests)
+        run: mvn -B -DskipTests package

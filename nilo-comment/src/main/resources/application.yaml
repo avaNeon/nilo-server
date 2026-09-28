@@ -1,0 +1,44 @@
+server:
+  port: 7075
+
+spring:
+  application:
+    name: nilo-comment
+  banner:
+    location: banner-dev.txt # 服务器在 nacos 里覆盖成 banner-prod.txt
+  config:
+    import:
+      # 先读公共配置，再读自己的；后导入的覆盖前面的同名项（数据库地址以 nilo-comment.yaml 为准）
+      - nacos:nilo-common.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+      - nacos:nilo-comment.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${NACOS_USERNAME:}
+      password: ${NACOS_PASSWORD:}
+      discovery:
+        namespace: ${NACOS_NAMESPACE}
+      config:
+        namespace: ${NACOS_NAMESPACE}
+        import-check:
+          enabled: false
+
+logging:
+  level:
+    com.neon.nilocomment: info
+
+mybatis:
+  mapper-locations: classpath:mapper/**.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+snowflake:
+  datacenterId: 0
+  workerId: 0
+
+common:
+  redis-auth:
+    enabled: true
+  sentinel:
+    rate-limit:
+      enable: true

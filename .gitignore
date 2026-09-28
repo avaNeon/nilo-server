@@ -68,13 +68,11 @@ Thumbs.db
 
 # Optional: 忽略本地用户特定的忽略文件（不提交）
 .gitignore_local
-.qoderignore
 
-### Sensitive config files ###
-# Application configs may contain passwords, tokens, and other secrets
-**/application*.yaml
-**/application*.yml
-**/banner*.txt
+### Environment variables (real secrets live here, never commit) ###
+.env
+.env.*
+!.env.example
 
 ### Deploy (含真实密码/密钥，以及打包产物) ###
 deploy/nacos-config/

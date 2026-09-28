@@ -1,0 +1,36 @@
+server:
+  port: 7074
+
+spring:
+  application:
+    name: nilo-canal-client
+  banner:
+    location: banner-dev.txt # 服务器在 nacos 里覆盖成 banner-prod.txt
+  config:
+    import:
+      - nacos:nilo-common.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${NACOS_USERNAME:}
+      password: ${NACOS_PASSWORD:}
+      discovery:
+        namespace: ${NACOS_NAMESPACE}
+      config:
+        namespace: ${NACOS_NAMESPACE}
+        import-check:
+          enabled: false
+
+logging:
+  level:
+    com.neon.nilocanalclient: info
+
+canal:
+  # host 在 nacos 的 nilo-common.yaml 里（本地和服务器不一样）
+  port: 11111
+  destination: es-canal
+  username:
+  password:
+  subscribe: nilo\.video_info,nilo\.video_info_file
+  batch-size: 1000
+  idle-sleep-ms: 1000

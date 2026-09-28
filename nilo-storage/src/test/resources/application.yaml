@@ -1,0 +1,18 @@
+server:
+  port: 7073
+
+spring:
+  application:
+    name: nilo-storage
+  config:
+    import:
+      - nacos:nilo-common.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+  cloud:
+    nacos:
+      server-addr: 127.0.0.1:8848
+      discovery:
+        namespace: 9efb098c-42d4-4c1e-acda-979197c4a735
+      config:
+        namespace: 9efb098c-42d4-4c1e-acda-979197c4a735
+        import-check:
+          enabled: false

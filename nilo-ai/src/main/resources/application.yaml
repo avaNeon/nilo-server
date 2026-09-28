@@ -1,0 +1,97 @@
+server:
+  port: 7076
+
+spring:
+  application:
+    name: nilo-ai
+  banner:
+    location: banner-dev.txt # 服务器在 nacos 里覆盖成 banner-prod.txt
+  config:
+    import:
+      - nacos:nilo-common.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${NACOS_USERNAME:}
+      password: ${NACOS_PASSWORD:}
+      discovery:
+        namespace: ${NACOS_NAMESPACE}
+      config:
+        namespace: ${NACOS_NAMESPACE}
+        import-check:
+          enabled: false
+  ai:
+    model:
+      chat: openai
+      embedding: openai
+
+    openai:
+      # api-key、base-url 在 nacos 的 nilo-common.yaml 里
+      chat:
+        completions-path: /compatible-mode/v1/chat/completions
+        options:
+          model: qwen-plus
+          temperature: 0.3
+      embedding:
+        options:
+          model: qwen3.7-text-embedding
+        embeddings-path: /compatible-mode/v1/embeddings
+
+    vectorstore:
+      elasticsearch:
+        initialize-schema: true
+        index-name: video_ai_vector
+        dimensions: 1024
+        similarity: cosine
+
+    mcp:
+      server:
+        name: nilo
+        version: 1.0.0
+        type: SYNC
+        stdio: false
+        instructions: 只读查询 Nilo 站内视频。找视频用 searchVideo，查时长和播放量用 getVideoDetail，查某段内容在第几秒用 searchTranscript。
+        sse-endpoint: /sse
+        sse-message-endpoint: /mcp/message
+        capabilities:
+          tool: true
+          resource: false
+          prompt: false
+          completion: false
+
+logging:
+  level:
+    com.neon.niloai: info
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: 'default'
+      paths-to-match: '/**'
+      packages-to-scan: com.neon.niloai.controller
+
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+
+management:
+  health:
+    elasticsearch:
+      enabled: false
+
+common:
+  redis-auth:
+    enabled: false
+  sentinel:
+    rate-limit:
+      enable: false
+
+quota:
+  ask-daily-limit: 20
+  mcp-daily-limit: 50

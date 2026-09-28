@@ -1,0 +1,84 @@
+server:
+  port: 7071
+  tomcat:
+    threads:
+      max: 200
+    accept-count: 100
+
+spring:
+  application:
+    name: nilo-web
+  banner:
+    location: banner-dev.txt # 服务器在 nacos 里覆盖成 banner-prod.txt
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 500MB
+  config:
+    import:
+      - nacos:nilo-common.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${NACOS_USERNAME:}
+      password: ${NACOS_PASSWORD:}
+      discovery:
+        namespace: ${NACOS_NAMESPACE}
+      config:
+        namespace: ${NACOS_NAMESPACE}
+        import-check:
+          enabled: false
+  data:
+    redis:
+      ssl:
+        # 与 tls.enable 对齐，控制 Spring Data Redis(Lettuce) 是否走 TLS
+        enabled: ${tls.enable:true}
+
+mybatis:
+  mapper-locations: classpath:mapper/**.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+# springdoc-openapi项目配置
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: 'default'
+      paths-to-match: '/**'
+      packages-to-scan: com.neon.niloweb.controller
+
+# knife4j的增强配置，不需要增强可以不配
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+
+snowflake:
+  datacenterId: 0
+  workerId: 0
+
+system:
+  video-file-max-size: 200
+
+project:
+  pageSize: 10
+  heartbeat-send-interval: 3000
+  online-expire-time-ms: 30000
+  online-count-clean-up-time-ms: 30000
+
+common:
+  redis:
+    email-verification:
+      enabled: true
+  sentinel:
+    rate-limit:
+      enable: true
+
+log:
+  root:
+    level: info

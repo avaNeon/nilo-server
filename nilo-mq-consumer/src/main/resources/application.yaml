@@ -1,0 +1,59 @@
+server:
+  port: 7072
+
+spring:
+  application:
+    name: nilo-mq-consumer
+  banner:
+    location: banner-dev.txt # 服务器在 nacos 里覆盖成 banner-prod.txt
+  config:
+    import:
+      - nacos:nilo-common.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${NACOS_USERNAME:}
+      password: ${NACOS_PASSWORD:}
+      discovery:
+        namespace: ${NACOS_NAMESPACE}
+      config:
+        namespace: ${NACOS_NAMESPACE}
+        import-check:
+          enabled: false
+  # 邮箱验证码发信配置：host、username、password（一般为SMTP授权码而非邮箱登录密码）
+  # password 在 nacos 的 nilo-common.yaml 里
+  mail:
+    host: smtpdm.aliyun.com
+    port: 465
+    username: noreply@mail.nilo.video
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+  ai:
+    openai:
+      # api-key、base-url 在 nacos 的 nilo-common.yaml 里
+      chat:
+        completions-path: /compatible-mode/v1/chat/completions
+        options:
+          model: qwen-plus
+          temperature: 0.3
+    retry:
+      max-attempts: 3
+
+logging:
+  level:
+    org.springframework.amqp.rabbit.retry.RejectAndDontRequeueRecoverer: ERROR
+
+mybatis:
+  mapper-locations: classpath:mapper/**.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+asr:
+  # 和 spring-ai 共用同一个 DashScope key（在 nacos 里）
+  api-key: ${spring.ai.openai.api-key}
+  base-url: ${spring.ai.openai.base-url}
+  model: paraformer-v2

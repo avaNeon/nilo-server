@@ -1,0 +1,66 @@
+server:
+  port: 7070
+
+spring:
+  application:
+    name: nilo-admin
+  banner:
+    location: banner-dev.txt # 服务器在 nacos 里覆盖成 banner-prod.txt
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 100MB
+  config:
+    import:
+      - nacos:nilo-common.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${NACOS_USERNAME:}
+      password: ${NACOS_PASSWORD:}
+      discovery:
+        namespace: ${NACOS_NAMESPACE}
+      config:
+        namespace: ${NACOS_NAMESPACE}
+        import-check:
+          enabled: false
+
+#mybatis 大小写转驼峰
+mybatis:
+  mapper-locations: classpath:mapper/**.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+# springdoc-openapi项目配置
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: 'default'
+      paths-to-match: '/**'
+      packages-to-scan: com.neon.niloadmin.controller
+
+# knife4j的增强配置，不需要增强可以不配
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+
+snowflake:
+  datacenterId: 0
+  workerId: 0
+
+redisson:
+  standalone: false
+
+project:
+  showCommandLogs: false
+  # admins（管理员/审核员账号密码）在 nacos 的 nilo-common.yaml 里
+
+log:
+  root:
+    level: info

@@ -9,6 +9,7 @@ import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.TimeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -23,16 +24,17 @@ import java.time.format.DateTimeFormatter;
 @Service
 public class AskQuotaService
 {
-    /**
-     * 每天最多提问次数
-     */
-    static final int DAILY_LIMIT = 20;
-
     private static final String EXHAUSTED = "今天的提问次数已经用完，明天再来";
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern(DatePattern.DATE);
 
     private final AskQuotaRedisRepository askQuotaRedisRepository;
+
+    /**
+     * 每天最多提问次数
+     */
+    @Value("${quota.ask-daily-limit}")
+    private int dailyLimit;
 
     /**
      * 扣掉今天的一次。到上限时抛业务异常，key 不会被改
@@ -42,7 +44,7 @@ public class AskQuotaService
     public String consume(long userId)
     {
         String key = key(userId, LocalDate.now());
-        long used = askQuotaRedisRepository.consume(key, DAILY_LIMIT, TimeUtil.getSecondsUntilTomorrow());
+        long used = askQuotaRedisRepository.consume(key, dailyLimit, TimeUtil.getSecondsUntilTomorrow());
         if (used < 0)
         {
             throw new BusinessException(ResponseCode.TOO_MANY_REQUESTS.getCode(), EXHAUSTED);
@@ -68,8 +70,8 @@ public class AskQuotaService
     public AskQuotaVO usage(long userId)
     {
         int used = askQuotaRedisRepository.used(key(userId, LocalDate.now()));
-        int shown = Math.min(used, DAILY_LIMIT);
-        return new AskQuotaVO(shown, DAILY_LIMIT);
+        int shown = Math.min(used, dailyLimit);
+        return new AskQuotaVO(shown, dailyLimit);
     }
 
     private static String key(long userId, LocalDate date)

@@ -157,4 +157,25 @@ public class RedisKey
      * <p>key: nilo:ai:ask:quota:{userId}:{yyyyMMdd}</p>
      */
     public static final String AI_ASK_QUOTA_PREFIX = REDIS_KEY_PREFIX + "ai:ask:quota:";
+
+    /**
+     * MCP 专用 token 前缀，value 是 userId<hr/>
+     * <p>key: nilo:token:mcp:{mcpToken}</p>
+     * <p>跟网站登录用的 {@link #WEB_TOKEN_PREFIX} 是两套独立凭证，互不影响，
+     * 泄露或要撤销时只影响 MCP 调用，不会把用户的网站登录态也顶掉</p>
+     */
+    public static final String MCP_TOKEN_PREFIX = REDIS_KEY_PREFIX + "token:mcp:";
+
+    /**
+     * MCP token 反向索引，value 是当前生效的 mcpToken 字符串<hr/>
+     * <p>key: nilo:token:mcp:owner:{userId}</p>
+     * <p>重新生成 token 时靠这个找到上一个 token 并删掉，保证每个用户同一时间只有一个有效的 MCP token</p>
+     */
+    public static final String MCP_TOKEN_OWNER_PREFIX = REDIS_KEY_PREFIX + "token:mcp:owner:";
+
+    /**
+     * 每人每天可调用 MCP 工具的次数前缀，不区分调了哪个工具<hr/>
+     * <p>key: nilo:mcp:quota:{userId}:{yyyyMMdd}</p>
+     */
+    public static final String MCP_QUOTA_PREFIX = REDIS_KEY_PREFIX + "mcp:quota:";
 }

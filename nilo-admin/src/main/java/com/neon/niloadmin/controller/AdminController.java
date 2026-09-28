@@ -25,11 +25,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-@Tag(name = "账户管理")
+@Tag(name = "管理员登录")
 @RequiredArgsConstructor
 @Validated
 @RestController
-@RequestMapping("/account")
+@RequestMapping("/admin")
 public class AdminController
 {
 

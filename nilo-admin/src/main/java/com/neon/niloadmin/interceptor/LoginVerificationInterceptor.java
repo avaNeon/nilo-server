@@ -21,10 +21,8 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 public class LoginVerificationInterceptor implements HandlerInterceptor
 {
-    private static final String ACCOUNT_URI = "/account";
     private static final String FILE_URI = "/file";
     private static final String ARCHIVE_URI = "/archive";
-    private static final String DOC_URI = "/api-docs";
 
     private final RedisTemplate <String, Object> redisTemplate;
 
@@ -32,12 +30,8 @@ public class LoginVerificationInterceptor implements HandlerInterceptor
     public boolean preHandle(HttpServletRequest request, @Nonnull HttpServletResponse response, @Nonnull Object handler)
     {
         // 拦截
-        // 不拦静态资源
+        // 不拦静态资源（登录、接口文档的放行在 WebMvcConfig 中按路径配置）
         if (!(handler instanceof HandlerMethod)) return true;
-        // 不拦登录
-        if (request.getRequestURI().contains(ACCOUNT_URI)) return true;
-        // 不拦接口文档
-        if (request.getRequestURI().contains(DOC_URI)) return true;
 
         // 获取
         String token = request.getHeader("token");

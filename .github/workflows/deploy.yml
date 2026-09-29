@@ -1,22 +1,23 @@
 name: Deploy
 
-# 手动触发，不跟 push/PR 挂钩。用来优雅地启停服务器上那套 docker compose
-# 全部容器
+# 手动触发，不跟 push/PR 挂钩：服务器可能还没开，什么时候上线由自己决定。
 #
 # 使用方法：GitHub 仓库页面 -> Actions -> "Deploy" -> Run workflow
-# -> 选 up / down / restart。
+#   - deploy：勾选要部署的服务。GitHub 打包 jar、做成镜像推到 GHCR，
+#             再让服务器拉新镜像、只重启勾选的服务
+#   - up / down / restart：启停服务器上全部容器（中间件 + 微服务），不打包
 #
 # 需要提前在仓库 Settings -> Secrets and variables -> Actions 里配置：
 #   Secrets（敏感信息）：
 #     SSH_HOST         服务器的 Elastic IP
 #     SSH_USER         SSH 登录用户名，固定用专门创建的最小权限账号 deploy
 #                       （已通过 sudo 白名单限制只能跑 docker compose，
-#                       并在 authorized_keys 里用 command= 强制只认
-#                       up/down/restart 三个动作，不能执行任意命令）
-#     SSH_PRIVATE_KEY  deploy 账号专用的部署私钥内容（不要用日常登录用的私钥）
+#                       并在 authorized_keys 里用 command= 强制只能运行
+#                       /usr/local/bin/deploy-ctl.sh，不能执行任意命令）
+#     SSH_PRIVATE_KEY  deploy 账号专用的部署私钥内容
 #
-# docker-compose.yaml 的路径已经写死在服务器上的
-# /usr/local/bin/deploy-ctl.sh 里，这里不再需要传路径变量。
+# 镜像推到 ghcr.io/<仓库所有者（小写）>/<服务名>，打 latest 和提交号两个标签。
+# docker-compose.yaml 的路径写死在服务器上的 deploy-ctl.sh 里。
 
 on:
   workflow_dispatch:
@@ -26,19 +27,124 @@ on:
         required: true
         type: choice
         options:
+          - deploy
           - up
           - down
           - restart
-        default: up
+        default: deploy
+      # 下面的勾选只对 deploy 生效
+      nilo-web:
+        description: '部署 nilo-web'
+        type: boolean
+        default: true
+      nilo-ai:
+        description: '部署 nilo-ai'
+        type: boolean
+        default: true
+      nilo-admin:
+        description: '部署 nilo-admin'
+        type: boolean
+        default: true
+      nilo-comment:
+        description: '部署 nilo-comment'
+        type: boolean
+        default: true
+      nilo-storage:
+        description: '部署 nilo-storage'
+        type: boolean
+        default: true
+      nilo-mq-consumer:
+        description: '部署 nilo-mq-consumer'
+        type: boolean
+        default: true
+      nilo-canal-client:
+        description: '部署 nilo-canal-client'
+        type: boolean
+        default: true
+
+# 同一时间只跑一个部署，后点的排队等前一个结束
+concurrency:
+  group: deploy
 
 jobs:
-  manage:
+  build:
+    # 只有 deploy 需要打包镜像
+    if: inputs.action == 'deploy'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # 推镜像到 GHCR
+    outputs:
+      services: ${{ steps.pick.outputs.services }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 检查选择部署的微服务，将选择项用空格分割，保存在 services 环境变量中
+      - name: Pick services
+        id: pick
+        env:
+          INPUTS: ${{ toJSON(inputs) }}
+        run: |
+          # 把勾选了的服务名拼成空格分隔的一行
+          services=$(echo "$INPUTS" | jq -r '[to_entries[] | select((.key | startswith("nilo-")) and (.value == true or .value == "true")) | .key] | join(" ")')
+          if [ -z "$services" ]; then
+            echo "一个服务都没勾选" >&2
+            exit 1
+          fi
+          echo "services=$services" >> "$GITHUB_OUTPUT"
+          echo "本次部署：$services"
+
+      # 安装 JDK 17
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      # 编译打包 jar
+      - name: Build jars
+        env:
+          SERVICES: ${{ steps.pick.outputs.services }}
+        # 只打包勾选的服务和它们依赖的模块（比如 nilo-common）
+        run: mvn -B -DskipTests -pl "${SERVICES// /,}" -am package
+
+      # 登录 GHCR
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 构建并上传 image 到 GHCR，所有 image 版本号设置为提交的 SHA 以及 lastest
+      - name: Build and push images
+        env:
+          SERVICES: ${{ steps.pick.outputs.services }}
+        run: |
+          # GHCR 的镜像名必须小写
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          for m in $SERVICES; do
+            image="ghcr.io/$owner/$m"
+            docker build -f docker/app.Dockerfile --build-arg MODULE="$m" \
+              --label org.opencontainers.image.source="https://github.com/${{ github.repository }}" \
+              -t "$image:latest" -t "$image:${{ github.sha }}" .
+            docker push --all-tags "$image"
+          done
+
+  server:
+    # 等上面的 build 完成之后在做这个任务
+    needs: build
+    # 如果前面的操作 成功 或 跳过（ 对于不执行 deploy 的情况 ）才执行这一步，否则（ 前面的操作失败，或者任务被取消 ）不执行
+    if: ${{ !cancelled() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
-      - name: docker compose ${{ inputs.action }} on server
+      - name: ${{ inputs.action }} on server
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: ${{ inputs.action }}
+          # 服务器上的 deploy-ctl.sh 只认 "deploy 服务名..." 和 up/down/restart
+          script: ${{ inputs.action == 'deploy' && format('deploy {0}', needs.build.outputs.services) || inputs.action }}

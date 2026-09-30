@@ -6,6 +6,8 @@ name: Deploy
 #   - deploy：勾选要部署的服务。GitHub 打包 jar、做成镜像推到 GHCR，
 #             再让服务器拉新镜像、只重启勾选的服务
 #   - up / down / restart：启停服务器上全部容器（中间件 + 微服务），不打包
+#   - check：不部署，只检查各服务的接口文档是不是都被阻塞了（应该全部不可访问）
+#   - deploy 和 up 完成后会自动再检查一次；检查没通过时最后一个任务会变红，但服务已经部署，不会自动回滚
 #
 # 需要提前在仓库 Settings -> Secrets and variables -> Actions 里配置：
 #   Secrets（敏感信息）：
@@ -31,6 +33,7 @@ on:
           - up
           - down
           - restart
+          - check
         default: deploy
       # 下面的勾选只对 deploy 生效
       nilo-web:
@@ -146,5 +149,22 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # 服务器上的 deploy-ctl.sh 只认 "deploy 服务名..." 和 up/down/restart
+          # 服务器上的 deploy-ctl.sh 只认 "deploy 服务名..." 和 up/down/restart/check
           script: ${{ inputs.action == 'deploy' && format('deploy {0}', needs.build.outputs.services) || inputs.action }}
+
+  # 部署完成后的自动检查：接口文档必须全部不可访问。服务器上的 deploy-ctl.sh 里的 check 负责检查，这里只负责通知它并显示结果
+  verify:
+    # 要读到 build 输出的服务名单，就必须把 build 也写进 needs（只写 server 的话读不到）
+    needs: [build, server]
+    # server 成功了，并且这次选的是 deploy 或 up，才检查（单独选 check 时，server 那一步已经直接检查过了）
+    if: ${{ !cancelled() && needs.server.result == 'success' && (inputs.action == 'deploy' || inputs.action == 'up') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: check on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # deploy：只检查这次部署的服务；up：不带服务名，检查全部
+          script: ${{ inputs.action == 'deploy' && format('check {0}', needs.build.outputs.services) || 'check' }}

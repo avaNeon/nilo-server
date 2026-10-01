@@ -178,8 +178,11 @@ public class FfmpegUtil
         String bufferSize = bitrateKbps * 2 + "k";
         String videoFilter = "scale=%d:%d".formatted(width, height);
         // 将视频转换成指定格式的TS分片
+        // 限制内存占用：ffmpeg 是容器里的子进程，占用算在容器内存上限里。
+        // 默认设置下按 CPU 核数开一堆解码/编码线程，每个线程各占一批帧缓冲（实测 1080p 源约 440~730MB，4K 源约 830MB）；
+        // 解码 1 线程、编码 2 线程并使用 veryfast 预设后，两者都降到约 200MB。代价是同码率下画质略低、转码耗时略长
         String cmd = """
-                ffmpeg -y -i "%s" -vf "%s" -r 60 -c:v libx264 -b:v %s -maxrate %s -bufsize %s -c:a aac -b:a 128k -ar 44100 -ac 2 -pix_fmt yuv420p "%s"
+                ffmpeg -y -threads 1 -i "%s" -vf "%s" -r 60 -threads 2 -preset veryfast -c:v libx264 -b:v %s -maxrate %s -bufsize %s -c:a aac -b:a 128k -ar 44100 -ac 2 -pix_fmt yuv420p "%s"
                 """.formatted(srcPathStr, videoFilter, bitrate, bitrate, bufferSize, tsPathStr);
         ProcessUtil.executeCommand(cmd, showLogs);
 

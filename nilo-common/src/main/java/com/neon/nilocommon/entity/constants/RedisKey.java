@@ -118,6 +118,14 @@ public class RedisKey
     public static final String VIDEO_DAILY_PLAY_COUNT_PREFIX = REDIS_KEY_PREFIX + "{play-count}:daily:";
 
     /**
+     * 播放统计限流前缀<hr/>
+     * <p>key: nilo:play-count:limit:{videoId}:session:{sessionId} （会话维度）</p>
+     * <p>key: nilo:play-count:limit:{videoId}:ip:{ip} （IP维度）</p>
+     * <p>两个key以 {videoId} 作为hash tag，保证同一次限流判断涉及的key落在同一个slot</p>
+     */
+    public static final String PLAY_COUNT_LIMIT_PREFIX = REDIS_KEY_PREFIX + "play-count:limit:";
+
+    /**
      * 预签名URL缓存Key前缀
      */
     public static final String PRESIGNED_URL_CACHE_PREFIX = REDIS_KEY_PREFIX + "presigned:";

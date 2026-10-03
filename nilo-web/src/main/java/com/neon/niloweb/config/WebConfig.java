@@ -65,6 +65,28 @@ public class WebConfig
      */
     private int onlineCountCleanUpTimeMs = 15_000;
 
+    // ----- 播放统计限流相关配置 -----
+
+    /**
+     * 同一会话对同一视频的播放统计限流窗口（即Redis key的过期时间，单位：s）
+     */
+    private int playCountSessionWindowSeconds = 30;
+
+    /**
+     * 同一会话对同一视频在限流窗口内最多记录播放的次数
+     */
+    private int playCountSessionMaxCount = 1;
+
+    /**
+     * 同一IP对同一视频的播放统计限流窗口（即Redis key的过期时间，单位：s）
+     */
+    private int playCountIpWindowSeconds = 30;
+
+    /**
+     * 同一IP对同一视频在限流窗口内最多记录播放的次数
+     */
+    private int playCountIpMaxCount = 10;
+
     // ----- 热门视频相关配置 -----
 
     /**

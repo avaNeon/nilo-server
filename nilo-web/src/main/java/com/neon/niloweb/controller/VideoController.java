@@ -10,11 +10,16 @@ import com.neon.nilocommon.entity.vo.VideoInfoFileVO;
 import com.neon.nilocommon.entity.vo.videoInfo.BriefVideoInfoVO;
 import com.neon.nilocommon.entity.vo.videoInfo.VideoInfoVO;
 import com.neon.nilocommon.exception.BusinessException;
+import com.neon.nilocommon.util.ServletUtil;
 import com.neon.niloweb.service.VideoService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.validation.annotation.Validated;
@@ -104,12 +109,20 @@ public class VideoController
     }
 
 
-    @RateLimit
-    @Operation(summary = "播放统计")
+    /**
+     * 播放统计<hr/>
+     * 不使用 {@link RateLimit}，由 Service 按 sessionId-videoId 和 IP-videoId 两个维度在 Redis 中限流
+     *
+     * @param videoId   视频ID
+     * @param sessionId 会话ID
+     */
+    @Operation(summary = "播放统计", description = "同一会话、同一IP对同一视频在窗口时间内的播放统计次数有限制")
     @PostMapping(path = "/{videoId}")
-    public ResponseVO <Object> playCount(@PathVariable("videoId") @NotNull Long videoId)
+    public ResponseVO <Object> playCount(@Parameter(hidden = true) HttpServletRequest request,
+                                         @PathVariable("videoId") @NotNull Long videoId,
+                                         @RequestParam(name = "sessionId") @NotBlank @Size(max = 64) String sessionId)
     {
-        videoService.playCount(videoId);
+        videoService.playCount(videoId, sessionId, ServletUtil.getClientIp(request));
         return ResponseVO.success(null);
     }
 }

@@ -18,17 +18,18 @@ public class ServletUtil
      */
     public static String getClientIp(HttpServletRequest request)
     {
-        String ip = request.getHeader("X-Forwarded-For");
+        // 优先读 X-Real-IP：nginx 用 $remote_addr 覆盖设置，客户端无法伪造
+        String ip = request.getHeader("X-Real-IP");
+        if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip))
+        {
+            return ip;
+        }
+
+        ip = request.getHeader("X-Forwarded-For");
         if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip))
         {
             // X-Forwarded-For 可能有多个 IP，如： client, proxy1, proxy2 ...
             return ip.split(",")[0].trim();
-        }
-
-        ip = request.getHeader("X-Real-IP");
-        if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip))
-        {
-            return ip;
         }
 
         ip = request.getHeader("Proxy-Client-IP");

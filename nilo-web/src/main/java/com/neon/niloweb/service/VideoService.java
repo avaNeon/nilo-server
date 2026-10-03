@@ -18,6 +18,7 @@ import com.neon.niloweb.mapper.*;
 import com.neon.niloweb.repository.rabbitmq.PlayCountMqRepository;
 import com.neon.niloweb.repository.redis.CategoryRedisRepository;
 import com.neon.niloweb.repository.redis.HotVideoRedisRepository;
+import com.neon.niloweb.repository.redis.PlayCountLimitRedisRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -51,6 +52,8 @@ public class VideoService
     private final HotVideoRedisRepository hotVideoRedisRepository;
 
     private final PlayCountMqRepository playCountMqRepository;
+
+    private final PlayCountLimitRedisRepository playCountLimitRedisRepository;
 
     private final WebConfig webConfig;
 
@@ -244,12 +247,27 @@ public class VideoService
     }
 
     /**
-     * 增加视频播放量
+     * 增加视频播放量<hr/>
+     * 先按 sessionId-videoId（严格）和 IP-videoId（宽松）两个维度限流，通过后才入队
      *
-     * @param videoId 视频ID
+     * @param videoId   视频ID
+     * @param sessionId 会话ID
+     * @param ip        客户端IP
      */
-    public void playCount(long videoId)
+    public void playCount(long videoId, String sessionId, String ip)
     {
+        boolean acquired = playCountLimitRedisRepository.tryAcquire(videoId,
+                                                                    sessionId,
+                                                                    ip,
+                                                                    webConfig.getPlayCountSessionMaxCount(),
+                                                                    webConfig.getPlayCountSessionWindowSeconds(),
+                                                                    webConfig.getPlayCountIpMaxCount(),
+                                                                    webConfig.getPlayCountIpWindowSeconds());
+        if (!acquired)
+        {
+            throw new BusinessException(ResponseCode.TOO_MANY_REQUESTS);
+        }
+
         playCountBuffer.offer(videoId);
     }
 

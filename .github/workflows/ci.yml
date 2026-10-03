@@ -1,17 +1,33 @@
 name: CI
 
-# 每次 push 或提 PR 都跑：只做编译/打包检查，不跑 mvn test。
+# 每次 push 或提 PR 都跑：编译/打包检查，不跑 mvn test。
 # 原因：各模块的 XxxApplicationTests 是完整 Spring 上下文测试，会尝试连接
 # Nacos/Redis/MySQL/RabbitMQ 等真实中间件，CI 的云端 runner 上没有这些服务，
 # 跑起来会是"假失败"。等以后补充用 mock/Testcontainers 写的真单测，再把
 # -DskipTests 去掉。
+#
+# 推送到 master 时，编译通过后还会给每个服务构建镜像，推到 GHCR：
+#   ghcr.io/<仓库所有者（小写）>/<服务名>，打 latest 和提交号两个标签。
+# 这一步只负责"打包"，和部署无关：什么时候上线、上线哪些服务，由 Deploy 工作流决定。
+# PR 和其他分支只做编译检查，不推镜像。
 on:
   push:
   pull_request:
 
+# master 上的运行排队依次执行，保证 latest 总是指向最后一次提交；其他分支重复触发时直接取消旧的
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # 推镜像到 GHCR（只在 push 到 master 时用到）
+    env:
+      # 需要构建镜像的服务。新增服务时在这里加一项，并同步 deploy.yml 里的勾选项
+      SERVICES: nilo-web nilo-ai nilo-admin nilo-comment nilo-storage nilo-mq-consumer nilo-canal-client
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,3 +41,26 @@ jobs:
 
       - name: Build (compile + package, skip tests)
         run: mvn -B -DskipTests package
+
+      # 登录 GHCR
+      - name: Log in to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 构建并上传 image 到 GHCR，所有 image 都打 latest 和提交的 SHA 两个标签
+      - name: Build and push images
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          # GHCR 的镜像名必须小写
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          for m in $SERVICES; do
+            image="ghcr.io/$owner/$m"
+            docker build -f docker/app.Dockerfile --build-arg MODULE="$m" \
+              --label org.opencontainers.image.source="https://github.com/${{ github.repository }}" \
+              -t "$image:latest" -t "$image:${{ github.sha }}" .
+            docker push --all-tags "$image"
+          done

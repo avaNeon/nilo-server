@@ -1,11 +1,13 @@
 name: Deploy
 
 # 手动触发，不跟 push/PR 挂钩：服务器可能还没开，什么时候上线由自己决定。
+# 这里不打包：镜像由 CI 工作流在推送到 master 时构建并推到 GHCR，这里只负责让服务器拉取镜像并重启。
 #
-# 使用方法：GitHub 仓库页面 -> Actions -> "Deploy" -> Run workflow
-#   - deploy：勾选要部署的服务。GitHub 打包 jar、做成镜像推到 GHCR，
-#             再让服务器拉新镜像、只重启勾选的服务
-#   - up / down / restart：启停服务器上全部容器（中间件 + 微服务），不打包
+# 使用方法：先把代码推送到 master 并等 CI 跑完（镜像构建完成），
+#           再到 GitHub 仓库页面 -> Actions -> "Deploy" -> Run workflow
+#   - deploy：勾选要部署的服务。先确认这些服务在当前提交的镜像已经构建好，
+#             再让服务器拉取最新镜像（latest，即 master 上最近一次 CI 构建的）、只重启勾选的服务
+#   - up / down / restart：启停服务器上全部容器（中间件 + 微服务），不拉取新镜像
 #   - check：不部署，只检查各服务的接口文档是不是都被阻塞了（应该全部不可访问）
 #   - deploy 和 up 完成后会自动再检查一次；检查没通过时最后一个任务会变红，但服务已经部署，不会自动回滚
 #
@@ -18,7 +20,6 @@ name: Deploy
 #                       /usr/local/bin/deploy-ctl.sh，不能执行任意命令）
 #     SSH_PRIVATE_KEY  deploy 账号专用的部署私钥内容
 #
-# 镜像推到 ghcr.io/<仓库所有者（小写）>/<服务名>，打 latest 和提交号两个标签。
 # docker-compose.yaml 的路径写死在服务器上的 deploy-ctl.sh 里。
 
 on:
@@ -70,19 +71,13 @@ concurrency:
   group: deploy
 
 jobs:
-  build:
-    # 只有 deploy 需要打包镜像
+  prepare:
+    # 只有 deploy 需要：整理勾选的服务，并确认镜像已经由 CI 构建好
     if: inputs.action == 'deploy'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write   # 推镜像到 GHCR
     outputs:
       services: ${{ steps.pick.outputs.services }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       # 检查选择部署的微服务，将选择项用空格分割，保存在 services 环境变量中
       - name: Pick services
         id: pick
@@ -98,49 +93,27 @@ jobs:
           echo "services=$services" >> "$GITHUB_OUTPUT"
           echo "本次部署：$services"
 
-      # 安装 JDK 17
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: maven
-
-      # 编译打包 jar
-      - name: Build jars
-        env:
-          SERVICES: ${{ steps.pick.outputs.services }}
-        # 只打包勾选的服务和它们依赖的模块（比如 nilo-common）
-        run: mvn -B -DskipTests -pl "${SERVICES// /,}" -am package
-
-      # 登录 GHCR
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # 构建并上传 image 到 GHCR，所有 image 版本号设置为提交的 SHA 以及 lastest
-      - name: Build and push images
+      # 当前提交的镜像必须已经在 GHCR 里。找不到通常是：CI 还没跑完，或者这次选的不是 master 上的提交。
+      # 镜像是公开的，查询不需要登录
+      - name: Check images
         env:
           SERVICES: ${{ steps.pick.outputs.services }}
         run: |
-          # GHCR 的镜像名必须小写
           owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          missing=0
           for m in $SERVICES; do
-            image="ghcr.io/$owner/$m"
-            docker build -f docker/app.Dockerfile --build-arg MODULE="$m" \
-              --label org.opencontainers.image.source="https://github.com/${{ github.repository }}" \
-              -t "$image:latest" -t "$image:${{ github.sha }}" .
-            docker push --all-tags "$image"
+            if ! docker manifest inspect "ghcr.io/$owner/$m:${{ github.sha }}" > /dev/null 2>&1; then
+              echo "::error::找不到镜像 $m:${{ github.sha }}，请确认该提交已推送到 master 且 CI 已跑完"
+              missing=1
+            fi
           done
+          exit $missing
 
   server:
-    # 等上面的 build 完成之后在做这个任务
-    needs: build
+    # 等上面的 prepare 完成之后再做这个任务
+    needs: prepare
     # 如果前面的操作 成功 或 跳过（ 对于不执行 deploy 的情况 ）才执行这一步，否则（ 前面的操作失败，或者任务被取消 ）不执行
-    if: ${{ !cancelled() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    if: ${{ !cancelled() && (needs.prepare.result == 'success' || needs.prepare.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - name: ${{ inputs.action }} on server
@@ -150,12 +123,12 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           # 服务器上的 deploy-ctl.sh 只认 "deploy 服务名..." 和 up/down/restart/check
-          script: ${{ inputs.action == 'deploy' && format('deploy {0}', needs.build.outputs.services) || inputs.action }}
+          script: ${{ inputs.action == 'deploy' && format('deploy {0}', needs.prepare.outputs.services) || inputs.action }}
 
   # 部署完成后的自动检查：接口文档必须全部不可访问。服务器上的 deploy-ctl.sh 里的 check 负责检查，这里只负责通知它并显示结果
   verify:
-    # 要读到 build 输出的服务名单，就必须把 build 也写进 needs（只写 server 的话读不到）
-    needs: [build, server]
+    # 要读到 prepare 输出的服务名单，就必须把 prepare 也写进 needs（只写 server 的话读不到）
+    needs: [prepare, server]
     # server 成功了，并且这次选的是 deploy 或 up，才检查（单独选 check 时，server 那一步已经直接检查过了）
     if: ${{ !cancelled() && needs.server.result == 'success' && (inputs.action == 'deploy' || inputs.action == 'up') }}
     runs-on: ubuntu-latest
@@ -167,4 +140,4 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           # deploy：只检查这次部署的服务；up：不带服务名，检查全部
-          script: ${{ inputs.action == 'deploy' && format('check {0}', needs.build.outputs.services) || 'check' }}
+          script: ${{ inputs.action == 'deploy' && format('check {0}', needs.prepare.outputs.services) || 'check' }}

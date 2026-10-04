@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Slf4j
@@ -15,13 +16,15 @@ import java.util.Map;
 @Service
 public class PlayCountService
 {
+    private static final int MYSQL_PLAY_COUNT_BATCH_SIZE = 100;
+
     private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
 
     private final HotVideoRedisRepository hotVideoRedisRepository;
 
     /**
-     * 逐个视频刷新播放量<hr/>
-     * 每个视频先执行一条 UPDATE 写 MySQL，再调用一次 Redis
+     * 批量刷新播放量<hr/>
+     * 先批量写 MySQL，再用一次 Lua 脚本批量写 Redis，两者串行
      *
      * @param batch key 为视频ID，value 为播放量增量
      */
@@ -33,30 +36,58 @@ public class PlayCountService
         }
 
         // ES 播放量由 Canal 同步 MySQL 变更，这里只刷 MySQL + Redis
+        flushPlayCountBatchToMysql(batch);
+        hotVideoRedisRepository.updateVideoPlayCountBatch(batch);
+    }
+
+    private void flushPlayCountBatchToMysql(Map <Long, Integer> batch)
+    {
+        int failCount = 0;
+        Map <Long, Integer> subBatch = new LinkedHashMap <>(MYSQL_PLAY_COUNT_BATCH_SIZE);
+
+        // 采用折中方案，100条记录整合为一条SQL让MySQL处理，如果失败100条记录全部失效
         for (Map.Entry <Long, Integer> entry : batch.entrySet())
         {
-            Long videoId = entry.getKey();
-            Integer increment = entry.getValue();
-            if (videoId == null || increment == null || increment <= 0)
+            if (entry.getKey() == null || entry.getValue() == null || entry.getValue() <= 0)
             {
                 continue;
             }
 
-            // MySQL 写失败只跳过这个视频，不触发 MQ 重试
-            try
-            {
-                Integer affectedRows = videoInfoMapper.increaseByField(videoId, "play_count", increment);
-                if (affectedRows == null || affectedRows < 1)
-                {
-                    log.warn("MySQL播放量刷新影响行数为0，videoId={}", videoId);
-                }
-            }
-            catch (Exception e)
-            {
-                log.warn("MySQL播放量刷新失败，videoId={}，跳过该视频", videoId, e);
-            }
+            subBatch.put(entry.getKey(), entry.getValue());
 
-            hotVideoRedisRepository.updateVideoPlayCount(videoId, increment);
+            if (subBatch.size() >= MYSQL_PLAY_COUNT_BATCH_SIZE)
+            {
+                failCount += flushMysqlPlayCountSubBatch(subBatch);
+                subBatch.clear();
+            }
+        }
+
+        if (!subBatch.isEmpty())
+        {
+            failCount += flushMysqlPlayCountSubBatch(subBatch);
+        }
+
+        if (failCount > 0)
+        {
+            log.warn("MySQL批量刷新播放量部分失败，失败批次数：{}，本批次不触发MQ重试", failCount);
+        }
+    }
+
+    private int flushMysqlPlayCountSubBatch(Map <Long, Integer> subBatch)
+    {
+        try
+        {
+            Integer affectedRows = videoInfoMapper.increasePlayCountBatch(subBatch);
+            if (affectedRows == null || affectedRows < subBatch.size())
+            {
+                log.warn("MySQL播放量小批次刷新影响行数少于预期，expected={}, actual={}", subBatch.size(), affectedRows);
+            }
+            return 0;
+        }
+        catch (Exception e)
+        {
+            log.warn("MySQL播放量小批次刷新失败，batchSize={}，跳过该小批次", subBatch.size(), e);
+            return 1;
         }
     }
 }

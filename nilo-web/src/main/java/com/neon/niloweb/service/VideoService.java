@@ -15,7 +15,6 @@ import com.neon.nilocommon.exception.BusinessException;
 import com.neon.nilocommon.util.PageCalculator;
 import com.neon.niloweb.config.WebConfig;
 import com.neon.niloweb.mapper.*;
-import com.neon.niloweb.repository.rabbitmq.PlayCountMqRepository;
 import com.neon.niloweb.repository.redis.CategoryRedisRepository;
 import com.neon.niloweb.repository.redis.HotVideoRedisRepository;
 import com.neon.niloweb.repository.redis.PlayCountLimitRedisRepository;
@@ -23,11 +22,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
 import static com.neon.nilocommon.entity.constants.RedisKey.CATEGORY_UPDATE_LOCK;
@@ -51,23 +48,11 @@ public class VideoService
 
     private final HotVideoRedisRepository hotVideoRedisRepository;
 
-    private final PlayCountMqRepository playCountMqRepository;
-
     private final PlayCountLimitRedisRepository playCountLimitRedisRepository;
 
     private final WebConfig webConfig;
 
     private final RedissonClient redisson;
-
-    /**
-     * 本地播放数统计缓存
-     */
-    private final Queue <Long> playCountBuffer = new ConcurrentLinkedQueue <>();
-
-    /**
-     * 本地缓存一次批量发送播放消息条数
-     */
-    private final Integer batchSize = 2000;
 
     /**
      * 获取所有推荐视频<hr/>
@@ -248,7 +233,7 @@ public class VideoService
 
     /**
      * 增加视频播放量<hr/>
-     * 先按 sessionId-videoId（严格）和 IP-videoId（宽松）两个维度限流，通过后才入队
+     * 先按 sessionId-videoId（严格）和 IP-videoId（宽松）两个维度限流，通过后在请求线程里依次写入 MySQL 和 Redis
      *
      * @param videoId   视频ID
      * @param sessionId 会话ID
@@ -268,7 +253,8 @@ public class VideoService
             throw new BusinessException(ResponseCode.TOO_MANY_REQUESTS);
         }
 
-        playCountBuffer.offer(videoId);
+        videoInfoMapper.increaseByField(videoId, "play_count", 1);
+        hotVideoRedisRepository.updateVideoPlayCount(videoId, 1);
     }
 
     /**
@@ -415,53 +401,6 @@ public class VideoService
                         log.warn("RLock在业务完成前释放");
                     }
                 }
-            }
-        }
-    }
-
-    /**
-     * 定时将新统计到的播放信息发送个MQ，交由消费者处理
-     */
-    @Scheduled(fixedRateString = "#{@webConfig.playCountRefreshInterval}")
-    private void sendPlayCount()
-    {
-        if (playCountBuffer.isEmpty())
-        {
-            return;
-        }
-
-        // 准备发送给redis的播放数统计，key为videoId，value为播放数增量
-        Map <Long, Integer> playCountMap = new HashMap <>();
-
-        Long bufferedVideoId;
-        while ((bufferedVideoId = playCountBuffer.poll()) != null)
-        {
-            playCountMap.merge(bufferedVideoId, 1, Integer::sum);
-        }
-
-        // 如果有消息可发，则发送给redis，并保存到mysql中
-        if (!playCountMap.isEmpty())
-        {
-            int size = playCountMap.size();
-            List <Long> videoIdList = playCountMap.keySet().stream().toList();
-
-            // 每次最多发送固定条数，在java端做好削峰
-            for (int start = 0 ; start < size ; start += batchSize)
-            {
-                int end = Math.min(start + batchSize, size);
-
-                // 组装batch
-                Map <Long, Integer> batch = new HashMap <>();
-
-                for (int i = start ; i < end ; i++)
-                {
-                    long videoId = videoIdList.get(i);
-                    int increment = playCountMap.get(videoId);
-                    batch.put(videoId, increment);
-                }
-
-                // 交给MQ消费端削峰刷新
-                playCountMqRepository.sendPlayCountFlushMessage(batch);
             }
         }
     }

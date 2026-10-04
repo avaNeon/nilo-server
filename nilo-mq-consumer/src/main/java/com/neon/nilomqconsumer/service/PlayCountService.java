@@ -1,33 +1,18 @@
 package com.neon.nilomqconsumer.service;
 
-import com.neon.nilocommon.entity.po.VideoInfo;
-import com.neon.nilocommon.entity.query.VideoInfoQuery;
-import com.neon.nilomqconsumer.mapper.VideoInfoMapper;
-import com.neon.nilomqconsumer.repository.redis.HotVideoRedisRepository;
+import com.neon.nilomqconsumer.service.async.PlayCountAsyncService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
-@Slf4j
 @RequiredArgsConstructor
 @Service
 public class PlayCountService
 {
-    private static final int MYSQL_PLAY_COUNT_BATCH_SIZE = 100;
+    private final PlayCountAsyncService playCountAsyncService;
 
-    private final VideoInfoMapper <VideoInfo, VideoInfoQuery> videoInfoMapper;
-
-    private final HotVideoRedisRepository hotVideoRedisRepository;
-
-    /**
-     * 批量刷新播放量<hr/>
-     * 先批量写 MySQL，再用一次 Lua 脚本批量写 Redis，两者串行
-     *
-     * @param batch key 为视频ID，value 为播放量增量
-     */
     public void flushPlayCount(Map <Long, Integer> batch)
     {
         if (batch == null || batch.isEmpty())
@@ -36,58 +21,9 @@ public class PlayCountService
         }
 
         // ES 播放量由 Canal 同步 MySQL 变更，这里只刷 MySQL + Redis
-        flushPlayCountBatchToMysql(batch);
-        hotVideoRedisRepository.updateVideoPlayCountBatch(batch);
-    }
+        CompletableFuture <Void> mysqlCompletableFuture = playCountAsyncService.flushPlayCountBatchToMysql(batch);
+        CompletableFuture <Void> redisCompletableFuture = playCountAsyncService.flushPlayCountBatchToRedis(batch);
 
-    private void flushPlayCountBatchToMysql(Map <Long, Integer> batch)
-    {
-        int failCount = 0;
-        Map <Long, Integer> subBatch = new LinkedHashMap <>(MYSQL_PLAY_COUNT_BATCH_SIZE);
-
-        // 采用折中方案，100条记录整合为一条SQL让MySQL处理，如果失败100条记录全部失效
-        for (Map.Entry <Long, Integer> entry : batch.entrySet())
-        {
-            if (entry.getKey() == null || entry.getValue() == null || entry.getValue() <= 0)
-            {
-                continue;
-            }
-
-            subBatch.put(entry.getKey(), entry.getValue());
-
-            if (subBatch.size() >= MYSQL_PLAY_COUNT_BATCH_SIZE)
-            {
-                failCount += flushMysqlPlayCountSubBatch(subBatch);
-                subBatch.clear();
-            }
-        }
-
-        if (!subBatch.isEmpty())
-        {
-            failCount += flushMysqlPlayCountSubBatch(subBatch);
-        }
-
-        if (failCount > 0)
-        {
-            log.warn("MySQL批量刷新播放量部分失败，失败批次数：{}，本批次不触发MQ重试", failCount);
-        }
-    }
-
-    private int flushMysqlPlayCountSubBatch(Map <Long, Integer> subBatch)
-    {
-        try
-        {
-            Integer affectedRows = videoInfoMapper.increasePlayCountBatch(subBatch);
-            if (affectedRows == null || affectedRows < subBatch.size())
-            {
-                log.warn("MySQL播放量小批次刷新影响行数少于预期，expected={}, actual={}", subBatch.size(), affectedRows);
-            }
-            return 0;
-        }
-        catch (Exception e)
-        {
-            log.warn("MySQL播放量小批次刷新失败，batchSize={}，跳过该小批次", subBatch.size(), e);
-            return 1;
-        }
+        CompletableFuture.allOf(mysqlCompletableFuture, redisCompletableFuture).join();
     }
 }

@@ -304,7 +304,7 @@ services:
     mem_limit: 64m
 
   redis-exporter:
-    image: oliver006/redis_exporter:v1.93.0.0
+    image: oliver006/redis_exporter:v1.93.0
     container_name: redis-exporter
     depends_on:
       redis:

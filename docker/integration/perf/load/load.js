@@ -14,7 +14,7 @@
 //
 // 每个请求带随机的 sessionId 和 X-Real-IP，模拟不同的用户，使请求都走放行路径（会话、IP 两个维度的限流都不会触发）。
 import http from 'k6/http';
-import { Counter } from 'k6/metrics';
+import { Counter, Gauge } from 'k6/metrics';
 
 const TARGET = __ENV.TARGET;
 const RATE = Number(__ENV.RATE || 200);
@@ -28,6 +28,8 @@ const SUMMARY_FILE = __ENV.SUMMARY_FILE || 'k6-summary.json';
 const accepted = new Counter('play_accepted');
 const rejected = new Counter('play_rejected');
 const failed = new Counter('play_failed');
+// 每收到一个响应就记一次当前时间。Gauge 会保留最大值，即最后一个响应到达的时刻，作为"压测结束时刻"
+const lastResponse = new Gauge('last_response_ms');
 
 export const options = {
   scenarios: {
@@ -52,6 +54,7 @@ export default function () {
     headers: { 'X-Real-IP': randomIp() },
     tags: { name: 'playCount' },
   });
+  lastResponse.add(Date.now());
   if (res.status !== 200) {
     failed.add(1);
     return;
@@ -72,12 +75,16 @@ export default function () {
   }
 }
 
-// 测试结束后执行：此时所有请求都已返回，这个时间点作为"压测结束时刻"
+// 测试结束后执行，此时所有请求都已返回。
+// "压测结束时刻"取最后一个响应到达的时刻，而不是这里的当前时间：k6 收完最后一个响应后还要收尾、生成汇总，
+// 这段时间请求越多越长，用当前时间会让写入完成延迟偏小
 export function handleSummary(data) {
   const count = (name) => (data.metrics[name] ? data.metrics[name].values.count : 0);
   const d = data.metrics.http_req_duration.values;
+  const now = Date.now();
   const brief = {
-    end_ms: Date.now(),
+    end_ms: data.metrics.last_response_ms ? Math.round(data.metrics.last_response_ms.values.max) : now,
+    summary_ms: now, // 生成汇总的时刻，与 end_ms 的差就是 k6 收尾花的时间，留档备查
     rate: RATE,
     duration: DURATION,
     distribution: DISTRIBUTION,

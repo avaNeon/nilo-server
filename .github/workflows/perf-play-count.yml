@@ -89,7 +89,8 @@ jobs:
           python3 -m venv .venv
           .venv/bin/pip install -q -r docker/integration/perf/sut/requirements.txt
           mkdir -p perf-results
-          { echo "nproc: $(nproc)"; free -m; chronyc tracking 2>/dev/null || timedatectl; } > perf-results/sut-host.txt
+          # 记录机器配置：每次分到的云主机硬件可能不同，报告里显示 CPU 型号和核数，便于判断两次结果能否直接比较
+          { echo "cpu: $(lscpu | sed -n 's/^Model name:[[:space:]]*//p' | head -1)"; echo "nproc: $(nproc)"; free -m; chronyc tracking 2>/dev/null || timedatectl; } > perf-results/sut-host.txt
 
       - name: Start environment
         working-directory: docker/integration
@@ -190,7 +191,7 @@ jobs:
         run: |
           mkdir -p perf-load
           tailscale ping --until-direct=false -c 10 "$SUT_IP" | tee perf-load/tailscale-ping.txt || true
-          { echo "nproc: $(nproc)"; chronyc tracking 2>/dev/null || timedatectl; } > perf-load/load-host.txt
+          { echo "cpu: $(lscpu | sed -n 's/^Model name:[[:space:]]*//p' | head -1)"; echo "nproc: $(nproc)"; chronyc tracking 2>/dev/null || timedatectl; } > perf-load/load-host.txt
 
       - name: Set up k6
         uses: grafana/setup-k6-action@v1

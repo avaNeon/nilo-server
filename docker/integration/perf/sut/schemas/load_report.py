@@ -9,5 +9,5 @@ class LoadReport(BaseModel):
     """k6 简要结果。对账只用到下面声明的两个字段；其余字段（请求数、响应时间等）原样保留，写进结果留档"""
     model_config = ConfigDict(extra='allow')  # 允许并保留没有声明的字段
 
-    end_ms: int  # 压测结束时刻（压测机的时间，毫秒），所有请求都返回后记录
+    end_ms: int  # 压测结束时刻（压测机的时间，毫秒）：k6 收到最后一个响应的时刻
     accepted: int  # 放行请求数：接口返回成功的请求数，对账以它为准

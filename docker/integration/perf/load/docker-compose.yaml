@@ -1,0 +1,21 @@
+# 压测机上的组件：Prometheus 通过 Tailscale 隧道抓取被测机的指标，压测结束后汇总并打包数据。
+# 放在压测机而不是被测机上，是为了不占用被测机的 CPU 和内存，避免影响测量结果。
+#
+# 用法（在本目录执行）：
+#   PROM_CONFIG=<填好被测机地址的 prometheus.yml> PROM_DATA=<数据目录> docker compose up -d
+# prometheus.yml 里的 SUT_HOST 要先替换为被测机的隧道地址；数据目录需要容器内的 nobody 用户可写。
+name: nilo-perf-load
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    container_name: prometheus
+    # 隧道网卡在宿主机上，用宿主机网络直接访问被测机；只监听本机，供汇总脚本查询
+    network_mode: host
+    volumes:
+      - ${PROM_CONFIG:?缺少 PROM_CONFIG}:/etc/prometheus/prometheus.yml:ro
+      - ${PROM_DATA:?缺少 PROM_DATA}:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.listen-address=127.0.0.1:9090

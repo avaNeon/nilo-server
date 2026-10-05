@@ -1,0 +1,9 @@
+# 被测机脚本的依赖清单，相当于 pom.xml 里的 <dependencies>。版本写死，每次安装的都一样
+# 安装：pip install -r requirements.txt
+fastapi==0.142.2        # Web 框架，写 HTTP 接口
+uvicorn==0.54.0         # HTTP 服务器，运行 FastAPI 应用，相当于内嵌的 Tomcat
+pydantic==2.13.5        # 请求体的声明与校验，FastAPI 依赖它，schemas 里直接使用
+SQLAlchemy==2.1.3       # 数据库框架
+PyMySQL==1.2.3          # MySQL 驱动，相当于 JDBC 驱动
+cryptography==50.0.2    # PyMySQL 连接 MySQL 8 做密码认证时需要
+redis==8.1.0            # Redis 客户端，相当于 Jedis

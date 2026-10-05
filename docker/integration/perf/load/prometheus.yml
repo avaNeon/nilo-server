@@ -1,0 +1,44 @@
+# 压测机上的 Prometheus：通过 Tailscale 隧道抓取被测机的指标。SUT_HOST 由工作流替换为被测机的隧道地址
+global:
+  scrape_interval: 5s
+  scrape_timeout: 4s
+
+scrape_configs:
+  - job_name: nilo-web
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['SUT_HOST:7071']
+
+  - job_name: nilo-mq-consumer
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['SUT_HOST:7072']
+
+  - job_name: nilo-canal-client
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['SUT_HOST:7074']
+
+  # 各容器的 CPU、内存、网络。cAdvisor 自带采集时间戳，改用抓取时间，避免两台机器的时钟误差
+  - job_name: cadvisor
+    honor_timestamps: false
+    static_configs:
+      - targets: ['SUT_HOST:8081']
+
+  - job_name: mysql
+    static_configs:
+      - targets: ['SUT_HOST:9104']
+
+  - job_name: redis
+    static_configs:
+      - targets: ['SUT_HOST:9121']
+
+  # RabbitMQ：/metrics 是汇总指标，/metrics/per-object 带每个队列的积压数
+  - job_name: rabbitmq
+    static_configs:
+      - targets: ['SUT_HOST:15692']
+
+  - job_name: rabbitmq-queues
+    metrics_path: /metrics/per-object
+    static_configs:
+      - targets: ['SUT_HOST:15692']

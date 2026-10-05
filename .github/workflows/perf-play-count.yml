@@ -9,7 +9,10 @@ name: Perf - Play Count
 # 被测机只对压测机开放压测入口和只读的指标端口（由 Tailscale 访问控制规则限定），MySQL、Redis、ES 只监听被测机本机。
 #
 # 需要提前在仓库 Settings -> Secrets and variables -> Actions 里配置：
-#   TS_OAUTH_CLIENT_ID、TS_OAUTH_SECRET  Tailscale OAuth client，可签发带 tag:perf-sut、tag:perf-load 的认证密钥
+#   TS_OAUTH_CLIENT_ID、TS_OAUTH_SECRET  Tailscale OAuth client：权限为 Auth Keys 的 Write，标签只选 tag:perf-ci
+# Tailscale 的访问控制规则里，tag:perf-sut、tag:perf-load 要归 tag:perf-ci 所有（写在 tagOwners 里）。
+# 原因：工作流请求的标签必须与 client 的标签完全一致，或者归 client 的标签所有。两台机器各请求一个不同的标签，
+# 所以 client 只带 tag:perf-ci，由它分别签发这两个标签。tag:perf-ci 不出现在访问规则里，本身访问不了任何机器。
 
 on:
   workflow_dispatch:

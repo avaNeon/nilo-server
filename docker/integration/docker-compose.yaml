@@ -1,0 +1,317 @@
+# 播放统计链路压测的被测环境：中间件与微服务放在同一个 compose 里，在一台机器上启动。
+# 镜像版本、内存上限、JVM 参数、MySQL/Redis 配置照抄线上；账号密码全部是测试专用的值，不含任何线上密钥。
+# 微服务镜像由 CI 构建，用 NILO_TAG 选择版本：perf-v0 ~ perf-v3，或某个提交号。
+#
+# 用法（在本目录执行）：
+#   NILO_TAG=perf-v3 BIND_IP=<对压测机开放的地址> docker compose up -d --build
+# 宿主机需要先执行 sysctl -w vm.max_map_count=262144（Elasticsearch 的要求）。
+#
+# 端口分两类：
+#   - MySQL、Redis、ES 只监听本机回环地址 127.0.0.1，供被测机本地的监控脚本使用，外部无法访问
+#   - 压测入口（7071）和只读的指标端口监听 BIND_IP：双机压测时是 Tailscale 隧道地址，单机时默认 127.0.0.1
+#
+# 启动顺序由 depends_on 保证：
+#   MySQL（初始化时建好业务表与 Nacos 表）─▶ Nacos ─▶ 写入 Nacos 配置 ─▶ 微服务
+#   nilo-web 先于 nilo-canal-client：nilo-web 启动时按 IK 映射创建 ES 索引，
+#   如果 canal-client 先写入，ES 会按默认规则自动建索引，映射就错了。
+#
+# 与线上的差异（不在播放统计链路上，不影响这条链路的性能）：
+#   - 账号密码换成测试值；ES 使用内置用户 elastic，线上使用受限账号
+#   - ES 只装 IK 分词插件，不带线上的扩展词典
+#   - Seata 使用镜像自带的 application.yml，线上替换了默认密码
+#   - RabbitMQ 使用默认配置
+#   - 不包含 MinIO、nilo-admin、nilo-comment、nilo-storage、nilo-ai
+#   - Nacos 配置里 AI 与 MinIO 的地址指向不存在的主机，确保测试中不会访问外部服务
+#   - cAdvisor 每 5 秒采集一次（线上 30 秒），以获得足够的时间分辨率
+#   - 额外运行 MySQL、Redis 的指标导出组件（exporter），只用于采集指标
+name: nilo-it
+
+x-app-env: &app-env
+  NACOS_SERVER_ADDR: nacos:8848
+  NACOS_NAMESPACE: perf
+  NACOS_USERNAME: nacos
+  NACOS_PASSWORD: nilo-it-nacos-admin
+
+services:
+  # ---------------- 中间件 ----------------
+
+  mysql:
+    image: mysql:8.4.7
+    container_name: mysql
+    mem_limit: 512m
+    environment:
+      MYSQL_ROOT_PASSWORD: nilo-it-root
+      MYSQL_DATABASE: nilo
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - ./mysql/my.cnf:/etc/my.cnf:ro
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+      - ./mysql/nacos-schema.sql:/nacos-schema.sql:ro
+    # 走 TCP 检查：初始化阶段 MySQL 只开本地 socket，这样能等到初始化脚本全部执行完
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pnilo-it-root"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+
+  redis:
+    image: redis:7.4.2
+    container_name: redis
+    mem_limit: 256m
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - ./redis/redis.conf:/etc/redis/redis.conf:ro
+    command: redis-server /etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "nilo-it-redis", "--no-auth-warning", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  rabbit:
+    image: rabbitmq:4.2.3-management
+    container_name: rabbit
+    mem_limit: 256m
+    environment:
+      RABBITMQ_DEFAULT_USER: nilo
+      RABBITMQ_DEFAULT_PASS: nilo-it-rabbit
+    ports:
+      - "${BIND_IP:-127.0.0.1}:15692:15692" # Prometheus 指标
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
+  elasticsearch:
+    build:
+      context: ./elasticsearch
+    image: elastic-search-with-ik:8.19.14
+    container_name: elasticsearch
+    mem_limit: 1152m
+    ports:
+      - "127.0.0.1:9200:9200"
+    environment:
+      - node.name=es01
+      - discovery.type=single-node
+      - ELASTIC_PASSWORD=nilo-it-elastic
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - xpack.ml.enabled=false
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs -u elastic:nilo-it-elastic 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=1s' > /dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+
+  canal-server:
+    image: canal/canal-server:v1.1.8
+    container_name: canal-server
+    mem_limit: 512m
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./canal/instance.properties:/home/admin/canal-server/conf/es-canal/instance.properties:ro
+      # 替换启动脚本以调整 JVM 内存（默认的堆远超 512m 的内存上限）
+      - ./canal/startup.sh:/home/admin/canal-server/bin/startup.sh
+
+  nacos:
+    image: nacos/nacos-server:v2.5.1
+    container_name: nacos
+    mem_limit: 678m
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      - MODE=standalone
+      - PREFER_HOST_MODE=hostname
+      - SPRING_DATASOURCE_PLATFORM=mysql
+      - MYSQL_SERVICE_HOST=mysql
+      - MYSQL_SERVICE_PORT=3306
+      - MYSQL_SERVICE_DB_NAME=nacos
+      - MYSQL_SERVICE_USER=nacos
+      - MYSQL_SERVICE_PASSWORD=nilo-it-nacos
+      - MYSQL_SERVICE_DB_PARAM=characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&sslMode=DISABLED&allowPublicKeyRetrieval=true
+      - NACOS_AUTH_ENABLE=true
+      - NACOS_AUTH_TOKEN=bmlsby1pbnRlZ3JhdGlvbi10ZXN0LW5hY29zLWF1dGgtdG9rZW4tMjAyNg==
+      - NACOS_AUTH_IDENTITY_KEY=nilo-it
+      - NACOS_AUTH_IDENTITY_VALUE=nilo-it
+      - JVM_XMS=256m
+      - JVM_XMX=256m
+      - JVM_XMN=128m
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8848/nacos/v1/console/health/readiness"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  # 初始化 Nacos：设置管理员密码、创建命名空间、写入服务配置
+  nacos-init:
+    image: curlimages/curl:8.11.1
+    depends_on:
+      nacos:
+        condition: service_healthy
+    entrypoint: ["sh", "/nacos/init.sh"]
+    volumes:
+      - ./nacos:/nacos:ro
+    restart: "no"
+
+  seata-server:
+    image: apache/seata-server:2.1.0
+    container_name: seata-server
+    hostname: seata-server
+    mem_limit: 256m
+    environment:
+      - STORE_MODE=file
+      - SEATA_PORT=8091
+      - SEATA_CONSOLE_USERNAME=seataAdmin
+      - SEATA_CONSOLE_PASSWORD=nilo-it-seata
+      - JVM_XMX=64m
+      - JVM_XMS=64m
+      - JVM_MaxDirectMemorySize=64m
+
+  sentinel-dashboard:
+    build:
+      context: ./sentinel
+    image: sentinel-dashboard:1.8.8
+    container_name: sentinel-dashboard
+    mem_limit: 256m
+    environment:
+      - JAVA_OPTS=-Xms64m -Xmx64m
+      - SENTINEL_DASHBOARD_USERNAME=sentinelAdmin
+      - SENTINEL_DASHBOARD_PASSWORD=nilo-it-sentinel
+
+  # ---------------- 微服务 ----------------
+
+  nilo-web:
+    image: ghcr.io/avaneon/nilo-web:${NILO_TAG:-perf-v3}
+    container_name: nilo-web
+    mem_limit: 512m
+    depends_on:
+      nacos-init:
+        condition: service_completed_successfully
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbit:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      seata-server:
+        condition: service_started
+      sentinel-dashboard:
+        condition: service_started
+      # 消费端先声明好队列，web 发出的消息才不会丢
+      nilo-mq-consumer:
+        condition: service_healthy
+    ports:
+      - "${BIND_IP:-127.0.0.1}:7071:7071"
+    environment:
+      <<: *app-env
+      JAVA_TOOL_OPTIONS: -Xms128m -Xmx256m -XX:+UseSerialGC -Duser.timezone=UTC
+    # /actuator/info 能访问说明启动完成（ES 索引在此之前已创建）。不用 /actuator/health：与这条链路无关的组件也会让它变成 DOWN
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:7071/actuator/info"]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+
+  nilo-mq-consumer:
+    image: ghcr.io/avaneon/nilo-mq-consumer:${NILO_TAG:-perf-v3}
+    container_name: nilo-mq-consumer
+    mem_limit: 832m
+    depends_on:
+      nacos-init:
+        condition: service_completed_successfully
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbit:
+        condition: service_healthy
+    ports:
+      - "${BIND_IP:-127.0.0.1}:7072:7072"
+    environment:
+      <<: *app-env
+      JAVA_TOOL_OPTIONS: -Xms96m -Xmx192m -XX:+UseSerialGC -Duser.timezone=UTC
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:7072/actuator/info"]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+
+  nilo-canal-client:
+    image: ghcr.io/avaneon/nilo-canal-client:${NILO_TAG:-perf-v3}
+    container_name: nilo-canal-client
+    mem_limit: 448m
+    depends_on:
+      nilo-web:
+        condition: service_healthy
+      canal-server:
+        condition: service_started
+    ports:
+      - "${BIND_IP:-127.0.0.1}:7074:7074"
+    environment:
+      <<: *app-env
+      JAVA_TOOL_OPTIONS: -Xms96m -Xmx192m -XX:+UseSerialGC -Duser.timezone=UTC
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:7074/actuator/info"]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+
+  # ---------------- 指标采集（只读） ----------------
+
+  # 各容器的 CPU、内存、网络，与线上使用同一版本
+  cadvisor:
+    image: ghcr.io/google/cadvisor:0.60.6
+    container_name: cadvisor
+    privileged: true
+    devices:
+      - /dev/kmsg
+    ports:
+      - "${BIND_IP:-127.0.0.1}:8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=5s
+    mem_limit: 256m
+
+  mysqld-exporter:
+    image: prom/mysqld-exporter:v0.20.0
+    container_name: mysqld-exporter
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command:
+      - --mysqld.address=mysql:3306
+      - --mysqld.username=exporter
+    environment:
+      MYSQLD_EXPORTER_PASSWORD: nilo-it-exporter
+    ports:
+      - "${BIND_IP:-127.0.0.1}:9104:9104"
+    mem_limit: 64m
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.93.0.0
+    container_name: redis-exporter
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_PASSWORD: nilo-it-redis
+    ports:
+      - "${BIND_IP:-127.0.0.1}:9121:9121"
+    mem_limit: 64m

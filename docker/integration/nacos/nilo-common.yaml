@@ -1,0 +1,143 @@
+# 线上 nilo-common.yaml 的测试副本：结构、连接池、超时、重试等参数与线上一致，
+# 账号密码仅供测试使用；AI、MinIO 的地址指向不存在的主机（.invalid），保证测试中不会访问外部服务
+spring:
+  banner:
+    location: banner-prod.txt
+  jackson:
+    time-zone: UTC
+  datasource:
+    url: jdbc:mysql://mysql:3306/nilo?serverTimezone=UTC&forceConnectionTimeZoneToSession=true&useUnicode=true&characterEncoding=utf8&autoReconnect=true&allowMultiQueries=true&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: nilo-it-root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: HikariCPDatasource
+      minimum-idle: 5
+      idle-timeout: 180000
+      maximum-pool-size: 10
+      auto-commit: true
+      max-lifetime: 1800000
+      connection-timeout: 30000
+      connection-test-query: SELECT 1
+  data:
+    redis:
+      host: redis
+      port: 6379
+      password: nilo-it-redis
+      lettuce:
+        pool:
+          max-active: 20
+          max-wait: -1ms
+          max-idle: 10
+          min-idle: 0
+  rabbitmq:
+    addresses: rabbit:5672
+    username: nilo
+    password: nilo-it-rabbit
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+      retry:
+        enabled: true
+        initial-interval: 1000ms
+        max-attempts: 3
+    listener:
+      simple:
+        acknowledge-mode: auto
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1000ms
+          multiplier: 2.0
+          max-interval: 10000ms
+  elasticsearch:
+    uris: http://elasticsearch:9200
+    username: elastic
+    password: nilo-it-elastic
+    connection-timeout: 5s
+  ai:
+    openai:
+      api-key: not-used-in-test
+      base-url: http://ai.invalid
+  mail:
+    password: not-used-in-test
+  cloud:
+    sentinel:
+      transport:
+        dashboard: sentinel-dashboard:8080
+      eager: true
+      datasource:
+        param-flow:
+          nacos:
+            server-addr: ${spring.cloud.nacos.server-addr}
+            namespace: ${spring.cloud.nacos.config.namespace}
+            username: ${spring.cloud.nacos.username:}
+            password: ${spring.cloud.nacos.password:}
+            group-id: DEFAULT_GROUP
+            data-id: nilo-sentinel-param-flow
+            data-type: json
+            rule-type: param-flow
+    openfeign:
+      client:
+        config:
+          nilo-ai:
+            read-timeout: 600000
+
+# 测试不启用 MinIO
+minio:
+  endpoint: http://minio.invalid:9000
+  access-key: not-used-in-test
+  secret-key: not-used-in-test
+
+canal:
+  host: canal-server
+
+seata:
+  enabled: true
+  application-id: ${spring.application.name}
+  tx-service-group: default_tx_group
+  service:
+    vgroup-mapping:
+      default_tx_group: default
+    grouplist:
+      default: seata-server:8091
+  registry:
+    type: file
+  config:
+    type: file
+
+tls:
+  enable: false
+
+redisson:
+  standalone: true
+
+knife4j:
+  enable: true
+  production: true
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+management:
+  endpoints.web.exposure.include: health,info,prometheus
+  metrics.tags.application: ${spring.application.name}
+
+nilo:
+  internal:
+    token: nilo-it-internal-token
+
+project:
+  # 设置一下热度升降阈值
+  upgradeThreshold: 10000
+  downgradeThreshold: 5000
+  # 测评不会用 admin ，这里随便设置
+  admins:
+    - account: nilo_it_admin
+      password: nilo-it-admin
+      level: 1

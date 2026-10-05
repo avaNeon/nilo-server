@@ -71,6 +71,24 @@ QUERIES = {
     'mysql_queries_per_s_max': 'max_over_time(rate(mysql_global_status_queries[15s])[{w}s:5s])',
     # Redis 每秒处理命令数的峰值。包含被测机监控脚本自己的 INFO 查询（每秒 10 次）
     'redis_commands_per_s_max': 'max_over_time(rate(redis_commands_processed_total[15s])[{w}s:5s])',
+    # Redis 按命令类型统计窗口内的执行次数，如 {'hincrby': 3001, 'evalsha': 6002, ...}。
+    # 数据来自 Redis 的 INFO commandstats；Lua 脚本里调用的命令会按各自的名字再计一次
+    'redis_commands_by_cmd': 'sum by (cmd) (increase(redis_commands_total[{w}s]))',
+    # nilo-web 播放统计接口的服务端响应时间（毫秒）：nilo-web 自己统计，不含网络，也不含在 Tomcat 里排队等线程的时间。
+    # uri 是 Spring 记录的接口路径模板 /video/{videoId}，它的花括号同样要写成两个
+    # 平均 = 窗口内总耗时 ÷ 请求数
+    'server_latency_avg_ms':
+        'sum(increase(http_server_requests_seconds_sum{{application="nilo-web",uri="/video/{{videoId}}",method="POST"}}[{w}s]))'
+        ' / sum(increase(http_server_requests_seconds_count{{application="nilo-web",uri="/video/{{videoId}}",method="POST"}}[{w}s]))'
+        ' * 1000',
+    # P95、P99：nilo-web 按耗时区间给请求计数（直方图，le 标签是区间上限），histogram_quantile 据此估算分位数。
+    # 需要 nilo-web 开启直方图，见 docker/integration/nacos/nilo-common.yaml 的 management 部分
+    'server_latency_p95_ms':
+        'histogram_quantile(0.95, sum by (le) (increase('
+        'http_server_requests_seconds_bucket{{application="nilo-web",uri="/video/{{videoId}}",method="POST"}}[{w}s]))) * 1000',
+    'server_latency_p99_ms':
+        'histogram_quantile(0.99, sum by (le) (increase('
+        'http_server_requests_seconds_bucket{{application="nilo-web",uri="/video/{{videoId}}",method="POST"}}[{w}s]))) * 1000',
     # 每个抓取目标的 up 指标：抓取成功为 1，失败为 0。
     # 窗口内最小值为 0，说明这期间有抓取失败，对应组件的指标有缺口
     'scrape_up_min': 'min_over_time(up[{w}s])',
@@ -94,9 +112,10 @@ def query(expr: str, at: float) -> dict[str, float]:
     for item in data['data']['result']:
         # 去掉 __name__（指标名）这一项，剩下的都是标签
         labels = {k: v for k, v in item['metric'].items() if k != '__name__'}
-        # 选一个标签作为分组名：容器名 > 应用名 > 抓取任务名 > 队列名，都没有就叫 value。
+        # 选一个标签作为分组名：容器名 > 应用名 > Redis 命令名 > 抓取任务名 > 队列名，都没有（如 sum(...) 汇总成一个数）就叫 value。
         # a or b or c 返回第一个不为空的值
-        key = labels.get('name') or labels.get('application') or labels.get('job') or labels.get('queue') or 'value'
+        key = (labels.get('name') or labels.get('application') or labels.get('cmd')
+               or labels.get('job') or labels.get('queue') or 'value')
         # value 是 [时间戳, "数值字符串"]，[1] 取数值，转成小数并保留 3 位
         out[key] = round(float(item['value'][1]), 3)
     return out

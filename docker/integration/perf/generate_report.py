@@ -38,9 +38,10 @@ def main() -> None:
     # 2. 依次生成报告的各个部分，每个部分是若干行文本
     lines = [f'## {a.title}', '']
     lines += conclusion_section(sut, load_cpu)          # 结论：写入完成延迟、对账、本次结果是否可信
-    lines += k6_section(k6)                             # k6 的请求数和响应时间
+    lines += k6_section(k6, prom)                       # k6 的请求数和响应时间，以及 nilo-web 自己统计的响应时间
     lines += resource_section(prom)                     # 被测机每个容器的 CPU 和内存
     lines += chain_section(prom)                        # 链路各环节的指标，用来定位瓶颈
+    lines += redis_commands_section(prom, k6.get('accepted'))  # Redis 按命令类型的执行次数
     lines += measurement_section(sut, load_cpu, net)    # 测量本身的可信度
 
     # 3. 打印到标准输出，工作流用 >> 追加到 $GITHUB_STEP_SUMMARY
@@ -62,20 +63,24 @@ def conclusion_section(sut: dict, load_cpu: dict | None) -> list[str]:
         ['MySQL 播放量增量', rec.get('mysql_play_count_delta')],
         ['Redis 当日播放量增量', rec.get('redis_daily_delta')],
         ['排空是否超时', '是' if sut.get('drain_timed_out') else '否'],
-        ['压测机 CPU 平均 / P95 / 峰值', load_cpu_text],
+        ['压测机 CPU 使用率 平均 / P95 / 峰值', load_cpu_text],
     ], ['项目', '值']), '']
     # 以 > 开头的行在 Markdown 里显示为醒目的引用块
     if sut.get('error'):
         lines += [f'> 被测机监控出错：`{sut["error"]}`', '']
     if load_cpu and load_cpu['p95'] >= LOAD_CPU_LIMIT:
-        lines += [f'> 压测机 CPU 的 P95 达到 {load_cpu["p95"]:.1f}%，接近跑满：k6 自身可能成为瓶颈，本次的响应时间和吞吐不可信。', '']
+        lines += [f'> 压测机 CPU 使用率的 P95 达到 {load_cpu["p95"]:.1f}%，接近跑满：k6 自身可能成为瓶颈，本次的响应时间和吞吐不可信。', '']
     return lines
 
 
-def k6_section(k6: dict) -> list[str]:
-    """k6 的统计：请求数、放行 / 被限流 / 失败、响应时间分位。
-    dropped 是 k6 没能按时发出的请求数，不为 0 说明发压没有达到目标速率"""
+def k6_section(k6: dict, prom: dict) -> list[str]:
+    """k6 的统计：请求数、放行 / 被限流 / 失败、响应时间分位；最后一行是 nilo-web 自己统计的响应时间，方便对照。
+    dropped 是 k6 没能按时发出的请求数，不为 0 说明发压没有达到目标速率。
+    k6 的响应时间 − 服务端响应时间 ≈ 网络往返 + 在 Tomcat 里排队等线程的时间"""
     lat = k6.get('latency_ms', {})
+    server_avg = prom_value(prom, 'server_latency_avg_ms')
+    server_p95 = prom_value(prom, 'server_latency_p95_ms')
+    server_p99 = prom_value(prom, 'server_latency_p99_ms')
     return ['### 压测（k6）', '', table([
         ['每秒请求数（目标）', k6.get('rate')],
         ['持续时间', k6.get('duration')],
@@ -86,6 +91,8 @@ def k6_section(k6: dict) -> list[str]:
         ['响应时间 平均 / 中位数（ms）', f'{fmt(lat.get("avg"), 2)} / {fmt(lat.get("med"), 2)}'],
         ['响应时间 P90 / P95 / P99（ms）', f'{fmt(lat.get("p90"), 2)} / {fmt(lat.get("p95"), 2)} / {fmt(lat.get("p99"), 2)}'],
         ['响应时间 最大（ms）', fmt(lat.get('max'), 2)],
+        ['服务端响应时间 平均 / P95 / P99（ms，nilo-web 统计，不含网络）',
+         f'{fmt(server_avg, 2)} / {fmt(server_p95, 2)} / {fmt(server_p99, 2)}'],
     ], ['项目', '值']), '']
 
 
@@ -116,6 +123,23 @@ def chain_section(prom: dict) -> list[str]:
     ], ['指标', '值']), '']
 
 
+def redis_commands_section(prom: dict, accepted: int | None) -> list[str]:
+    """Redis 按命令类型的执行次数，从高到低排列，并折算成平均每个放行请求几条。没有数据时不输出这一部分。
+    accepted：k6 统计的放行请求数"""
+    counts = prom_values(prom, 'redis_commands_by_cmd')
+    if not counts:
+        return []
+    # 只保留窗口内执行过的命令（increase 是估算值，不足 1 次的视为没执行）；按次数从高到低排序
+    used = sorted(((cmd, n) for cmd, n in counts.items() if round(n) > 0), key=lambda kv: -kv[1])
+    rows = [[cmd, round(n), fmt(n / accepted, 2) if accepted else '-'] for cmd, n in used]
+    return ['### Redis 命令分布（测试窗口内）', '',
+            table(rows, ['命令', '次数', '平均每个放行请求（条）']), '',
+            '- Lua 脚本里调用的命令会按各自的名字再计一次：脚本执行一次记一次 evalsha，脚本里的每条命令也各记一次',
+            '- info 主要来自被测机的写入监控（每秒 10 次）和 redis_exporter，是测量本身的开销，不是业务',
+            '- 测试窗口包含压测结束后的排空阶段，这段时间的后台命令也计算在内，所以每个请求的条数略微偏高',
+            '']
+
+
 def measurement_section(sut: dict, load_cpu: dict | None, net: str) -> list[str]:
     """测量本身的可信度：监控查询有没有跟上 0.1 秒的节拍、压测机 CPU、两台机器之间的网络"""
     mon = sut.get('monitor', {})
@@ -125,7 +149,7 @@ def measurement_section(sut: dict, load_cpu: dict | None, net: str) -> list[str]
             # 相邻的几个字符串会自动拼成一个，用来把长句拆成多行书写
             f'- 压测机 CPU 在压测期间每秒采样一次，共 {load_cpu["seconds"] if load_cpu else "-"} 秒，'
             f'被云主机宿主占用（steal）平均 {fmt(load_cpu["steal_avg"]) if load_cpu else "-"}%；'
-            f'P95 达到 {LOAD_CPU_LIMIT:.0f}% 即判定压测机可能成为瓶颈',
+            f'CPU 使用率的 P95（把每秒的采样从低到高排列，取第 95 百分位）达到 {LOAD_CPU_LIMIT:.0f}%，即判定压测机可能成为瓶颈',
             # <details> 是可折叠的区块，默认收起，点开才显示 tailscale ping 的原始输出
             '', '<details><summary>两台机器之间的网络（tailscale ping）</summary>', '', '```', net or '-', '```', '</details>', '']
 
@@ -146,6 +170,12 @@ def prom_line(prom: dict, name: str) -> str:
     if not v:
         return '-'
     return ', '.join(f'{k}: {fmt(x)}' for k, x in v.items())
+
+
+def prom_value(prom: dict, name: str) -> float | None:
+    """取汇总成一个数的指标（查询结果没有分组，分组名为 value，如服务端响应时间）；没有数据时返回 None"""
+    v = prom_values(prom, name)
+    return v.get('value') if v else None
 
 
 # ---------------- 读取文件 ----------------

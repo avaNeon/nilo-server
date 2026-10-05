@@ -127,6 +127,8 @@ springdoc:
 management:
   endpoints.web.exposure.include: health,info,prometheus
   metrics.tags.application: ${spring.application.name}
+  # 仅测试环境：HTTP 请求耗时按区间计数（直方图），压测报告据此估算服务端响应时间的 P95、P99
+  metrics.distribution.percentiles-histogram.http.server.requests: true
 
 nilo:
   internal:

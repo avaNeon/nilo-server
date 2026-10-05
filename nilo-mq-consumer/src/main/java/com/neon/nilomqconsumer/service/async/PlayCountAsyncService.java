@@ -68,7 +68,14 @@ public class PlayCountAsyncService
     @Async("playCountExecutor")
     public CompletableFuture <Void> flushPlayCountBatchToRedis(Map <Long, Integer> batch)
     {
-        hotVideoRedisRepository.updateVideoPlayCountBatch(batch);
+        try
+        {
+            hotVideoRedisRepository.updateVideoPlayCountBatch(batch);
+        }
+        catch (Exception e)
+        {
+            log.warn("Redis批量刷新播放量失败，batchSize={}，跳过该批次", batch.size(), e);
+        }
         return CompletableFuture.completedFuture(null);
     }
 

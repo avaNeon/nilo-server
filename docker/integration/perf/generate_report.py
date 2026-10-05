@@ -41,6 +41,7 @@ def main() -> None:
     lines += k6_section(k6, prom)                       # k6 的请求数和响应时间，以及 nilo-web 自己统计的响应时间
     lines += resource_section(prom)                     # 被测机每个容器的 CPU 和内存
     lines += chain_section(prom)                        # 链路各环节的指标，用来定位瓶颈
+    lines += pools_section(prom)                        # Tomcat 线程、数据库连接池、GC 分类
     lines += redis_commands_section(prom, k6.get('accepted'))  # Redis 按命令类型的执行次数
     lines += measurement_section(sut, load_cpu, net)    # 测量本身的可信度
 
@@ -123,6 +124,23 @@ def chain_section(prom: dict) -> list[str]:
     ], ['指标', '值']), '']
 
 
+def pools_section(prom: dict) -> list[str]:
+    """Tomcat 线程、数据库连接池、GC 分类，用来判断请求卡在哪：
+    线程用满 → 看连接池是否也用满、排队等连接的线程有多少；堆不够用 → 看全量 GC 和老年代存活对象"""
+    return ['### 线程、连接池与 GC（测试窗口内）', '', table([
+        ['nilo-web Tomcat 忙碌线程 峰值 / 上限', prom_pair(prom, 'tomcat_threads_busy_max', 'tomcat_threads_limit')],
+        ['nilo-web Tomcat 连接数峰值（含排队等线程的连接）', prom_line(prom, 'tomcat_connections_max')],
+        ['数据库连接池 使用中峰值 / 上限', prom_pair(prom, 'hikari_active_max', 'hikari_limit')],
+        ['数据库连接池 排队等连接的线程数峰值', prom_line(prom, 'hikari_pending_max')],
+        ['数据库连接池 平均等待拿到连接（ms）', prom_line(prom, 'hikari_acquire_avg_ms')],
+        ['数据库连接池 平均每次占用连接（ms）', prom_line(prom, 'hikari_usage_avg_ms')],
+        ['小 GC 次数 / 停顿（秒）', prom_pair(prom, 'gc_minor_count', 'gc_minor_seconds')],
+        ['全量 GC 次数 / 停顿（秒）', prom_pair(prom, 'gc_major_count', 'gc_major_seconds')],
+        ['老年代存活对象峰值 / 老年代上限（MiB）', prom_pair(prom, 'old_gen_live_max_mib', 'old_gen_limit_mib')],
+        ['平均每秒分配内存（MiB）', prom_line(prom, 'alloc_mib_per_s')],
+    ], ['指标', '值']), '']
+
+
 def redis_commands_section(prom: dict, accepted: int | None) -> list[str]:
     """Redis 按命令类型的执行次数，从高到低排列，并折算成平均每个放行请求几条。没有数据时不输出这一部分。
     accepted：k6 统计的放行请求数"""
@@ -170,6 +188,16 @@ def prom_line(prom: dict, name: str) -> str:
     if not v:
         return '-'
     return ', '.join(f'{k}: {fmt(x)}' for k, x in v.items())
+
+
+def prom_pair(prom: dict, first: str, second: str) -> str:
+    """把两项指标按分组配对成一行，如 "nilo-web: 200.0 / 200.0, nilo-mq-consumer: 3.0 / 10.0"（峰值 / 上限、次数 / 秒数）；
+    以第一项的分组为准，第二项缺失的显示 -；第一项没有数据时整行显示 -"""
+    a = prom_values(prom, first)
+    if not a:
+        return '-'
+    b = prom_values(prom, second) or {}
+    return ', '.join(f'{k}: {fmt(x)} / {fmt(b.get(k))}' for k, x in a.items())
 
 
 def prom_value(prom: dict, name: str) -> float | None:

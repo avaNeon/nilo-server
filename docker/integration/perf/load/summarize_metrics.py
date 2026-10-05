@@ -89,6 +89,34 @@ QUERIES = {
     'server_latency_p99_ms':
         'histogram_quantile(0.99, sum by (le) (increase('
         'http_server_requests_seconds_bucket{{application="nilo-web",uri="/video/{{videoId}}",method="POST"}}[{w}s]))) * 1000',
+
+    # nilo-web 的 Tomcat：忙碌线程数峰值、线程上限、当前连接数峰值（包括已连上、还在排队等线程的连接）。
+    # 需要开启 server.tomcat.mbeanregistry.enabled，见 docker/integration/nacos/nilo-common.yaml。
+    # Tomcat 指标带 name 标签（连接器名），用 max by (application) 去掉它，分组名才是应用名
+    'tomcat_threads_busy_max': 'max by (application) (max_over_time(tomcat_threads_busy_threads{{application="nilo-web"}}[{w}s]))',
+    'tomcat_threads_limit': 'max by (application) (tomcat_threads_config_max_threads{{application="nilo-web"}})',
+    'tomcat_connections_max': 'max by (application) (max_over_time(tomcat_connections_current_connections{{application="nilo-web"}}[{w}s]))',
+
+    # 各服务的数据库连接池（Hikari）：使用中的连接数峰值、连接上限、排队等连接的线程数峰值
+    'hikari_active_max': 'max by (application) (max_over_time(hikaricp_connections_active[{w}s]))',
+    'hikari_limit': 'max by (application) (hikaricp_connections_max)',
+    'hikari_pending_max': 'max by (application) (max_over_time(hikaricp_connections_pending[{w}s]))',
+    # 平均等多久拿到连接、拿到后平均占用多久（毫秒）= 窗口内总耗时 ÷ 次数
+    'hikari_acquire_avg_ms': 'sum by (application) (increase(hikaricp_connections_acquire_seconds_sum[{w}s]))'
+                             ' / sum by (application) (increase(hikaricp_connections_acquire_seconds_count[{w}s])) * 1000',
+    'hikari_usage_avg_ms': 'sum by (application) (increase(hikaricp_connections_usage_seconds_sum[{w}s]))'
+                           ' / sum by (application) (increase(hikaricp_connections_usage_seconds_count[{w}s])) * 1000',
+
+    # GC 分类：小 GC（只回收新生代）、全量 GC（回收整个堆，耗时长）各自的次数和停顿总时长（秒）
+    'gc_minor_count': 'sum by (application) (increase(jvm_gc_pause_seconds_count{{action="end of minor GC"}}[{w}s]))',
+    'gc_minor_seconds': 'sum by (application) (increase(jvm_gc_pause_seconds_sum{{action="end of minor GC"}}[{w}s]))',
+    'gc_major_count': 'sum by (application) (increase(jvm_gc_pause_seconds_count{{action="end of major GC"}}[{w}s]))',
+    'gc_major_seconds': 'sum by (application) (increase(jvm_gc_pause_seconds_sum{{action="end of major GC"}}[{w}s]))',
+    # 老年代：全量 GC 后仍存活的对象大小峰值、老年代上限（MiB）。存活对象接近上限，说明堆真的不够用，GC 会越来越频繁
+    'old_gen_live_max_mib': 'max by (application) (max_over_time(jvm_gc_live_data_size_bytes[{w}s])) / 1048576',
+    'old_gen_limit_mib': 'max by (application) (jvm_gc_max_data_size_bytes) / 1048576',
+    # 窗口内平均每秒新分配的内存（MiB），分配得越快，小 GC 越频繁
+    'alloc_mib_per_s': 'sum by (application) (rate(jvm_gc_memory_allocated_bytes_total[{w}s])) / 1048576',
     # 每个抓取目标的 up 指标：抓取成功为 1，失败为 0。
     # 窗口内最小值为 0，说明这期间有抓取失败，对应组件的指标有缺口
     'scrape_up_min': 'min_over_time(up[{w}s])',

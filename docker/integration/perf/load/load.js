@@ -36,9 +36,10 @@ export const options = {
       rate: RATE,
       timeUnit: '1s',
       duration: DURATION,
-      // 同时在途的请求数 ≈ 每秒请求数 × 响应时间。预先准备按 100ms 响应时间估算的 VU，最多允许到 1s；
-      // 响应慢到 VU 用完时，k6 发不出的请求记为 dropped_iterations，报告里会体现
-      preAllocatedVUs: Math.max(50, Math.ceil(RATE / 10)),
+      // 同时在途的请求数 ≈ 每秒请求数 × 响应时间。预先准备按 200ms 响应时间估算的 VU，最多允许到 1s。
+      // 超出预先准备的数量时，k6 要在压测中途临时创建 VU，创建期间到点的请求发不出去；
+      // VU 全部用完时同样发不出去。发不出的请求记为 dropped_iterations，报告里会体现
+      preAllocatedVUs: Math.max(50, Math.ceil(RATE / 5)),
       maxVUs: Math.max(200, RATE),
     },
   },

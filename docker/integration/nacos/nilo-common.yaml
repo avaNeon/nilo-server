@@ -130,6 +130,10 @@ management:
   # 仅测试环境：HTTP 请求耗时按区间计数（直方图），压测报告据此估算服务端响应时间的 P95、P99
   metrics.distribution.percentiles-histogram.http.server.requests: true
 
+# 仅测试环境：导出 Tomcat 线程池与连接数的指标（默认不导出），压测报告据此查看线程是否用满
+server:
+  tomcat.mbeanregistry.enabled: true
+
 nilo:
   internal:
     token: nilo-it-internal-token

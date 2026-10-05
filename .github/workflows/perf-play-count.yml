@@ -50,10 +50,6 @@ on:
           - hot
         default: uniform
 
-# 同一时间只跑一次压测
-concurrency:
-  group: perf-play-count
-
 permissions:
   contents: read
 

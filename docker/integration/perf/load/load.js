@@ -4,7 +4,7 @@
 // 全部结束后调用 handleSummary 输出结果。
 //
 // 环境变量：
-//   TARGET         被测机 nilo-web 地址，如 http://100.x.y.z:7071
+//   TARGET         被测机的接口地址（由 nginx 接住再转给 nilo-web），如 http://100.x.y.z:7071
 //   RATE           每秒请求数（固定到达率：不受响应快慢影响，按时发出）
 //   DURATION       持续时间，如 3m
 //   VIDEO_COUNT    种子视频数量，视频ID从 VIDEO_ID_BASE 开始连续编号

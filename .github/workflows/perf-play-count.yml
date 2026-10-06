@@ -6,6 +6,7 @@ name: Perf - Play Count
 #   - sut（被测机）：用 docker/integration 拉起中间件与微服务，灌种子数据，监控写入何时停止并对账
 #   - load（压测机）：等被测机就绪后用 k6 压测，同时用 Prometheus 抓取被测机的指标
 #   - report：合并两边的结果，写入本次运行的摘要页
+# 被测机对外的 7071 由 nginx 接住：压测请求、Prometheus 抓指标、诊断模式下载堆快照，都与线上一样先到 nginx，再经连接池转给 nilo-web。
 # 被测机只对压测机开放压测入口和只读的指标端口（由 Tailscale 访问控制规则限定），MySQL、Redis、ES 只监听被测机本机。
 #
 # 需要提前在仓库 Settings -> Secrets and variables -> Actions 里配置：

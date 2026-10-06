@@ -131,8 +131,12 @@ management:
   # 仅测试环境：HTTP 请求耗时按区间计数（直方图），压测报告据此估算服务端响应时间的 P95、P99
   metrics.distribution.percentiles-histogram.http.server.requests: true
 
-# 仅测试环境：导出 Tomcat 线程池与连接数的指标（默认不导出），压测报告据此查看线程是否用满
 server:
+  # 与线上一致：nginx 经连接池转发，空闲连接由 nginx 先关（nginx 50 秒，Tomcat 60 秒），避免复用到 Tomcat 刚关掉的连接；
+  # 单条连接最多处理 1000 个请求，与 nginx 的 keepalive_requests 一致（Tomcat 默认 100，池里的连接会被频繁拆掉重建）
+  tomcat.keep-alive-timeout: 60s
+  tomcat.max-keep-alive-requests: 1000
+  # 仅测试环境：导出 Tomcat 线程池与连接数的指标（默认不导出），压测报告据此查看线程是否用满
   tomcat.mbeanregistry.enabled: true
 
 nilo:

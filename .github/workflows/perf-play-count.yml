@@ -58,8 +58,8 @@ on:
         description: 'nilo-web 最大堆 / 容器内存上限，用 / 分隔；最大堆不小于 128m（初始堆固定为 128m）；默认 256m/512m 与线上一致'
         required: true
         default: '256m/512m'
-      nginx_keepalive:
-        description: 'nginx 到 nilo-web 的连接池大小：每个工作进程最多缓存的空闲连接数，要覆盖高峰时同时转发中的请求数'
+      nginx_max_conns:
+        description: 'nginx 到 nilo-web 同时转发中的请求上限，同时用作连接池大小；超出时 nginx 立即返回 502。默认 256（Tomcat 有 200 个工作线程）'
         required: true
         default: '256'
 
@@ -134,7 +134,7 @@ jobs:
           command -v nginx > /dev/null || { sudo apt-get update -q && sudo apt-get install -y -q nginx; }
           sudo mkdir -p /var/log/nginx
           ip=$(tailscale ip -4)
-          sed -e "s/__BIND_IP__/$ip/" -e "s/__KEEPALIVE__/${{ inputs.nginx_keepalive }}/" \
+          sed -e "s/__BIND_IP__/$ip/" -e "s/__MAX_CONNS__/${{ inputs.nginx_max_conns }}/g" \
             docker/integration/nginx/nginx.conf > "$RUNNER_TEMP/nginx.conf"
           nginx_bin=$(command -v nginx)
           sudo "$nginx_bin" -t -c "$RUNNER_TEMP/nginx.conf"
@@ -375,5 +375,5 @@ jobs:
       - name: Report
         run: |
           python3 docker/integration/perf/generate_report.py --sut sut-results --load load-results \
-            --title "播放统计压测：${{ inputs.version }}，${{ inputs.rate }} 次/秒，${{ inputs.duration }}，${{ inputs.distribution }}${{ inputs.web_memory != '256m/512m' && format('，nilo-web 堆/容器 {0}', inputs.web_memory) || '' }}${{ inputs.nginx_keepalive != '256' && format('，nginx 连接池 {0}', inputs.nginx_keepalive) || '' }}${{ inputs.diagnose && '，诊断模式（数字不与其他轮次比较）' || '' }}" \
+            --title "播放统计压测：${{ inputs.version }}，${{ inputs.rate }} 次/秒，${{ inputs.duration }}，${{ inputs.distribution }}${{ inputs.web_memory != '256m/512m' && format('，nilo-web 堆/容器 {0}', inputs.web_memory) || '' }}${{ inputs.nginx_max_conns != '256' && format('，nginx 最大连接数 {0}', inputs.nginx_max_conns) || '' }}${{ inputs.diagnose && '，诊断模式（数字不与其他轮次比较）' || '' }}" \
             >> "$GITHUB_STEP_SUMMARY"

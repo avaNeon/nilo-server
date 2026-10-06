@@ -214,7 +214,10 @@ services:
       - "${BIND_IP:-127.0.0.1}:7071:7071"
     environment:
       <<: *app-env
-      JAVA_TOOL_OPTIONS: -Xms128m -Xmx256m -XX:+UseSerialGC -Duser.timezone=UTC
+      # 末尾的 NILO_WEB_DIAG_OPTS 平时为空；压测工作流勾选诊断模式时填入 JFR 录制参数，录制文件写到 ./diag
+      JAVA_TOOL_OPTIONS: -Xms128m -Xmx256m -XX:+UseSerialGC -Duser.timezone=UTC ${NILO_WEB_DIAG_OPTS:-}
+    volumes:
+      - ./diag:/diag
     # /actuator/info 能访问说明启动完成（ES 索引在此之前已创建）。不用 /actuator/health：与这条链路无关的组件也会让它变成 DOWN
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:7071/actuator/info"]

@@ -100,4 +100,8 @@ migration/delete_orphans_report.json
 migration/media_ownership_backfill_report.json
 migration/media_ownership_backfill_keys.jsonl
 
+### 集成测试环境 ###
+# 压测诊断模式下 nilo-web 的 JFR 录制文件
+docker/integration/diag/
+
 # End of file

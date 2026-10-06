@@ -49,6 +49,10 @@ on:
           - uniform
           - hot
         default: uniform
+      diagnose:
+        description: '诊断模式：nilo-web 全程 JFR 录制，压测中和压测后共拍 3 张堆快照。拍快照会让服务停顿，本轮数字只用来看堆，不与其他轮次比较'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -92,6 +96,9 @@ jobs:
         working-directory: docker/integration
         env:
           NILO_TAG: ${{ inputs.version }}
+          # 诊断模式：nilo-web 启动即开始 JFR 录制（profile 配置），JVM 退出时写出到 /diag/nilo-web.jfr（挂载到 docker/integration/diag），
+          # 并记录老年代抽样对象到 GC 根的引用路径；录制最多占 500 MB 磁盘，超出时丢弃最早的部分
+          NILO_WEB_DIAG_OPTS: ${{ inputs.diagnose && '-XX:StartFlightRecording=settings=profile,disk=true,maxsize=500m,dumponexit=true,path-to-gc-roots=true,filename=/diag/nilo-web.jfr' || '' }}
         run: |
           export BIND_IP=$(tailscale ip -4)
           docker compose up -d --build
@@ -142,12 +149,28 @@ jobs:
           done
           docker stats --no-stream > perf-results/docker-stats-after.txt || true
 
+      # 诊断模式：正常停止 nilo-web，JVM 退出时才会写出 JFR 录制文件；计算 GC 根路径要花时间，最多等 2 分钟
+      - name: Collect JFR recording
+        if: always() && inputs.diagnose
+        run: |
+          docker stop -t 120 nilo-web || true
+          mkdir -p diag
+          sudo cp docker/integration/diag/nilo-web.jfr diag/ && sudo chown "$USER" diag/nilo-web.jfr || echo "没有找到 JFR 录制文件" >&2
+
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sut-results
           path: perf-results
+
+      # 诊断文件很大，单独上传，report 任务不必下载
+      - name: Upload JFR recording
+        if: always() && inputs.diagnose
+        uses: actions/upload-artifact@v4
+        with:
+          name: sut-diag
+          path: diag
 
   load:
     runs-on: ubuntu-latest
@@ -220,16 +243,42 @@ jobs:
           python3 docker/integration/perf/load/sample_cpu.py --out perf-load/load-cpu.csv &
           sampler=$!
           trap 'kill "$sampler"' EXIT
+          # 诊断模式：压测开始后第 60 秒、第 150 秒各拍一张堆快照。
+          # Spring 的 heapdump 端点会先做一次全量 GC，快照里只剩存活对象，即真正占着堆的东西
+          if [ "${{ inputs.diagnose }}" = true ]; then
+            mkdir -p diag
+            heap_dump() { curl -sf -m 180 -o "diag/heap-$1.hprof" "http://$SUT_IP:7071/actuator/heapdump" || echo "堆快照 $1 下载失败" >&2; }
+            start=$(date +%s)
+            (
+              sleep 60
+              heap_dump during-060s
+              left=$(( start + 150 - $(date +%s) ))
+              if [ "$left" -gt 0 ]; then sleep "$left"; fi
+              heap_dump during-150s
+            ) &
+            dumper=$!
+          fi
           k6 run \
             -e TARGET="http://$SUT_IP:7071" -e RATE=${{ inputs.rate }} -e DURATION=${{ inputs.duration }} \
             -e VIDEO_COUNT=${{ inputs.seed_count }} -e VIDEO_ID_BASE=$VIDEO_ID_BASE -e DISTRIBUTION=${{ inputs.distribution }} \
             -e SUMMARY_FILE=perf-load/k6-main.json \
             docker/integration/perf/load/load.js
+          # 等后台的快照下载完再结束这一步
+          if [ -n "${dumper:-}" ]; then wait "$dumper"; fi
 
       # 通知被测机：压测结束了，附带结束时刻和放行请求数，被测机据此判断写入何时停止并对账
       - name: Notify SUT
         run: |
           curl -sf -X POST -H 'Content-Type: application/json' --data @perf-load/k6-main-brief.json "http://$SUT_IP:$SIGNAL_PORT/load-finished"
+
+      # 诊断模式：k6 已退出、连接全部断开后再拍一张，和压测中的两张对比，差出来的就是压力带来的占用（连接、排队的请求等）。
+      # 必须在索要结果之前拍：被测机交出结果后，很快就会停掉 nilo-web
+      - name: Heap dump after load
+        if: inputs.diagnose
+        run: |
+          mkdir -p diag
+          sleep 10
+          curl -sf -m 180 -o diag/heap-after-load.hprof "http://$SUT_IP:7071/actuator/heapdump" || echo "压测后的堆快照下载失败" >&2
 
       # 反复索要结果，直到被测机判定写入停止、对账完成；Prometheus 在此期间继续采集，覆盖排空过程
       - name: Wait for SUT result
@@ -259,6 +308,14 @@ jobs:
           name: load-results
           path: perf-load
 
+      # 堆快照很大，单独上传，report 任务不必下载
+      - name: Upload heap dumps
+        if: always() && inputs.diagnose
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-diag
+          path: diag
+
   report:
     needs: [ sut, load ]
     if: always()
@@ -284,5 +341,5 @@ jobs:
       - name: Report
         run: |
           python3 docker/integration/perf/generate_report.py --sut sut-results --load load-results \
-            --title "播放统计压测：${{ inputs.version }}，${{ inputs.rate }} 次/秒，${{ inputs.duration }}，${{ inputs.distribution }}" \
+            --title "播放统计压测：${{ inputs.version }}，${{ inputs.rate }} 次/秒，${{ inputs.duration }}，${{ inputs.distribution }}${{ inputs.diagnose && '，诊断模式（数字不与其他轮次比较）' || '' }}" \
             >> "$GITHUB_STEP_SUMMARY"

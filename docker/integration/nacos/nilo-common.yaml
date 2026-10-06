@@ -125,7 +125,8 @@ springdoc:
     enabled: false
 
 management:
-  endpoints.web.exposure.include: health,info,prometheus
+  # 仅测试环境多暴露 heapdump：压测工作流的诊断模式通过它下载堆快照
+  endpoints.web.exposure.include: health,info,prometheus,heapdump
   metrics.tags.application: ${spring.application.name}
   # 仅测试环境：HTTP 请求耗时按区间计数（直方图），压测报告据此估算服务端响应时间的 P95、P99
   metrics.distribution.percentiles-histogram.http.server.requests: true

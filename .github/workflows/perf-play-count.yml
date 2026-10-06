@@ -54,14 +54,14 @@ on:
         description: '诊断模式：nilo-web 全程 JFR 录制，压测中和压测后共拍 3 张堆快照。拍快照会让服务停顿，本轮数字只用来看堆，不与其他轮次比较'
         type: boolean
         default: false
-      web_heap:
-        description: 'nilo-web 最大堆（-Xmx），不小于 128m（初始堆固定为 128m）；默认 256m 与线上一致'
+      web_memory:
+        description: 'nilo-web 最大堆 / 容器内存上限，用 / 分隔；最大堆不小于 128m（初始堆固定为 128m）；默认 256m/512m 与线上一致'
         required: true
-        default: '256m'
-      web_mem_limit:
-        description: 'nilo-web 容器内存上限；默认 512m 与线上一致'
+        default: '256m/512m'
+      nginx_keepalive:
+        description: 'nginx 到 nilo-web 的连接池大小：每个工作进程最多缓存的空闲连接数，要覆盖高峰时同时转发中的请求数'
         required: true
-        default: '512m'
+        default: '256'
 
 permissions:
   contents: read
@@ -105,13 +105,14 @@ jobs:
         working-directory: docker/integration
         env:
           NILO_TAG: ${{ inputs.version }}
-          NILO_WEB_HEAP: ${{ inputs.web_heap }}
-          NILO_WEB_MEM_LIMIT: ${{ inputs.web_mem_limit }}
           # 诊断模式：nilo-web 启动即开始 JFR 录制（profile 配置），JVM 退出时写出到 /diag/nilo-web.jfr（挂载到 docker/integration/diag），
           # 并记录老年代抽样对象到 GC 根的引用路径；录制最多占 500 MB 磁盘，超出时丢弃最早的部分
           NILO_WEB_DIAG_OPTS: ${{ inputs.diagnose && '-XX:StartFlightRecording=settings=profile,disk=true,maxsize=500m,dumponexit=true,path-to-gc-roots=true,filename=/diag/nilo-web.jfr' || '' }}
         run: |
           export BIND_IP=$(tailscale ip -4)
+          # web_memory 形如 256m/512m：前半是 nilo-web 的最大堆，后半是容器内存上限
+          IFS=/ read -r NILO_WEB_HEAP NILO_WEB_MEM_LIMIT <<< "${{ inputs.web_memory }}"
+          export NILO_WEB_HEAP NILO_WEB_MEM_LIMIT
           docker compose up -d --build
 
       # nilo-canal-client 依赖链最长，它健康说明整套环境都已启动
@@ -124,6 +125,27 @@ jobs:
           done
           echo "服务启动超时" >&2
           docker compose -f docker/integration/docker-compose.yaml ps -a
+          exit 1
+
+      # nginx 和线上一样装在宿主机上，不进容器：监听隧道地址的 7071，经连接池转发给只映射到本机的 nilo-web。
+      # 用 systemd-run 作为独立的 nginx-perf 服务运行，cAdvisor 才能单独统计它的 CPU 和内存（见 docker-compose.yaml 里 cadvisor 的参数）
+      - name: Start nginx
+        run: |
+          command -v nginx > /dev/null || { sudo apt-get update -q && sudo apt-get install -y -q nginx; }
+          sudo mkdir -p /var/log/nginx
+          ip=$(tailscale ip -4)
+          sed -e "s/__BIND_IP__/$ip/" -e "s/__KEEPALIVE__/${{ inputs.nginx_keepalive }}/" \
+            docker/integration/nginx/nginx.conf > "$RUNNER_TEMP/nginx.conf"
+          nginx_bin=$(command -v nginx)
+          sudo "$nginx_bin" -t -c "$RUNNER_TEMP/nginx.conf"
+          sudo systemd-run --unit=nginx-perf "$nginx_bin" -c "$RUNNER_TEMP/nginx.conf" -g 'daemon off;'
+          # 确认能经 nginx 访问到 nilo-web
+          for i in $(seq 1 30); do
+            curl -sf -o /dev/null "http://$ip:7071/actuator/info" && exit 0
+            sleep 1
+          done
+          echo "nginx 未能转发到 nilo-web" >&2
+          sudo cat /var/log/nginx/perf-error.log >&2 || true
           exit 1
 
       - name: Seed videos
@@ -158,6 +180,7 @@ jobs:
           for c in $(docker ps -a --format '{{.Names}}'); do
             docker logs "$c" > "perf-results/logs/$c.log" 2>&1 || true
           done
+          sudo cat /var/log/nginx/perf-error.log > perf-results/logs/nginx-error.log 2>/dev/null || true
           docker stats --no-stream > perf-results/docker-stats-after.txt || true
 
       # 诊断模式：正常停止 nilo-web，JVM 退出时才会写出 JFR 录制文件；计算 GC 根路径要花时间，最多等 2 分钟
@@ -352,5 +375,5 @@ jobs:
       - name: Report
         run: |
           python3 docker/integration/perf/generate_report.py --sut sut-results --load load-results \
-            --title "播放统计压测：${{ inputs.version }}，${{ inputs.rate }} 次/秒，${{ inputs.duration }}，${{ inputs.distribution }}${{ (inputs.web_heap != '256m' || inputs.web_mem_limit != '512m') && format('，nilo-web 堆 {0} / 容器 {1}', inputs.web_heap, inputs.web_mem_limit) || '' }}${{ inputs.diagnose && '，诊断模式（数字不与其他轮次比较）' || '' }}" \
+            --title "播放统计压测：${{ inputs.version }}，${{ inputs.rate }} 次/秒，${{ inputs.duration }}，${{ inputs.distribution }}${{ inputs.web_memory != '256m/512m' && format('，nilo-web 堆/容器 {0}', inputs.web_memory) || '' }}${{ inputs.nginx_keepalive != '256' && format('，nginx 连接池 {0}', inputs.nginx_keepalive) || '' }}${{ inputs.diagnose && '，诊断模式（数字不与其他轮次比较）' || '' }}" \
             >> "$GITHUB_STEP_SUMMARY"

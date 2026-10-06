@@ -58,6 +58,11 @@ QUERIES = {
     'container_cpu_cores_avg': 'avg_over_time(sum by (name) (rate(container_cpu_usage_seconds_total{{name!=""}}[15s]))[{w}s:5s])',
     # 各容器内存峰值（MiB）。working set 是容器实际在用、无法回收的内存，与 docker stats 显示的口径基本一致
     'container_memory_max_mib': 'max_over_time(container_memory_working_set_bytes{{name!=""}}[{w}s]) / 1048576',
+    # 宿主机上不在容器里的两个服务：nginx（nginx-perf 服务）与 dockerd（含为 127.0.0.1:7071 做端口转发的 docker-proxy）。
+    # 它们没有 name 标签，按 cgroup 路径（id 标签）区分，见 docker-compose.yaml 里 cadvisor 的 --raw_cgroup_prefix_whitelist
+    'host_cpu_cores_max': 'max_over_time(sum by (id) (rate(container_cpu_usage_seconds_total{{id=~"/system.slice/(nginx-perf|docker).service"}}[15s]))[{w}s:5s])',
+    'host_cpu_cores_avg': 'avg_over_time(sum by (id) (rate(container_cpu_usage_seconds_total{{id=~"/system.slice/(nginx-perf|docker).service"}}[15s]))[{w}s:5s])',
+    'host_memory_max_mib': 'max by (id) (max_over_time(container_memory_working_set_bytes{{id=~"/system.slice/(nginx-perf|docker).service"}}[{w}s])) / 1048576',
     # 各微服务 JVM 堆内存峰值（MiB）：把 Eden、Survivor、老年代等各个堆区加起来
     'jvm_heap_used_max_mib': 'max_over_time(sum by (application) (jvm_memory_used_bytes{{area="heap"}})[{w}s:5s]) / 1048576',
     # 各微服务在窗口内 GC 暂停的总时长（秒）
@@ -140,9 +145,9 @@ def query(expr: str, at: float) -> dict[str, float]:
     for item in data['data']['result']:
         # 去掉 __name__（指标名）这一项，剩下的都是标签
         labels = {k: v for k, v in item['metric'].items() if k != '__name__'}
-        # 选一个标签作为分组名：容器名 > 应用名 > Redis 命令名 > 抓取任务名 > 队列名，都没有（如 sum(...) 汇总成一个数）就叫 value。
-        # a or b or c 返回第一个不为空的值
-        key = (labels.get('name') or labels.get('application') or labels.get('cmd')
+        # 选一个标签作为分组名：容器名 > 应用名 > Redis 命令名 > cgroup 路径 > 抓取任务名 > 队列名，
+        # 都没有（如 sum(...) 汇总成一个数）就叫 value。a or b or c 返回第一个不为空的值
+        key = (labels.get('name') or labels.get('application') or labels.get('cmd') or labels.get('id')
                or labels.get('job') or labels.get('queue') or 'value')
         # value 是 [时间戳, "数值字符串"]，[1] 取数值，转成小数并保留 3 位
         out[key] = round(float(item['value'][1]), 3)

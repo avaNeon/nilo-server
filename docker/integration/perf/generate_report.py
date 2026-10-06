@@ -102,12 +102,17 @@ def k6_section(k6: dict, prom: dict) -> list[str]:
 
 
 def resource_section(prom: dict) -> list[str]:
-    """被测机每个容器的 CPU 和内存，按 CPU 峰值从高到低排列。没有数据或查询失败时不输出这一部分"""
+    """被测机每个容器的 CPU 和内存，按 CPU 峰值从高到低排列；宿主机上不在容器里的 nginx、dockerd 也列在一起。
+    没有数据或查询失败时不输出这一部分"""
     cpu_max = prom_values(prom, 'container_cpu_cores_max')
     if not cpu_max:
         return []
     cpu_avg = prom_values(prom, 'container_cpu_cores_avg') or {}
     mem_max = prom_values(prom, 'container_memory_max_mib') or {}
+    # 宿主机服务按 cgroup 路径查出来，换成可读的名字后并入容器的统计；| 合并两个字典
+    cpu_max = cpu_max | host_values(prom, 'host_cpu_cores_max')
+    cpu_avg = cpu_avg | host_values(prom, 'host_cpu_cores_avg')
+    mem_max = mem_max | host_values(prom, 'host_memory_max_mib')
     # set(cpu_max) | set(mem_max)：两边容器名的并集；key=lambda ...：按 CPU 峰值的相反数排序，即从高到低
     names = sorted(set(cpu_max) | set(mem_max), key=lambda n: -cpu_max.get(n, 0))
     return ['### 被测机资源（测试窗口内）', '',
@@ -198,6 +203,18 @@ def prom_line(prom: dict, name: str) -> str:
     if not v:
         return '-'
     return ', '.join(f'{k}: {fmt(x)}' for k, x in v.items())
+
+
+HOST_SERVICES = {
+    '/system.slice/nginx-perf.service': 'nginx（宿主机）',
+    '/system.slice/docker.service': 'dockerd（宿主机，含端口转发）',
+}
+
+
+def host_values(prom: dict, name: str) -> dict[str, float]:
+    """取宿主机服务的一项指标，把 cgroup 路径换成 HOST_SERVICES 里的可读名字；没有数据时返回空字典"""
+    v = prom_values(prom, name) or {}
+    return {HOST_SERVICES.get(k, k): x for k, x in v.items()}
 
 
 def prom_pair(prom: dict, first: str, second: str) -> str:

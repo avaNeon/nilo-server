@@ -8,7 +8,9 @@
 #
 # 端口分两类：
 #   - MySQL、Redis、ES 只监听本机回环地址 127.0.0.1，供被测机本地的监控脚本使用，外部无法访问
-#   - 压测入口（7071，由 nginx 接住再转给 nilo-web）和只读的指标端口监听 BIND_IP：双机压测时是 Tailscale 隧道地址，单机时默认 127.0.0.1
+#   - 只读的指标端口监听 BIND_IP：双机压测时是 Tailscale 隧道地址，单机时默认 127.0.0.1
+#   - nilo-web 和线上一样只映射到本机 127.0.0.1:7071；压测入口是宿主机上的 nginx（不在本 compose 里），
+#     它监听 BIND_IP 的 7071，经连接池转发给 nilo-web，由压测工作流启动，配置见 nginx/nginx.conf
 #
 # 启动顺序由 depends_on 保证：
 #   MySQL（初始化时建好业务表与 Nacos 表）─▶ Nacos ─▶ 写入 Nacos 配置 ─▶ 微服务
@@ -24,7 +26,7 @@
 #   - Nacos 配置里 AI 与 MinIO 的地址指向不存在的主机，确保测试中不会访问外部服务
 #   - cAdvisor 每 5 秒采集一次（线上 30 秒），以获得足够的时间分辨率
 #   - 额外运行 MySQL、Redis 的指标导出组件（exporter），只用于采集指标
-#   - nginx 运行在容器里（线上在宿主机），只转发 nilo-web 的接口，与线上的其他差异见 nginx/nginx.conf
+#   - nginx 只转发 nilo-web 的接口，与线上的其他差异见 nginx/nginx.conf
 name: nilo-it
 
 x-app-env: &app-env
@@ -212,7 +214,9 @@ services:
       # 消费端先声明好队列，web 发出的消息才不会丢
       nilo-mq-consumer:
         condition: service_healthy
-    # 不映射到宿主机：对外的 7071 由 nginx 占用，压测请求、指标抓取、堆快照下载都经 nginx 转发到这里
+    # 和线上一样只映射到本机：宿主机上的 nginx 监听隧道地址的 7071，经连接池转发到这里（见 nginx/nginx.conf）
+    ports:
+      - "127.0.0.1:7071:7071"
     environment:
       <<: *app-env
       # 末尾的 NILO_WEB_DIAG_OPTS 平时为空；压测工作流勾选诊断模式时填入 JFR 录制参数，录制文件写到 ./diag
@@ -225,19 +229,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 60
-
-  # 压测入口：与线上一样由 nginx 接住客户端连接，再经连接池转给 nilo-web，配置见 nginx/nginx.conf。
-  # 沿用原先 nilo-web 对外的 7071 端口，压测机的 k6 和 Prometheus 不用改地址
-  nginx:
-    image: nginx:1.27-alpine
-    container_name: nginx
-    depends_on:
-      nilo-web:
-        condition: service_healthy
-    ports:
-      - "${BIND_IP:-127.0.0.1}:7071:7071"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
 
   nilo-mq-consumer:
     image: ghcr.io/avaneon/nilo-mq-consumer:${NILO_TAG:-perf-v3}
@@ -303,6 +294,9 @@ services:
     command:
       - --docker_only=true
       - --housekeeping_interval=5s
+      # 宿主机上的 nginx（以 nginx-perf 服务运行）和 dockerd（含为 127.0.0.1:7071 做端口转发的 docker-proxy）不是容器，
+      # 单独加进来统计 CPU 与内存
+      - --raw_cgroup_prefix_whitelist=/system.slice/nginx-perf.service,/system.slice/docker.service
     mem_limit: 256m
 
   mysqld-exporter:

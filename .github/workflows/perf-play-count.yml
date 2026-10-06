@@ -53,6 +53,14 @@ on:
         description: '诊断模式：nilo-web 全程 JFR 录制，压测中和压测后共拍 3 张堆快照。拍快照会让服务停顿，本轮数字只用来看堆，不与其他轮次比较'
         type: boolean
         default: false
+      web_heap:
+        description: 'nilo-web 最大堆（-Xmx），不小于 128m（初始堆固定为 128m）；默认 256m 与线上一致'
+        required: true
+        default: '256m'
+      web_mem_limit:
+        description: 'nilo-web 容器内存上限；默认 512m 与线上一致'
+        required: true
+        default: '512m'
 
 permissions:
   contents: read
@@ -96,6 +104,8 @@ jobs:
         working-directory: docker/integration
         env:
           NILO_TAG: ${{ inputs.version }}
+          NILO_WEB_HEAP: ${{ inputs.web_heap }}
+          NILO_WEB_MEM_LIMIT: ${{ inputs.web_mem_limit }}
           # 诊断模式：nilo-web 启动即开始 JFR 录制（profile 配置），JVM 退出时写出到 /diag/nilo-web.jfr（挂载到 docker/integration/diag），
           # 并记录老年代抽样对象到 GC 根的引用路径；录制最多占 500 MB 磁盘，超出时丢弃最早的部分
           NILO_WEB_DIAG_OPTS: ${{ inputs.diagnose && '-XX:StartFlightRecording=settings=profile,disk=true,maxsize=500m,dumponexit=true,path-to-gc-roots=true,filename=/diag/nilo-web.jfr' || '' }}
@@ -341,5 +351,5 @@ jobs:
       - name: Report
         run: |
           python3 docker/integration/perf/generate_report.py --sut sut-results --load load-results \
-            --title "播放统计压测：${{ inputs.version }}，${{ inputs.rate }} 次/秒，${{ inputs.duration }}，${{ inputs.distribution }}${{ inputs.diagnose && '，诊断模式（数字不与其他轮次比较）' || '' }}" \
+            --title "播放统计压测：${{ inputs.version }}，${{ inputs.rate }} 次/秒，${{ inputs.duration }}，${{ inputs.distribution }}${{ (inputs.web_heap != '256m' || inputs.web_mem_limit != '512m') && format('，nilo-web 堆 {0} / 容器 {1}', inputs.web_heap, inputs.web_mem_limit) || '' }}${{ inputs.diagnose && '，诊断模式（数字不与其他轮次比较）' || '' }}" \
             >> "$GITHUB_STEP_SUMMARY"

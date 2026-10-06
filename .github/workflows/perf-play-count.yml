@@ -98,8 +98,10 @@ jobs:
           python3 -m venv .venv
           .venv/bin/pip install -q -r docker/integration/perf/sut/requirements.txt
           mkdir -p perf-results
-          # 记录机器配置：每次分到的云主机硬件可能不同，报告里显示 CPU 型号和核数，便于判断两次结果能否直接比较
-          { echo "cpu: $(lscpu | sed -n 's/^Model name:[[:space:]]*//p' | head -1)"; echo "nproc: $(nproc)"; free -m; chronyc tracking 2>/dev/null || timedatectl; } > perf-results/sut-host.txt
+          # 记录机器配置：每次分到的云主机硬件可能不同，报告里显示 CPU 型号、核数和每个物理核的超线程数，便于判断两次结果能否直接比较
+          { echo "cpu: $(lscpu | sed -n 's/^Model name:[[:space:]]*//p' | head -1)"; echo "nproc: $(nproc)"
+            echo "threads_per_core: $(lscpu | sed -n 's/^Thread(s) per core:[[:space:]]*//p' | head -1)"
+            free -m; chronyc tracking 2>/dev/null || timedatectl; } > perf-results/sut-host.txt
 
       - name: Start environment
         working-directory: docker/integration
@@ -168,10 +170,16 @@ jobs:
           done
           docker stats --no-stream > perf-results/docker-stats-before.txt
 
+      # 同时每秒记录一次整机 CPU：按容器统计的 CPU 不包括 tailscale、内核的网络收发包处理、写入监控等。
+      # 采样覆盖这一步的全程，报告只取压测期间的部分
       - name: Serve and monitor
         timeout-minutes: 60
         working-directory: docker/integration/perf/sut
-        run: $PYTHON serve.py --bind "$(tailscale ip -4)" --port "$SIGNAL_PORT" --out "$RESULTS_DIR"
+        run: |
+          python3 ../sample_cpu.py --out "$RESULTS_DIR/sut-cpu.csv" &
+          sampler=$!
+          trap 'kill "$sampler"' EXIT
+          $PYTHON serve.py --bind "$(tailscale ip -4)" --port "$SIGNAL_PORT" --out "$RESULTS_DIR"
 
       - name: Collect logs
         if: always()
@@ -244,7 +252,9 @@ jobs:
         run: |
           mkdir -p perf-load
           tailscale ping --until-direct=false -c 10 "$SUT_IP" | tee perf-load/tailscale-ping.txt || true
-          { echo "cpu: $(lscpu | sed -n 's/^Model name:[[:space:]]*//p' | head -1)"; echo "nproc: $(nproc)"; chronyc tracking 2>/dev/null || timedatectl; } > perf-load/load-host.txt
+          { echo "cpu: $(lscpu | sed -n 's/^Model name:[[:space:]]*//p' | head -1)"; echo "nproc: $(nproc)"
+            echo "threads_per_core: $(lscpu | sed -n 's/^Thread(s) per core:[[:space:]]*//p' | head -1)"
+            chronyc tracking 2>/dev/null || timedatectl; } > perf-load/load-host.txt
 
       - name: Set up k6
         uses: grafana/setup-k6-action@v1
@@ -274,7 +284,7 @@ jobs:
       # 压测期间每秒记录一次压测机的 CPU，用来判断瓶颈是不是压测机自己
       - name: Load test
         run: |
-          python3 docker/integration/perf/load/sample_cpu.py --out perf-load/load-cpu.csv &
+          python3 docker/integration/perf/sample_cpu.py --out perf-load/load-cpu.csv &
           sampler=$!
           trap 'kill "$sampler"' EXIT
           # 诊断模式：压测开始后第 60 秒、第 150 秒各拍一张堆快照。

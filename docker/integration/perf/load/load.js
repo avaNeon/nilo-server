@@ -14,7 +14,7 @@
 //
 // 每个请求带随机的 sessionId 和 X-Real-IP，模拟不同的用户，使请求都走放行路径（会话、IP 两个维度的限流都不会触发）。
 import http from 'k6/http';
-import { Counter, Gauge } from 'k6/metrics';
+import { Counter, Gauge, Trend } from 'k6/metrics';
 
 const TARGET = __ENV.TARGET;
 const RATE = Number(__ENV.RATE || 200);
@@ -28,6 +28,18 @@ const SUMMARY_FILE = __ENV.SUMMARY_FILE || 'k6-summary.json';
 const accepted = new Counter('play_accepted');
 const rejected = new Counter('play_rejected');
 const failed = new Counter('play_failed');
+// 失败按原因再分别计数（合计等于 play_failed），不用翻 nginx 日志就能知道失败是怎么来的
+const failedBy = {
+  // nginx 返回 502：同时转发中的请求已达上限（max_conns），或者连不上 nilo-web
+  status502: new Counter('play_failed_502'),
+  status5xx: new Counter('play_failed_5xx_other'),  // 其他 5xx，如 nilo-web 自己报错的 500、nginx 等待超时的 504
+  status4xx: new Counter('play_failed_4xx'),
+  network: new Counter('play_failed_network'),      // 没收到响应：连接失败或超时，k6 记为状态码 0
+  other: new Counter('play_failed_other'),          // 状态码 200 但响应内容不是预期的，或者少见的状态码（如重定向）
+};
+// 放行请求的响应时间。k6 自带的 http_req_duration 包含失败的请求：失败很多时（如 nginx 立即返回的 502），
+// 整体的响应时间会被拉偏，看不出放行的请求实际花了多久。第二个参数 true 表示这是时间，单位毫秒
+const acceptedDuration = new Trend('play_accepted_duration', true);
 // 每收到一个响应就记一次当前时间。Gauge 会保留最大值，即最后一个响应到达的时刻，作为"压测结束时刻"
 const lastResponse = new Gauge('last_response_ms');
 
@@ -56,23 +68,39 @@ export default function () {
   });
   lastResponse.add(Date.now());
   if (res.status !== 200) {
-    failed.add(1);
+    fail(statusCause(res.status));
     return;
   }
   let body;
   try {
     body = res.json();
   } catch (e) {
-    failed.add(1);
+    fail(failedBy.other);
     return;
   }
   if (body.status === 'success') {
     accepted.add(1);
+    acceptedDuration.add(res.timings.duration);
   } else if (body.code === 429) {
     rejected.add(1);
   } else {
-    failed.add(1);
+    fail(failedBy.other);
   }
+}
+
+// 失败计数：总数和对应原因各记一次
+function fail(cause) {
+  failed.add(1);
+  cause.add(1);
+}
+
+// 状态码不是 200 时，按状态码找到对应原因的计数器
+function statusCause(status) {
+  if (status === 0) return failedBy.network;
+  if (status === 502) return failedBy.status502;
+  if (status >= 500) return failedBy.status5xx;
+  if (status >= 400) return failedBy.status4xx;
+  return failedBy.other;
 }
 
 // 测试结束后执行，此时所有请求都已返回。
@@ -80,7 +108,11 @@ export default function () {
 // 这段时间请求越多越长，用当前时间会让写入完成延迟偏小
 export function handleSummary(data) {
   const count = (name) => (data.metrics[name] ? data.metrics[name].values.count : 0);
-  const d = data.metrics.http_req_duration.values;
+  // 响应时间的各个分位；一个都没记录过的指标（如没有放行的请求）在 data.metrics 里不存在，返回空对象
+  const latency = (name) => {
+    const d = data.metrics[name] ? data.metrics[name].values : null;
+    return d ? { avg: d.avg, med: d.med, p90: d['p(90)'], p95: d['p(95)'], p99: d['p(99)'], max: d.max } : {};
+  };
   const now = Date.now();
   const brief = {
     end_ms: data.metrics.last_response_ms ? Math.round(data.metrics.last_response_ms.values.max) : now,
@@ -91,9 +123,17 @@ export function handleSummary(data) {
     accepted: count('play_accepted'),
     rejected: count('play_rejected'),
     failed: count('play_failed'),
+    failed_by_cause: {
+      status_502: count('play_failed_502'),
+      status_5xx_other: count('play_failed_5xx_other'),
+      status_4xx: count('play_failed_4xx'),
+      network: count('play_failed_network'),
+      other: count('play_failed_other'),
+    },
     requests: count('http_reqs'),
     dropped_iterations: count('dropped_iterations'),
-    latency_ms: { avg: d.avg, med: d.med, p90: d['p(90)'], p95: d['p(95)'], p99: d['p(99)'], max: d.max },
+    latency_ms: latency('http_req_duration'),               // 全部请求，包括失败的
+    accepted_latency_ms: latency('play_accepted_duration'), // 只算放行的请求
   };
   return {
     [SUMMARY_FILE]: JSON.stringify(data, null, 2),

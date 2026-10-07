@@ -1,0 +1,2232 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>播放统计压测结果</title>
+  <meta name="description" content="Nilo 播放统计链路各版本的压测结果对比">
+  <!-- 页面结构：页头 → 版本说明 → 关键数字 → 运行详情 → 01 总体性能 → 02 生产端性能 → 03 消费端性能 → 04 资源与误差 → 05 数据明细。
+     数据在 data/ 下，由 docker/integration/perf/report_to_json.py 从压测报告生成，页面打开时读取；图表用 ECharts 绘制。
+     本地预览要通过 HTTP 打开（浏览器不允许直接打开的本地文件读取 data/ 下的 JSON）：在本目录运行 python -m http.server -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js"></script>
+  <style>
+    /* 颜色都定义成变量，深色模式只需要在下面换一组值；图表的颜色在脚本里的 THEMES */
+    :root {
+      --page: #FFFFFF;
+      --on: #0B0C12;
+      --on-sub: #4A4D58;
+      --on-well: #F3F4F7;
+      --card: #FFFFFF;
+      --ink: #0B0C12;
+      --ink2: #3A3D48;
+      --muted: #6B6F7B;
+      --well: #F3F4F7;
+      --line: #EEF0F4;
+      --accent: #0000F2;
+      --accent-soft: #EBEBFE;
+      --shadow: 0 0 0 1px #E3E5EC, 0 14px 32px -26px rgba(11, 12, 18, 0.22);
+      --sans: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --page: #08080F;
+        --on: #FFFFFF;
+        --on-sub: #A3A6B8;
+        --on-well: rgba(255, 255, 255, 0.07);
+        --card: #14151C;
+        --ink: #F4F5F8;
+        --ink2: #C2C5D0;
+        --muted: #8A8E9A;
+        --well: #1D1E27;
+        --line: #23252F;
+        --accent: #8C8CFF;
+        --accent-soft: #22234A;
+        --shadow: none;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    /* 带 hidden 属性的元素一律隐藏：下面不少区块设置了 display，会盖过浏览器对 hidden 的默认处理 */
+    [hidden] {
+      display: none !important;
+    }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font-family: var(--sans);
+      -webkit-font-smoothing: antialiased;
+      font-variant-numeric: tabular-nums;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    a:hover {
+      color: var(--ink);
+    }
+
+    button {
+      font: inherit;
+      color: inherit;
+      border: 0;
+    }
+
+    .page {
+      padding: 0 16px 56px;
+    }
+
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .mono {
+      font-family: var(--mono);
+    }
+
+    /* ---------- 页头 ---------- */
+    .top {
+      padding-top: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+      color: var(--on);
+    }
+
+    .brand-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo {
+      position: relative;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .logo::after {
+      content: "";
+      position: absolute;
+      left: 14px;
+      top: 5.5px;
+      width: 6.5px;
+      height: 6.5px;
+      border-radius: 50%;
+      background: var(--card);
+    }
+
+    .brand-name {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+    }
+
+    .brand-tag {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      color: var(--on-sub);
+      padding-top: 2px;
+    }
+
+    .gh {
+      height: 36px;
+      padding: 0 16px;
+      border-radius: 999px;
+      background: var(--on-well);
+      color: var(--on);
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .gh:hover {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    .intro {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      max-width: 780px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(32px, 6vw, 52px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.08;
+    }
+
+    .intro p {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.75;
+      color: var(--on-sub);
+      text-wrap: pretty;
+    }
+
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--on-sub);
+    }
+
+    .flow .chip {
+      height: 32px;
+      padding: 0 14px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+    }
+
+    .flow .chip.control {
+      background: none;
+      box-shadow: inset 0 0 0 1.5px var(--accent);
+      color: var(--accent);
+    }
+
+    .status {
+      margin: 0;
+      padding: 14px 18px;
+      border-radius: 18px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    /* ---------- 版本说明 ---------- */
+    .versions {
+      padding: 8px;
+      border-radius: 28px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
+      gap: 8px;
+    }
+
+    /* 两个一组：宽屏 4 个一行，中等宽度 2×2，窄屏一列 */
+    .pair {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+      gap: 8px;
+    }
+
+    .ver {
+      padding: 16px 18px;
+      border-radius: 22px;
+      background: var(--well);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .ver.now {
+      background: var(--accent-soft);
+    }
+
+    .ver-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .ver-name {
+      font-family: var(--mono);
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .tag {
+      height: 22px;
+      padding: 0 9px;
+      border-radius: 999px;
+      background: var(--card);
+      color: var(--ink2);
+      font-size: 11px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+    }
+
+    .ver.now .tag {
+      background: var(--accent);
+      color: var(--card);
+    }
+
+    .ver p {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.65;
+      color: var(--ink2);
+      text-wrap: pretty;
+    }
+
+    /* ---------- 关键数字 ---------- */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
+      gap: 12px;
+    }
+
+    .stats .pair {
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+      gap: 12px;
+    }
+
+    .stat {
+      padding: 22px 22px 20px;
+      border-radius: 28px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .stat-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink2);
+    }
+
+    .stat-value {
+      margin-top: 6px;
+      font-size: clamp(28px, 3.4vw, 36px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+
+    .stat-caption {
+      font-size: 13px;
+      color: var(--ink2);
+    }
+
+    .stat-foot {
+      margin-top: 10px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--muted);
+      text-wrap: pretty;
+    }
+
+    /* ---------- 区块 ---------- */
+    .sec {
+      padding: 26px 28px 24px;
+      border-radius: 28px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .sec.minor {
+      padding: 22px 28px;
+      gap: 16px;
+    }
+
+    .sec-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px 16px;
+      flex-wrap: wrap;
+    }
+
+    .sec-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .num {
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .minor .num {
+      width: 30px;
+      height: 30px;
+      border-radius: 10px;
+      background: var(--well);
+      color: var(--ink2);
+      font-size: 11px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+
+    .minor h2 {
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 800;
+    }
+
+    .unit {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .sec-sub {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* 区块里的一个指标：标题行（左边标题，右边运行开关或切换）+ 图 + 说明；divided 表示与上一个指标之间画一条分隔线 */
+    .block {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .block.divided {
+      padding-top: 22px;
+      border-top: 1px solid var(--line);
+    }
+
+    .block-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px 16px;
+      flex-wrap: wrap;
+    }
+
+    .block-title {
+      display: flex;
+      align-items: center;
+      gap: 6px 14px;
+      flex-wrap: wrap;
+    }
+
+    /* 一个指标下的几张小图（如"开销"下的合计与拆解） */
+    .subs {
+      display: flex;
+      flex-direction: column;
+      gap: 26px;
+    }
+
+    .sub {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .sub-title {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .sub-title b {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ink2);
+    }
+
+    /* 04 区块里的两张图并排 */
+    .charts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr));
+      gap: 28px;
+    }
+
+    .chart {
+      width: 100%;
+    }
+
+    /* 每张图下面的分析：先是指标的含义，再是趋势的成因，以及它来自哪一项改动 */
+    .explain {
+      margin: 2px 0 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--ink2);
+    }
+
+    .explain p {
+      margin: 0;
+      text-wrap: pretty;
+    }
+
+    .explain b {
+      margin-right: 8px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    /* 标题旁的线型、色块说明 */
+    .keys {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--ink2);
+    }
+
+    .keys span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .keys i {
+      width: 20px;
+      height: 0;
+      border-top: 2.5px solid var(--ink2);
+    }
+
+    .keys i.dashed {
+      border-top-style: dashed;
+    }
+
+    .keys i.faint {
+      border-top: 2px solid var(--muted);
+      opacity: 0.45;
+    }
+
+    .keys.muted {
+      color: var(--muted);
+    }
+
+    .keys .box {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+    }
+
+    /* 运行的标记：颜色加形状，形状用圆角、裁剪和旋转画出来 */
+    .shape {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      flex-shrink: 0;
+    }
+
+    /* 每张折线图右上角的运行开关：点击隐藏或显示这张图里的某次运行，至少保留一个 */
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 4px;
+    }
+
+    .run-chip {
+      cursor: pointer;
+      height: 32px;
+      padding: 0 12px 0 10px;
+      border-radius: 999px;
+      background: var(--well);
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .run-chip[aria-checked="false"] {
+      background: transparent;
+      box-shadow: inset 0 0 0 1px var(--line);
+      color: var(--muted);
+    }
+
+    .run-chip[aria-checked="false"] .run-name {
+      text-decoration: line-through;
+    }
+
+    .run-chip:hover {
+      background: var(--accent-soft);
+    }
+
+    .run-chip .shape {
+      width: 9px;
+      height: 9px;
+    }
+
+    /* 分段切换（选一次运行看拆解、队列、明细） */
+    .tabs {
+      display: flex;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      max-width: 100%;
+      gap: 2px;
+      padding: 4px;
+      border-radius: 999px;
+      background: var(--well);
+    }
+
+    .tab {
+      cursor: pointer;
+      flex-shrink: 0;
+      white-space: nowrap;
+      height: 32px;
+      padding: 0 13px 0 11px;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--ink2);
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tabs.large .tab {
+      height: 34px;
+      padding: 0 14px 0 12px;
+      font-size: 13px;
+    }
+
+    .tab[aria-selected="true"] {
+      background: var(--card);
+      box-shadow: 0 6px 16px -8px rgba(11, 12, 18, 0.35);
+      color: var(--ink);
+    }
+
+    .tab .shape {
+      width: 9px;
+      height: 9px;
+    }
+
+    .pill {
+      cursor: pointer;
+      height: 36px;
+      padding: 0 14px;
+      border-radius: 999px;
+      background: var(--well);
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .pill:hover {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    /* ---------- 运行详情 ---------- */
+    .hollow-note {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .hollow-note::before {
+      content: "";
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      box-shadow: inset 0 0 0 2px var(--muted);
+    }
+
+    .run-details {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+      gap: 8px;
+    }
+
+    .run-detail {
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: var(--well);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 0;
+      font-size: 12px;
+      color: var(--ink2);
+    }
+
+    .run-detail-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .run-id {
+      margin-left: auto;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--muted);
+    }
+
+    .kv {
+      margin: 0;
+      display: grid;
+      grid-template-columns: 52px minmax(0, 1fr);
+      gap: 4px 10px;
+      line-height: 1.5;
+    }
+
+    .kv dt {
+      color: var(--muted);
+    }
+
+    .kv dd {
+      margin: 0;
+    }
+
+    .run-detail a {
+      align-self: flex-start;
+      font-weight: 600;
+    }
+
+    /* ---------- 按组件拆解：左边堆叠柱状图，旁边各组件从第一个版本到最后一个版本的变化 ---------- */
+    .stack-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px 32px;
+      align-items: center;
+    }
+
+    .stack-chart {
+      flex: 999 1 420px;
+      height: 340px;
+      min-width: 0;
+    }
+
+    .stack-legend {
+      flex: 1 1 260px;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .legend-row {
+      display: grid;
+      grid-template-columns: 14px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      padding: 9px 4px;
+      border-top: 1px solid var(--line);
+    }
+
+    .legend-row.head {
+      padding: 0 4px 8px;
+      border-top: 0;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .legend-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+    }
+
+    .legend-name {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      min-width: 0;
+    }
+
+    .legend-name b {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .legend-name small {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .legend-vals {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--ink2);
+      white-space: nowrap;
+    }
+
+    /* ---------- 可折叠区块 ---------- */
+    .sec.fold {
+      padding: 18px 20px 18px 28px;
+      gap: 18px;
+    }
+
+    .fold-head {
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      width: 100%;
+      padding: 0;
+      background: none;
+      text-align: left;
+    }
+
+    .fold-head:hover .pill {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    .fold-body {
+      padding-right: 8px;
+    }
+
+    .fold-body .sub-title b {
+      color: var(--ink);
+    }
+
+    /* ---------- 数据明细 ---------- */
+    .tbl-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 16px;
+      font-size: 12px;
+      color: var(--ink2);
+    }
+
+    .report-btn {
+      align-self: flex-start;
+      height: 40px;
+      padding: 0 18px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: var(--card);
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .report-btn:hover {
+      opacity: 0.88;
+      color: var(--card);
+    }
+
+    .tbl-wrap {
+      overflow-x: auto;
+      margin: 0 -8px;
+      padding: 0 8px;
+    }
+
+    table {
+      border-collapse: separate;
+      border-spacing: 0;
+      width: 100%;
+      font-size: 13px;
+    }
+
+    th,
+    td {
+      padding: 8px 12px;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    td {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      border-top: 1px solid var(--line);
+    }
+
+    tbody th {
+      text-align: left;
+      font-weight: 400;
+      color: var(--ink2);
+      border-top: 1px solid var(--line);
+    }
+
+    tbody th.indent {
+      padding-left: 26px;
+    }
+
+    thead th {
+      padding: 10px 12px;
+      background: var(--well);
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    thead th:first-child {
+      text-align: left;
+      font-family: var(--sans);
+      font-size: 13px;
+      border-radius: 14px 0 0 14px;
+    }
+
+    thead th:last-child {
+      border-radius: 0 14px 14px 0;
+    }
+
+    tr.group th {
+      padding: 16px 12px 6px;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      border-top: 0;
+    }
+
+    .more {
+      align-self: center;
+      height: 40px;
+      padding: 0 20px;
+    }
+
+    /* ---------- 页脚：左边是数据来源的链接，右下角是设计署名 ---------- */
+    .foot {
+      padding: 12px 4px 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 20px 24px;
+      color: var(--on-sub);
+    }
+
+    .foot-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .foot-link {
+      height: 40px;
+      padding: 0 16px;
+      border-radius: 999px;
+      background: var(--on-well);
+      color: var(--on);
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .foot-link:hover {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    .foot-link small {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--muted);
+    }
+
+    .sign {
+      margin-left: auto;
+      display: flex;
+      font-size: 12px;
+      line-height: 1.5;
+      text-align: right;
+    }
+
+    .sign-text {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sign-text b {
+      color: var(--on);
+      font-weight: 600;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+    <div class="wrap">
+
+      <header class="top">
+        <div class="brand-row">
+          <div class="brand">
+            <span class="logo"></span>
+            <span class="brand-name">nilo-server</span>
+            <span class="brand-tag">PERF · PLAY COUNT</span>
+          </div>
+          <a class="gh" href="https://github.com/avaNeon/nilo-server">GitHub<span>↗</span></a>
+        </div>
+        <div class="intro">
+          <h1>播放统计压测结果</h1>
+          <p>在三台不同配置的 GitHub 提供的云主机上分别运行一次测试，每台主机上的不同版本的测试都是在相同配置下进行的。</p>
+          <p>并且，被测机中间件和服务的资源限制和配置与线上相同，压测机用 k6 按固定速率发送请求，每轮结束后把 MySQL、Redis 的播放量增量与放行请求数逐条对账。</p>
+          <p>由于不同运行分到的硬件不同，相对于比较绝对值来说，比较趋势更为合适。</p>
+        </div>
+        <div class="flow">
+          <span>每次运行</span>
+          <span class="chip">V0</span><span>→</span><span class="chip">V1</span><span>→</span>
+          <span class="chip">V2</span><span>→</span><span class="chip">V3</span><span>→</span>
+          <span class="chip control">V0 对照</span>
+          <span>同一对机器，对照轮用来估计误差</span>
+        </div>
+        <p class="status" id="status" hidden></p>
+      </header>
+
+      <section class="versions" aria-label="版本说明">
+        <div class="pair">
+          <div class="ver">
+            <div class="ver-head"><span class="ver-name">V0</span><span class="tag">基线</span></div>
+            <p>请求线程内依次写 MySQL 和 Redis</p>
+          </div>
+          <div class="ver">
+            <div class="ver-head"><span class="ver-name">V1</span><span class="tag">异步</span></div>
+            <p>请求只放入本地队列，每 5 秒聚合为（视频，增量）后经 MQ 异步写入</p>
+          </div>
+        </div>
+        <div class="pair">
+          <div class="ver">
+            <div class="ver-head"><span class="ver-name">V2</span><span class="tag">批量</span></div>
+            <p>MySQL 每 100 个视频合成一条 UPDATE，Redis 用一次 Lua 脚本写完整条消息</p>
+          </div>
+          <div class="ver now">
+            <div class="ver-head"><span class="ver-name">V3</span><span class="tag">当前线上</span></div>
+            <p>消费端并行写入 MySQL 与 Redis</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="stats" id="stats" aria-label="关键数字"></section>
+
+      <section class="sec minor">
+        <div class="sec-head">
+          <h2>运行详情</h2>
+          <span class="hollow-note">图中空心点 = 对照轮</span>
+        </div>
+        <div class="run-details" id="run-details"></div>
+      </section>
+
+      <section class="sec">
+        <div class="sec-title"><span class="num">01</span>
+          <h2>总体性能</h2>
+        </div>
+        <div class="block">
+          <div class="block-head">
+            <div class="block-title">
+              <h3>吞吐</h3><span class="unit">放行吞吐 · 次/秒 · 线性</span>
+              <span class="keys muted"><span><i class="faint"></i>V0 → V0 对照</span></span>
+            </div>
+            <div class="chips" id="chips-thr"></div>
+          </div>
+          <div class="chart" id="chart-thr" style="height: 300px"></div>
+          <div class="explain" id="analysis-thr">
+            <p><b>分析</b><br>放行吞吐 = 放行请求数 ÷ 压测时长，虚线为目标速率。吞吐接近目标速率时，数值受目标速率限制，不再反映处理能力的上限。
+              淡色细线连接第 1 轮与对照轮（二者为同一版本），两点越接近，说明该次运行的重复性越好。</p>
+          </div>
+        </div>
+        <div class="block divided">
+          <div class="block-head">
+            <div class="block-title">
+              <h3>开销</h3>
+            </div>
+          </div>
+          <div class="subs">
+            <div class="sub">
+              <div class="block-head">
+                <div class="sub-title"><b>每个放行请求的 CPU 合计</b><span class="unit">ms · 线性</span></div>
+                <div class="chips" id="chips-cpu"></div>
+              </div>
+              <div class="chart" id="chart-cpu" style="height: 260px"></div>
+              <div class="explain" id="analysis-cpu">
+                <p><b>分析</b><br>每个放行请求的 CPU = 测试窗口内全部组件消耗的 CPU 秒数 ÷ 放行请求数。窗口包含压测结束后的排空阶段，
+                  因此该指标与压测时长及排空快慢无关，同一次运行内的各版本可直接比较；在对照轮中，其波动小于吞吐。</p>
+              </div>
+            </div>
+            <div class="sub">
+              <div class="block-head">
+                <div class="sub-title"><b>按组件拆解</b><span class="unit">ms / 请求</span></div>
+                <div class="tabs" id="stack-tabs" role="tablist" aria-label="选择运行"></div>
+              </div>
+              <div class="stack-row">
+                <div class="stack-chart" id="chart-stack"></div>
+                <div class="stack-legend" id="stack-legend"></div>
+              </div>
+              <div class="explain" id="analysis-stack">
+                <p><b>分析</b><br>将上图的每请求 CPU 按组件拆分，柱顶为合计，图例列出各组件由第一个版本到最后一个版本的变化。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec">
+        <div class="sec-title"><span class="num">02</span>
+          <h2>生产端性能</h2>
+        </div>
+        <div class="block">
+          <div class="block-head">
+            <div class="block-title">
+              <h3>服务端响应时间</h3>
+              <span class="keys"><span><i></i>平均</span><span><i class="dashed"></i>P99</span></span>
+              <span class="unit">ms · 对数刻度</span>
+            </div>
+            <div class="chips" id="chips-slat"></div>
+          </div>
+          <div class="chart" id="chart-slat" style="height: 280px"></div>
+          <div class="explain" id="analysis-slat">
+            <p><b>分析</b><br>由 nilo-web 自行统计，不含网络往返，也不含在 nginx 排队的时间。实线为平均值，虚线为 P99（99% 的请求不超过该值）。
+              纵轴为对数刻度，相邻刻度相差 10 倍。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec">
+        <div class="sec-title"><span class="num">03</span>
+          <h2>消费端性能</h2>
+        </div>
+        <div class="block">
+          <div class="block-head">
+            <div class="block-title">
+              <h3>队列积压</h3>
+              <span class="keys" id="queue-keys"></span>
+              <span class="unit">条</span>
+            </div>
+            <div class="tabs" id="queue-tabs" role="tablist" aria-label="选择运行"></div>
+          </div>
+          <div class="chart" id="chart-queue" style="height: 240px"></div>
+          <div class="explain" id="analysis-queue">
+            <p><b>分析</b><br>播放量队列在测试窗口内的消息数峰值。待投递指尚未交付消费端的消息，未确认指已交付消费端、尚未处理完成的消息。</p>
+          </div>
+        </div>
+        <div class="block divided">
+          <div class="block-head">
+            <div class="block-title">
+              <h3>写入完成延迟</h3><span class="unit">秒 · 对数刻度</span>
+            </div>
+            <div class="chips" id="chips-wlat"></div>
+          </div>
+          <div class="chart" id="chart-wlat" style="height: 250px"></div>
+          <div class="explain" id="analysis-wlat">
+            <p><b>分析</b><br>从压测机收到最后一个响应起，到被测机 MySQL 与 Redis 的播放量不再变化止的时间，即最后一批播放量落库所需的时间。
+              纵轴为对数刻度，相邻刻度相差 10 倍。</p>
+          </div>
+        </div>
+        <div class="block divided">
+          <div class="block-head">
+            <div class="block-title">
+              <h3>MySQL 每秒查询数峰值</h3><span class="unit">次/秒 · 对数刻度</span>
+            </div>
+            <div class="chips" id="chips-mysql"></div>
+          </div>
+          <div class="chart" id="chart-mysql" style="height: 250px"></div>
+          <div class="explain" id="analysis-mysql">
+            <p><b>分析</b><br>测试窗口内 MySQL 每秒执行语句数的最大值，含写入监控自身每秒 10 次的查询。纵轴为对数刻度，相邻刻度相差 10 倍。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec minor fold">
+        <button class="fold-head" id="sec4-toggle" aria-expanded="false">
+          <span class="sec-title"><span class="num">04</span>
+            <h2>资源与误差</h2><span class="sec-sub">被测机整机 CPU · 吞吐倍数</span>
+          </span>
+          <span class="pill" id="sec4-label">展开</span>
+        </button>
+        <div class="charts fold-body" id="sec4-body" hidden>
+          <div class="sub">
+            <div class="block-head">
+              <div class="sub-title"><b>被测机整机 CPU 平均</b><span class="unit">% · 上限 100</span></div>
+              <div class="chips" id="chips-sutcpu"></div>
+            </div>
+            <div class="chart" id="chart-sutcpu" style="height: 230px"></div>
+            <div class="explain" id="analysis-sutcpu">
+              <p><b>分析</b><br>压测期间被测机全部核的平均使用率，包含容器之外的开销（Tailscale、内核收发网络包等）。接近 100% 表示 CPU 已饱和，
+                此时的放行吞吐即该机器的处理上限；使用率较低而吞吐未达目标速率，则瓶颈位于其他资源。</p>
+            </div>
+          </div>
+          <div class="sub">
+            <div class="block-head">
+              <div class="sub-title"><b>吞吐倍数（相对第 1 轮）</b><span class="unit">倍 · 线性</span></div>
+              <div class="chips" id="chips-mult"></div>
+            </div>
+            <div class="chart" id="chart-mult" style="height: 230px"></div>
+            <div class="explain" id="analysis-mult">
+              <p><b>分析</b><br>各轮放行吞吐 ÷ 第 1 轮放行吞吐。对照轮与第 1 轮为同一版本，其偏离 1 的程度即本次运行的误差范围；
+                版本之间的差距小于该范围时，不宜据此下结论。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec minor">
+        <div class="sec-head">
+          <div class="sec-title"><span class="num">05</span>
+            <h2>数据明细</h2>
+          </div>
+          <div class="tabs large" id="table-tabs" role="tablist" aria-label="选择运行"></div>
+        </div>
+        <div class="tbl-meta" id="table-meta"></div>
+        <a class="report-btn" id="table-report" target="_blank" rel="noopener">查看报告<span>↗</span></a>
+        <div class="tbl-wrap">
+          <table id="table"></table>
+        </div>
+        <button class="pill more" id="table-more"></button>
+      </section>
+
+      <footer class="foot">
+        <div class="foot-links">
+          <a class="foot-link"
+            href="https://github.com/avaNeon/nilo-server/blob/master/docker/integration/perf/report_to_json.py"
+            target="_blank" rel="noopener">压测报告生成脚本<small>report_to_json.py</small><span>↗</span></a>
+          <a class="foot-link"
+            href="https://github.com/avaNeon/nilo-server/blob/master/.github/workflows/perf-play-count.yml"
+            target="_blank" rel="noopener">压测流程<small>perf-play-count.yml</small><span>↗</span></a>
+        </div>
+        <div class="sign">
+          <span class="sign-text"><b>Designed with Claude Design</b><span>本页面设计过程中使用了 Claude Opus 5.5</span></span>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <script>
+    // ---------------- 主流程 ----------------
+
+    /** 读取数据 → 绑定按钮 → 画出全部内容；系统切换深浅色时重画 */
+    async function main()
+    {
+      if (!window.echarts) return showStatus('图表库加载失败，请检查网络后刷新。');
+      try
+      {
+        state.runs = prepareRuns(await loadRuns());
+      } catch (e)
+      {
+        return showStatus(`读取数据失败（${e.message}）。请通过 HTTP 打开，本地预览可在本目录运行 python -m http.server`);
+      }
+      if (!state.runs.length) return showStatus('还没有压测数据。');
+      state.cats = categories(state.runs);
+      bindControls();
+      renderAll();
+      darkQuery.addEventListener('change', renderAll);
+      // 图表容器大小变化（窗口缩放、展开折叠区块）时，图表跟着重新排版
+      state.resizer = new ResizeObserver(entries => entries.forEach(e => state.charts[e.target.id]?.resize()));
+      Object.values(state.charts).forEach(c => state.resizer.observe(c.getDom()));
+    }
+
+    const state = {
+      runs: [], cats: [],
+      hidden: {},            // 每张折线图各自隐藏的运行：{ 图名: Set(运行 id) }
+      stackRun: 0,           // 按组件拆解显示哪次运行（按 idx）
+      queueRun: 0,           // 队列积压显示哪次运行
+      tableRun: 0,           // 数据明细显示哪次运行
+      open4: false,          // 04 资源与误差是否展开
+      tableAll: false,       // 数据明细是否显示全部指标
+      charts: {},            // 图表实例：{ 容器 id: ECharts 实例 }
+      resizer: null,
+    };
+    const darkQuery = matchMedia('(prefers-color-scheme: dark)');
+
+    /** 按当前状态重画所有内容。数据量很小，每次全部重画最简单，不会出错 */
+    function renderAll()
+    {
+      const T = THEMES[darkQuery.matches ? 'dark' : 'light'];
+      renderStats();
+      renderAnalysis();
+      renderDetails(T);
+      renderLineCharts(T);
+      renderStack(T);
+      renderQueue(T);
+      renderTable(T);
+    }
+
+    /** 页面上固定的几个按钮：04 区块折叠、数据明细展开全部 */
+    function bindControls()
+    {
+      document.getElementById('sec4-toggle').onclick = () => { state.open4 = !state.open4; renderAll(); };
+      document.getElementById('table-more').onclick = () => { state.tableAll = !state.tableAll; renderAll(); };
+    }
+
+    // ---------------- 关键数字 ----------------
+
+    /** 4 个关键数字：根据所有运行计算，给出各运行的范围 */
+    function renderStats()
+    {
+      const runs = state.runs;
+      const q = r => r.mysql_queries_per_s_max;
+      const wl = r => r.write_complete_latency_s;
+      const cpuDrop = runs.map(run => { const a = at(run, 'V0', cpuTotal), b = at(run, 'V3', cpuTotal); return ok(a) && ok(b) && a > 0 ? (1 - b / a) * 100 : null; });
+      const thrX = runs.map(run => { const a = at(run, 'V0', thr), b = at(run, 'V3', thr); return ok(a) && ok(b) && a > 0 ? b / a : null; });
+      const qX = runs.map(run => { const a = at(run, 'V1', q), b = at(run, 'V2', q); return ok(a) && ok(b) && b > 0 ? a / b : null; });
+      const wMax = label => maxOk(runs.map(run => at(run, label, wl)));
+      const cards = [
+        {
+          label: '每个请求的 CPU', value: withRange(cpuDrop, x => Math.round(x), v => `↓ ${v}%`), caption: 'V3 比 V0 少用的 CPU',
+          foot: errorFoot(maxOk(runs.map(run => controlError(run, cpuTotal))), minOk(cpuDrop), 'CPU')
+        },
+        {
+          label: '放行吞吐', value: withRange(thrX, x => x.toFixed(1), v => `${v} ×`), caption: 'V3 是 V0 的倍数',
+          foot: errorFoot(maxOk(runs.map(run => controlError(run, thr))), ok(minOk(thrX)) ? (minOk(thrX) - 1) * 100 : null, '吞吐')
+        },
+        {
+          label: 'MySQL 每秒查询数峰值', value: withRange(qX, x => '1/' + Math.round(x), v => v), caption: 'V2 相较于 V1',
+          foot: `V1 ${range(runs.map(run => at(run, 'V1', q)), x => fmtN(x))} → V2 ${range(runs.map(run => at(run, 'V2', q)), x => fmtN(x))} 次/秒`
+        },
+        {
+          label: '写入完成延迟', value: `${seconds(wMax('V1'))} → ${seconds(wMax('V2'))}`, caption: '最长值：V1 → V2',
+          foot: `V3 最长 ${seconds(wMax('V3'))}；V0 同步写入，约 ${seconds(wMax('V0'))}`
+        },
+      ];
+      const card = c => `<div class="stat"><span class="stat-label">${c.label}</span><span class="stat-value">${c.value}</span>
+        <span class="stat-caption">${c.caption}</span><span class="stat-foot">${c.foot}</span></div>`;
+      document.getElementById('stats').innerHTML =
+        `<div class="pair">${cards.slice(0, 2).map(card).join('')}</div><div class="pair">${cards.slice(2).map(card).join('')}</div>`;
+    }
+
+    /** 关键数字下面的误差说明：对照轮与第 1 轮的最大差距，和版本之间的最小差距比 */
+    function errorFoot(err, minGap, what)
+    {
+      if (!ok(err)) return `没有对照轮，无法估计${what}的误差`;
+      const verdict = ok(minGap) && err < minGap ? '远小于版本之间的差距，结论成立' : '接近版本之间的差距，需谨慎';
+      return `对照轮与第 1 轮相差 ≤ ${err.toFixed(1)}%，${verdict}`;
+    }
+
+    // ---------------- 分析 ----------------
+
+    // 每张图下面的分析：说明趋势的成因，以及它来自哪一项改动。四个版本的区别：
+    //   V0 请求线程内同步写 MySQL 和 Redis；
+    //   V1 请求只入本地队列，每 5 秒按视频聚合后经 MQ 异步写入，消费端单线程、逐个视频写；
+    //   V2 消费端批量写入：MySQL 每 100 个视频一条 UPDATE，Redis 一次 Lua 脚本写完整条消息；
+    //   V3 消费端并行写入 MySQL 与 Redis。
+    // 文中的数字由所有运行的数据算出，运行增减后自动更新；成因与上面各版本的代码一致。
+    // 每个函数返回若干段文字（HTML），没有数据时返回空数组
+    const ANALYSES = {
+      thr: runs =>
+      {
+        const x03 = ratios(runs, 'V3', 'V0', thr), x01 = ratios(runs, 'V1', 'V0', thr);
+        if (!ok(maxOk(x03))) return [];
+        const share = label => runs.map(run => { const v = at(run, label, thr); return ok(v) && ok(run.rate) && run.rate > 0 ? v / run.rate * 100 : null; });
+        const v0 = key => valuesAt(runs, 'V0', r => r[key]);
+        const paragraphs = [
+          `V0 的放行吞吐仅为目标速率的 ${range(share('V0'), Math.round)}%，V3 为 ${range(share('V3'), Math.round)}%，V3 是 V0 的 ${range(x03, times)} 倍；V0 → V1 提升 ${range(x01, times)} 倍。`,
+        ];
+        if (ok(maxOk(v0('db_pool_waiting_max'))))
+        {
+          paragraphs.push(
+            `V0 在请求线程内同步写 MySQL，而 nilo-web 的数据库连接池只有 ${range(v0('db_pool_limit'), fmtN)} 个连接。压测中 Tomcat 忙碌线程达到 ${range(v0('tomcat_busy_max'), fmtN)}（上限 ${range(v0('tomcat_threads_limit'), fmtN)}），` +
+            `其中 ${range(v0('db_pool_waiting_max'), fmtN)} 个线程在排队等待连接，平均等待 ${range(v0('db_pool_wait_ms'), compact)} ms，而每次占用连接只有 ${range(v0('db_pool_hold_ms'), compact)} ms，连接池因此成为 V0 的吞吐瓶颈。` +
+            `nginx 限制了同时转发给 nilo-web 的请求数，超出的请求直接返回 502，占 V0 总请求数的 ${range(valuesAt(runs, 'V0', failShare), Math.round)}%。`);
+        }
+        // V1 起：被测机 CPU 饱和的运行，吞吐随每请求 CPU 下降而提高；已达目标速率的运行，吞吐受目标速率限制
+        const later = run => run.rounds.filter(r => !r.control && r.label !== 'V0');
+        const saturated = runs.filter(run => later(run).length && later(run).every(r => r.sut_cpu_pct?.avg >= 95));
+        const capped = runs.filter(run => ok(run.rate) && later(run).length && later(run).every(r => thr(r, run) >= run.rate * 0.9));
+        const reasons = [];
+        if (saturated.length)
+        {
+          reasons.push(`${names(saturated)} 的被测机 CPU 在 V1～V3 均已饱和（≥ 95%），这些组件与 nilo-web 争用同一组 CPU，每个请求的开销降低直接转化为更高的吞吐`);
+        }
+        if (capped.length)
+        {
+          const floor = Math.floor(Math.min(...capped.flatMap(run => later(run).map(r => thr(r, run) / run.rate * 100))));
+          reasons.push(`${names(capped)} 在 V1～V3 已达到目标速率的 ${floor}% 以上，吞吐受目标速率限制，这几个版本之间的差异不再反映处理能力`);
+        }
+        paragraphs.push('V1 起请求线程只执行限流检查并将播放记录放入本地队列，不再访问 MySQL，吞吐不再受连接池限制。' +
+                        (reasons.length ? `此后各版本的提升来自消费端、MySQL 与 Canal/ES 的 CPU 开销下降：${reasons.join('；')}。` : ''));
+        return paragraphs;
+      },
+
+      cpu: runs =>
+      {
+        const drop = (from, to) => ratios(runs, to, from, cpuTotal).map(x => ok(x) ? (1 - x) * 100 : null);
+        const d03 = drop('V0', 'V3');
+        if (!ok(maxOk(d03))) return [];
+        const c23 = drop('V2', 'V3').map(x => ok(x) ? -x : null);
+        const mixed = c23.some(x => x > 0) && c23.some(x => x < 0);
+        const err = maxOk(runs.map(run => controlError(run, cpuTotal)));
+        const web = groupNamed('nilo-web');
+        const webDrop = runs.map(run => { const a = groupCpu(run.by.V0, web), b = groupCpu(run.by.V1, web); return ok(a) && ok(b) && a > 0 ? (1 - b / a) * 100 : null; });
+        const webStep = ratios(runs, 'V3', 'V1', r => groupCpu(r, web)).map(x => ok(x) ? (x - 1) * 100 : null);
+        const paragraphs = [
+          `V3 的每请求 CPU 比 V0 少 ${range(d03, Math.round)}%，其中 V0 → V1 少 ${range(drop('V0', 'V1'), Math.round)}%，V1 → V2 再少 ${range(drop('V1', 'V2'), Math.round)}%；` +
+          `V2 → V3 的变化为 ${range(c23, signedPct)}，${mixed ? '有升有降，没有稳定的差异' : '各次运行的方向一致'}。`,
+          `V0 → V1 的降幅来自请求路径：请求线程不再为每个请求执行一次 JDBC 与 Redis 写入，nilo-web 自身的每请求开销下降 ${range(webDrop, Math.round)}%，此后该模块的代码未再改动，V1 → V3 的变化为 ${range(webStep, signedPct)}。` +
+          `V1 → V2 的降幅来自消费端批量写入，MySQL 与 Canal/ES 的开销随之大幅下降（见下方按组件拆解）。` +
+          `V2 → V3 仅将消费端的 MySQL 与 Redis 写入由串行改为并行，工作量不变，只改变执行时序，因此总开销没有稳定变化，其波动与对照轮的误差${ok(err) ? `（≤ ${err.toFixed(1)}%）` : ''}处于同一量级。`,
+        ];
+        const failed = valuesAt(runs, 'V0', failShare);
+        if (ok(maxOk(failed)))
+        {
+          paragraphs.push(`另需说明，V0 有 ${range(failed, Math.round)}% 的请求被 nginx 拒绝，处理这些请求消耗的 CPU 同样计入总量，V0 的每请求开销因此偏高，图中降幅包含这一因素。`);
+        }
+        return paragraphs;
+      },
+
+      stack: runs =>
+      {
+        const [web, mysql, canal, mq, fwd] = ['nilo-web', 'MySQL', 'Canal 与 ES', 'MQ', '转发'].map(groupNamed);
+        const of = g => r => groupCpu(r, g);
+        const db = r => { const a = groupCpu(r, mysql), b = groupCpu(r, canal); return ok(a) && ok(b) ? a + b : null; };
+        const drop = (get, from, to) => ratios(runs, to, from, get).map(x => ok(x) ? (1 - x) * 100 : null);
+        const dbDrop = drop(db, 'V0', 'V3');
+        if (!ok(maxOk(dbDrop))) return [];
+        const share = (get, label) => runs.map(run => { const r = run.by[label], t = cpuTotal(r), d = get(r); return ok(t) && ok(d) && t > 0 ? d / t * 100 : null; });
+        const contribution = runs.map(run =>
+        {
+          const a = db(run.by.V0), b = db(run.by.V3), t0 = cpuTotal(run.by.V0), t3 = cpuTotal(run.by.V3);
+          return ok(a) && ok(b) && ok(t0) && ok(t3) && t0 > t3 ? (a - b) / (t0 - t3) * 100 : null;
+        });
+        const queries = ratios(runs, 'V1', 'V2', r => r.mysql_queries_per_s_max);
+        const mqUp = ratios(runs, 'V1', 'V0', of(mq)).map(x => ok(x) ? (x - 1) * 100 : null);
+        return [
+          `MySQL 与 Canal/ES 合计占 V0 每请求开销的 ${range(share(db, 'V0'), Math.round)}%，V3 降至 ${range(share(db, 'V3'), Math.round)}%，自身开销减少 ${range(dbDrop, Math.round)}%，` +
+          `贡献了总降幅的 ${range(contribution, Math.round)}%。`,
+          `这两项的开销与写入事务数相关。V0 每个放行请求对应一次独立的 UPDATE，产生一个 binlog 事务，由 Canal 逐个解析并同步到 ES；V1 将同一视频 5 秒内的多次播放合并为一次增量；` +
+          `V2 再将 100 个视频合并为一条 UPDATE，MySQL 的语句数降为 V1 的 ${range(queries, x => '1/' + Math.round(x))}，binlog 事务数和 Canal 需要处理的事务数随之减少，` +
+          `V1 → V2 MySQL 的开销下降 ${range(drop(of(mysql), 'V1', 'V2'), Math.round)}%，Canal 与 ES 下降 ${range(drop(of(canal), 'V1', 'V2'), Math.round)}%。`,
+          `其余各项中，nilo-web 自身的开销在 V1 下降 ${range(drop(of(web), 'V0', 'V1'), Math.round)}%，此后代码未再改动，V1 → V3 的变化为 ${range(ratios(runs, 'V3', 'V1', of(web)).map(x => ok(x) ? (x - 1) * 100 : null), signedPct)}；` +
+          `MQ（RabbitMQ 与消费端）在 V1 因逐个视频处理而上升 ${range(mqUp, Math.round)}%，V2 批量写入后下降 ${range(drop(of(mq), 'V1', 'V2'), Math.round)}%；` +
+          `转发（nginx 与 docker 端口转发）与写入方式无关，约占 V3 开销的 ${range(share(of(fwd), 'V3'), Math.round)}%。`,
+        ];
+      },
+
+      slat: runs =>
+      {
+        const { get, get2 } = LINE_CHARTS.slat;
+        const avg = ratios(runs, 'V0', 'V3', get), p99 = ratios(runs, 'V0', 'V3', get2);
+        if (!ok(maxOk(avg))) return [];
+        const paragraphs = [
+          `V0 的平均响应时间为 ${range(valuesAt(runs, 'V0', get), compact)} ms，V3 为 ${range(valuesAt(runs, 'V3', get), compact)} ms，V0 是 V3 的 ${range(avg, times)} 倍` +
+          `${ok(maxOk(p99)) ? `（P99 为 ${range(p99, times)} 倍）` : ''}。`,
+        ];
+        const wait = valuesAt(runs, 'V0', r => r.db_pool_wait_ms);
+        const waitShare = runs.map(run => { const w = at(run, 'V0', r => r.db_pool_wait_ms), s = at(run, 'V0', get); return ok(w) && ok(s) && s > 0 ? w / s * 100 : null; });
+        if (ok(maxOk(waitShare)))
+        {
+          paragraphs.push(`V0 的服务端响应时间中，等待数据库连接的部分占 ${range(waitShare, Math.round)}%（连接池平均等待 ${range(wait, compact)} ms）。` +
+                          `V1 起请求不再访问 MySQL，服务端只做限流检查（一次 Redis 脚本调用）和入队，这部分等待随之消失。`);
+        }
+        // V1 起 nilo-web 的请求路径不再变化，各运行之间的差异主要取决于被测机的 CPU 余量
+        const later = run => run.rounds.filter(r => !r.control && r.label !== 'V0');
+        const saturated = runs.filter(run => later(run).length && later(run).every(r => r.sut_cpu_pct?.avg >= 95));
+        const spare = runs.filter(run => later(run).length && !saturated.includes(run));
+        if (saturated.length && spare.length)
+        {
+          paragraphs.push(`V1 起 nilo-web 的请求路径不再变化，各运行之间的绝对值差异与被测机的 CPU 余量相关：CPU 饱和的 ${names(saturated)} 在 V3 的平均响应时间为 ` +
+                          `${range(saturated.map(run => at(run, 'V3', get)), compact)} ms，尚有余量的 ${names(spare)} 为 ${range(spare.map(run => at(run, 'V3', get)), compact)} ms。`);
+        }
+        return paragraphs;
+      },
+
+      queue: runs =>
+      {
+        const peak = (label, field) => valuesAt(runs, label, r => r[field]);
+        const unacked = peak('V1', 'queue_unacked_max');
+        if (!ok(maxOk(unacked))) return [];
+        const later = maxOk([...peak('V2', 'queue_unacked_max'), ...peak('V3', 'queue_unacked_max')]);
+        const ready = maxOk(runs.flatMap(run => run.rounds.map(r => r.queue_ready_max)));
+        return [
+          `V0 不经过 MQ，两项均为 0；V1 的未确认峰值为 ${range(unacked, fmtN)} 条，V2、V3 最多 ${fmtN(later)} 条；待投递在所有运行中${ready === 0 ? '始终为 0' : `最多 ${fmtN(ready)} 条`}。`,
+          'V1 的消费端为单线程，对每个视频分别执行一次 MySQL UPDATE 和一次 Redis 调用，处理一条消息（最多 2,000 个视频）需要数千次数据库与 Redis 往返，处理速度低于消息的到达速度。' +
+          'RabbitMQ 已将消息预取到消费端，因此积压体现为"未确认"，而不是"待投递"。' +
+          'V2 将一条消息的处理缩减为约 20 条 SQL 与 1 次 Redis 脚本调用，消费速度超过到达速度，积压基本消失；V3 沿用该结构，结果相近。',
+        ];
+      },
+
+      wlat: runs =>
+      {
+        const get = LINE_CHARTS.wlat.get;
+        const x = ratios(runs, 'V1', 'V2', get);
+        if (!ok(maxOk(x))) return [];
+        const hold = label => valuesAt(runs, label, r => r.consumer_db_hold_ms);
+        const perVideo = runs.map(run =>
+        {
+          const a = at(run, 'V1', r => r.consumer_db_hold_ms), b = at(run, 'V2', r => r.consumer_db_hold_ms);
+          return ok(a) && ok(b) && b > 0 ? a / (b / 100) : null;
+        });
+        const paragraphs = [
+          `V0 在请求线程内同步写入，响应返回时数据已落库，几乎没有延迟（${range(valuesAt(runs, 'V0', get), compact)} 秒）。` +
+          `V1 为 ${range(valuesAt(runs, 'V1', get), compact)} 秒，V2 缩短至 ${range(valuesAt(runs, 'V2', get), compact)} 秒，V1 是 V2 的 ${range(x, times)} 倍。`,
+        ];
+        if (ok(maxOk(perVideo)))
+        {
+          paragraphs.push(`V1 的延迟来自消费端积压：压测期间单线程消费端持续落后于消息的到达速度，压测结束后还要处理完积压才能完成写入。` +
+                          `消费端每个视频占用数据库连接的时间，V1 为 ${range(hold('V1'), compact)} ms，V2 批量写入后折合每个视频 ${range(hold('V2').map(h => ok(h) ? h / 100 : null), compact)} ms，V1 是 V2 的 ${range(perVideo, times)} 倍。`);
+        }
+        const later = [...valuesAt(runs, 'V2', get), ...valuesAt(runs, 'V3', get)].filter(ok);
+        if (later.length)
+        {
+          paragraphs.push(`V2 起消费端不再是瓶颈，延迟主要由本地队列的发送周期决定：播放记录每 5 秒发送一次，最后一批最多需要等待一个周期` +
+                          `${Math.max(...later) <= 5 ? `，V2、V3 的观测值（${range(later, compact)} 秒）均未超过该周期` : ''}。` +
+                          `V3 将 MySQL 与 Redis 的写入并行，只缩短了每条消息的处理时间，相对 5 秒的周期很小，因此 V2 与 V3 之间没有稳定的差异。`);
+        }
+        return paragraphs;
+      },
+
+      mysql: runs =>
+      {
+        const get = LINE_CHARTS.mysql.get;
+        const x12 = ratios(runs, 'V1', 'V2', get), x01 = ratios(runs, 'V0', 'V1', get);
+        if (!ok(maxOk(x12))) return [];
+        const rows = label => valuesAt(runs, label, r => r.mysql_rows_updated_per_s_max);
+        const paragraphs = [
+          `V1 的峰值为 ${range(valuesAt(runs, 'V1', get), fmtN)} 次/秒，V2 为 ${range(valuesAt(runs, 'V2', get), fmtN)} 次/秒，V1 是 V2 的 ${range(x12, times)} 倍` +
+          `${ok(maxOk(x01)) ? `；V0 为 ${range(valuesAt(runs, 'V0', get), fmtN)} 次/秒，是 V1 的 ${range(x01, times)} 倍` : ''}。`,
+          'V1 的消费端落后于消息的到达速度（见队列积压与写入完成延迟），其峰值反映的是单线程消费端持续满负荷时的处理速度，而不是聚合后实际需要写入的量，因此相对 V0 的降幅有限。' +
+          'V2 将 100 个视频合并为一条 UPDATE，语句数相应减少（V2 的数值还包含写入监控自身每秒 10 次的查询）。',
+        ];
+        if (ok(maxOk(rows('V1'))) && ok(maxOk(rows('V2'))))
+        {
+          paragraphs.push(`同期每秒更新行数的峰值基本不变（V1 ${range(rows('V1'), fmtN)}，V2 ${range(rows('V2'), fmtN)} 行/秒），说明节省的是每条语句与每次事务提交的固定开销` +
+                          `（网络往返、语句解析、事务提交与 binlog 写入），而不是写入的数据量。V3 的 SQL 与 V2 相同，因此没有变化。`);
+        }
+        return paragraphs;
+      },
+
+      sutcpu: runs =>
+      {
+        const get = LINE_CHARTS.sutcpu.get;
+        const normal = run => run.rounds.filter(r => !r.control && ok(get(r)));
+        const full = runs.filter(run => normal(run).length && normal(run).every(r => get(r) >= 95));
+        const others = runs.filter(run => normal(run).length && !full.includes(run));
+        const paragraphs = [];
+        if (full.length)
+        {
+          const x = full.map(run => ratios([run], 'V3', 'V0', thr)[0]), c = full.map(run => ratios([run], 'V0', 'V3', cpuTotal)[0]);
+          const alike = x.every((v, i) => ok(v) && ok(c[i]) && Math.abs(v / c[i] - 1) <= 0.15);
+          paragraphs.push(`${names(full)} 的 CPU 在各版本均不低于 95%，被测机始终处于饱和状态，吞吐取决于每个请求的 CPU 开销：V3 与 V0 的吞吐比为 ${range(x, times)} 倍，` +
+                          `每请求 CPU 之比为 ${range(c, times)} 倍，${alike ? '两者基本一致' : '两者有一定差距'}。`);
+        }
+        for (const run of others)
+        {
+          const low = normal(run).reduce((a, b) => get(b) < get(a) ? b : a);
+          const share = ok(run.rate) && run.rate > 0 ? thr(low, run) / run.rate * 100 : null;
+          let why = '该轮 CPU 未饱和，瓶颈位于其他资源';
+          if (low.label === 'V0' && low.db_pool_waiting_max > 0)
+          {
+            why = '吞吐远低于目标速率而 CPU 并未饱和，说明瓶颈不在 CPU：线程在排队等待数据库连接，等待期间不消耗 CPU';
+          }
+          else if (ok(share) && share >= 90)
+          {
+            why = `吞吐已达目标速率的 ${Math.round(share)}%，被测机尚有余量，吞吐受目标速率限制`;
+          }
+          paragraphs.push(`${run.name} 在 ${low.label} 的平均 CPU 为 ${Math.round(get(low))}%，${why}。`);
+        }
+        return paragraphs;
+      },
+
+      mult: runs =>
+      {
+        const change = runs.map(run => { const b = run.base && thr(run.base, run), c = run.control && thr(run.control, run); return ok(b) && ok(c) && b > 0 ? (c / b - 1) * 100 : null; });
+        if (!ok(maxOk(change))) return [];
+        const err = Math.max(...change.filter(ok).map(Math.abs));
+        const allLow = change.filter(ok).every(x => x < 0);
+        const x01 = ratios(runs, 'V1', 'V0', thr), x03 = ratios(runs, 'V3', 'V0', thr);
+        const c23 = ratios(runs, 'V3', 'V2', thr).map(x => ok(x) ? (x - 1) * 100 : null);
+        const paragraphs = [
+          allLow
+            ? `对照轮的吞吐比第 1 轮均偏低（${range(change, signedPct)}）。方向一致，提示误差中除随机波动外可能还存在系统性成分，其原因尚待排查。`
+            : `对照轮的吞吐比第 1 轮有高有低（${range(change, signedPct)}），属于随机波动。`,
+        ];
+        if (ok(maxOk(x01)) && ok(maxOk(c23)))
+        {
+          const within = Math.max(...c23.filter(ok).map(Math.abs)) <= err;
+          paragraphs.push(`V0 → V1 提升 ${range(x01, times)} 倍，V3 是 V0 的 ${range(x03, times)} 倍，${(minOk(x01) - 1) * 100 > err ? '均明显大于该误差' : '与该误差相当'}；` +
+                          `V2 → V3 的变化为 ${range(c23, signedPct)}，${within ? '处于误差范围内，不能据此判断 V3 优于 V2' : '超出了误差范围'}。`);
+        }
+        return paragraphs;
+      },
+    };
+
+    /** 把每张图的分析填进页面：HTML 里的第一段是指标含义，这里把趋势的成因接在后面 */
+    function renderAnalysis()
+    {
+      for (const [key, build] of Object.entries(ANALYSES))
+      {
+        const box = document.getElementById('analysis-' + key);
+        box.querySelectorAll('p.dynamic').forEach(p => p.remove());
+        for (const text of build(state.runs).filter(Boolean))
+        {
+          const p = document.createElement('p');
+          p.className = 'dynamic';
+          p.innerHTML = text;
+          box.appendChild(p);
+        }
+      }
+    }
+
+    /** 每次运行里 a 版本与 b 版本的比值：get(a) ÷ get(b) */
+    function ratios(runs, a, b, get)
+    {
+      return runs.map(run => { const x = at(run, a, get), y = at(run, b, get); return ok(x) && ok(y) && y > 0 ? x / y : null; });
+    }
+
+    /** 每次运行里某个版本的指标值 */
+    function valuesAt(runs, label, get) { return runs.map(run => at(run, label, get)); }
+
+    /** 一轮里被拒绝（失败）的请求占总请求数的百分比 */
+    function failShare(r)
+    {
+      return ok(r.failed) && ok(r.accepted) ? r.failed / (r.accepted + (r.rejected || 0) + r.failed) * 100 : null;
+    }
+
+    /** 按名字取一个组件分组 */
+    function groupNamed(name) { return GROUPS.find(g => g.name === name); }
+
+    /** 运行的名字，用顿号连起来 */
+    function names(runs) { return runs.map(run => run.name).join('、'); }
+
+    // ---------------- 运行详情 ----------------
+
+    /** 每次运行一张卡片：时间、负载、往返、两台机器，以及这次运行的报告链接 */
+    function renderDetails(T)
+    {
+      document.getElementById('run-details').innerHTML = state.runs.map(run => `
+        <div class="run-detail">
+          <div class="run-detail-head">${shape(run.idx, runColor(T, run))}${run.name}<span class="run-id">#${run.id}</span></div>
+          <dl class="kv">
+            <dt>时间</dt><dd>${fmtDate(run.date)}</dd>
+            <dt>负载</dt><dd>${loadText(run)}</dd>
+            <dt>往返</dt><dd>${rttText(run)}</dd>
+            <dt>被测机</dt><dd>${machineText(run.sut)}</dd>
+            <dt>压测机</dt><dd>${machineText(run.load)}</dd>
+          </dl>
+          ${run.url ? `<a href="${run.url}" target="_blank" rel="noopener">查看报告 ↗</a>` : ''}
+        </div>`).join('');
+    }
+
+    // ---------------- 折线图 ----------------
+
+    // 每张折线图（容器 id 是 chart-<图名>，运行开关在 chips-<图名>）：取值函数（一轮 → 数，get2 是同图的第二条虚线）、
+    // 单位、小数位、是否对数刻度、纵轴上限、是否画目标速率、是否在折叠区块里。
+    // 跨好几个数量级的指标（如写入完成延迟从 0.03 秒到 179 秒）用对数刻度，否则小的那几个会被压成一条线
+    const LINE_CHARTS = {
+      thr: { get: thr, unit: '次/秒', dec: 0, target: true },
+      cpu: { get: cpuTotal, unit: 'ms', dec: 3 },
+      slat: { get: r => r.server_latency_ms?.avg, get2: r => r.server_latency_ms?.p99, unit: 'ms', dec: 2, log: true },
+      wlat: { get: r => r.write_complete_latency_s, unit: 's', dec: 3, log: true },
+      mysql: { get: r => r.mysql_queries_per_s_max, unit: '次/秒', dec: 0, log: true },
+      sutcpu: { get: r => r.sut_cpu_pct?.avg, unit: '%', dec: 1, max: 100, fold: true },
+      mult: { get: multiple, unit: '倍', dec: 2, fold: true },
+    };
+
+    /** 画所有折线图和它们的运行开关；04 区块折叠时跳过那两张，展开时再画 */
+    function renderLineCharts(T)
+    {
+      document.getElementById('sec4-body').hidden = !state.open4;
+      document.getElementById('sec4-label').textContent = state.open4 ? '收起' : '展开';
+      document.getElementById('sec4-toggle').setAttribute('aria-expanded', String(state.open4));
+      for (const [key, spec] of Object.entries(LINE_CHARTS))
+      {
+        if (spec.fold && !state.open4) continue;
+        renderChips(key, T);
+        chart('chart-' + key).setOption(lineOption(spec, visibleRuns(key), T), true);
+      }
+    }
+
+    /** 一张折线图右上角的运行开关：每次运行一个，点击隐藏或显示，至少保留一个 */
+    function renderChips(key, T)
+    {
+      const hidden = hiddenOf(key);
+      const shown = visibleRuns(key).length;
+      const box = document.getElementById('chips-' + key);
+      box.innerHTML = '';
+      for (const run of state.runs)
+      {
+        const on = !hidden.has(run.id);
+        const btn = document.createElement('button');
+        btn.className = 'run-chip';
+        btn.setAttribute('role', 'switch');
+        btn.setAttribute('aria-checked', String(on));
+        btn.title = `${run.name}  #${run.id}\n${fmtDate(run.date)} · 往返 ${rttText(run)}\n被测机 ${run.sut?.cpu ?? '-'}`;
+        btn.innerHTML = `${shape(run.idx, on ? runColor(T, run) : T.off)}<span class="run-name">${run.name}</span>`;
+        btn.onclick = () =>
+        {
+          if (on && shown <= 1) return;  // 不能把最后一次运行也隐藏
+          on ? hidden.add(run.id) : hidden.delete(run.id);
+          renderAll();
+        };
+        box.appendChild(btn);
+      }
+    }
+
+    /** 一张折线图的配置：每次运行一条实线（正常轮次）、空心点（对照轮）、连接第 1 轮和对照轮的淡色细线；有 get2 时每样再加一条虚线 */
+    function lineOption(spec, vis, T)
+    {
+      const cats = state.cats;
+      const value = (run, cat, get) =>
+      {
+        const r = run.by[cat];
+        const v = r ? get(r, run) : null;
+        return ok(v) && (!spec.log || v > 0) ? v : null;  // 对数刻度画不了 0 和负数
+      };
+      const series = [];
+      for (const run of vis)
+      {
+        const color = runColor(T, run), symbol = SHAPES[run.idx % SHAPES.length];
+        const lines = [[spec.get, 'solid', 9]].concat(spec.get2 ? [[spec.get2, 'dashed', 7]] : []);
+        for (const [get, type, size] of lines)
+        {
+          // 第 1 轮与对照轮之间的淡色细线：两者是同一个版本，线越平说明这次运行越稳定
+          const i0 = run.base ? cats.indexOf(run.base.label) : -1;
+          const i1 = run.control ? cats.indexOf(run.control.label) : -1;
+          if (i0 >= 0 && i1 >= 0)
+          {
+            const data = cats.map(() => null);
+            data[i0] = value(run, cats[i0], get);
+            data[i1] = value(run, cats[i1], get);
+            if (data[i0] != null && data[i1] != null)
+            {
+              series.push({
+                type: 'line', name: run.name + ' 对照连线', data, connectNulls: true, symbol: 'none', silent: true, z: 2,
+                lineStyle: { width: 1.5, type, color, opacity: 0.32 }, emphasis: { disabled: true },
+              });
+            }
+          }
+          series.push({
+            type: 'line', name: run.name, symbol, symbolSize: size, color, z: 3,
+            data: cats.map(c => run.by[c] && !run.by[c].control ? value(run, c, get) : null),
+            lineStyle: { width: 2.5, type, color }, itemStyle: { color }, emphasis: { disabled: true },
+          });
+          series.push({
+            type: 'scatter', name: run.name + ' 对照', symbol, symbolSize: size + 1, z: 4,
+            data: cats.map(c => run.by[c] && run.by[c].control ? value(run, c, get) : null),
+            itemStyle: { color: T.card, borderColor: color, borderWidth: 2, opacity: 1 }, emphasis: { disabled: true },
+          });
+        }
+      }
+      // 各次运行的目标速率相同时，画一条虚线标出目标
+      const rates = vis.map(run => run.rate);
+      const target = spec.target && rates.length && rates.every(r => ok(r) && r === rates[0]) ? rates[0] : null;
+      if (target != null && series.length)
+      {
+        series[0].markLine = {
+          silent: true, symbol: 'none', lineStyle: { type: 'dashed', color: T.muted, width: 1, opacity: 1 },
+          label: { formatter: `目标 ${fmtN(target)} 次/秒`, position: 'insideEndTop', color: T.muted, fontSize: 11 },
+          data: [{ yAxis: target }],
+        };
+      }
+      const opt = baseOption(T, cats);
+      opt.tooltip.formatter = items =>
+      {
+        const cat = cats[items[0].dataIndex];
+        let html = `<div style="font-weight:700;margin-bottom:6px;font-family:${MONO}">${cat}</div>`;
+        for (const run of vis)
+        {
+          const r = run.by[cat];
+          const v = r ? spec.get(r, run) : null, v2 = r && spec.get2 ? spec.get2(r, run) : null;
+          const text = spec.get2 ? `${fmtN(v, spec.dec)} / ${fmtN(v2, spec.dec)} ${spec.unit}` : `${fmtN(v, spec.dec)} ${spec.unit}`;
+          html += `<div style="display:flex;align-items:center;gap:8px;margin-top:4px">${marker(run.idx, runColor(T, run), r?.control)}` +
+            `<span style="flex:1;color:${T.tipSub}">${run.name}</span><b style="margin-left:18px">${r ? text : '-'}</b></div>`;
+        }
+        if (spec.get2) html += `<div style="margin-top:6px;color:${T.tipSub};font-size:11px">平均 / P99</div>`;
+        return html;
+      };
+      opt.yAxis = yAxis(T, spec, target != null ? { max: ({ max }) => Math.ceil(Math.max(max, target) * 1.12 / 1000) * 1000 } : null);
+      opt.series = series;
+      return opt;
+    }
+
+    // ---------------- 按组件拆解 ----------------
+
+    // 各组件归成几组，从下往上堆叠；没列出的容器都归入"其他"
+    const GROUPS = [
+      { name: 'nilo-web', sub: 'Web 服务', members: ['nilo-web'] },
+      { name: 'MySQL', sub: '数据库', members: ['mysql'] },
+      { name: 'Canal 与 ES', sub: '同步搜索索引', members: ['canal-server', 'nilo-canal-client', 'elasticsearch'] },
+      { name: 'MQ', sub: 'RabbitMQ 与消费端', members: ['rabbit', 'nilo-mq-consumer'] },
+      { name: 'Redis', sub: '缓存', members: ['redis'] },
+      { name: '转发', sub: 'nginx 与 docker 端口转发', members: ['nginx（宿主机）', 'dockerd（宿主机，含端口转发）'] },
+      { name: '其他', sub: '注册中心、监控等', members: null },
+    ];
+    const LISTED = GROUPS.flatMap(g => g.members || []);
+
+    /** 按组件拆解：选一次运行，画堆叠柱状图，旁边列出各组件从第一个版本到最后一个版本的变化 */
+    function renderStack(T)
+    {
+      const run = pickRun('stackRun');
+      renderTabs('stack-tabs', 'stackRun', T);
+      const cats = run.rounds.map(r => r.label);
+      const totals = run.rounds.map(cpuTotal);
+      const values = GROUPS.map(g => run.rounds.map(r => groupCpu(r, g)));
+
+      const opt = baseOption(T, cats);
+      opt.tooltip.axisPointer = { type: 'shadow', shadowStyle: { color: T.shade } };
+      opt.tooltip.formatter = items =>
+      {
+        const i = items[0].dataIndex;
+        let html = `<div style="font-weight:700;margin-bottom:6px;font-family:${MONO}">${run.name} · ${cats[i]}</div>`;
+        // 从上往下列出各组，与柱子的堆叠顺序一致
+        for (let g = GROUPS.length - 1; g >= 0; g--)
+        {
+          html += `<div style="display:flex;align-items:center;gap:8px;margin-top:3px"><span style="width:9px;height:9px;border-radius:3px;background:${T.ramp[g]}"></span>` +
+            `<span style="flex:1;color:${T.tipSub}">${GROUPS[g].name}</span><b style="margin-left:18px">${fmtN(values[g][i], 3)}</b></div>`;
+        }
+        return html + `<div style="display:flex;margin-top:6px;padding-top:6px;border-top:1px solid ${T.tipSub}55"><span style="flex:1">合计</span><b>${fmtN(totals[i], 3)} ms</b></div>`;
+      };
+      opt.yAxis = yAxis(T, {});
+      opt.series = GROUPS.map((g, gi) => ({
+        type: 'bar', name: g.name, stack: 'cpu', data: values[gi], barWidth: '52%', barMaxWidth: 76, emphasis: { disabled: true },
+        // 边框用卡片底色画：相邻两段之间留出一道缝
+        itemStyle: { color: T.ramp[gi], borderColor: T.card, borderWidth: 2, borderRadius: 6 },
+        label: gi === GROUPS.length - 1
+          ? { show: true, position: 'top', distance: 8, formatter: p => fmtN(totals[p.dataIndex], 3), color: T.ink, fontFamily: MONO, fontSize: 12, fontWeight: 700 }
+          : { show: false },
+      }));
+      chart('chart-stack').setOption(opt, true);
+
+      // 旁边的组件列表：从上往下与柱子的堆叠顺序一致
+      const normal = run.rounds.filter(r => !r.control);
+      const first = normal[0], last = normal[normal.length - 1];
+      document.getElementById('stack-legend').innerHTML =
+        `<div class="legend-row head"><span></span><span>组件</span><span class="mono">${first?.label ?? '-'} → ${last?.label ?? '-'}</span></div>` +
+        GROUPS.map((g, gi) => `
+          <div class="legend-row">
+            <span class="legend-swatch" style="background:${T.ramp[gi]}"></span>
+            <span class="legend-name"><b>${g.name}</b><small>${g.sub}</small></span>
+            <span class="legend-vals">${fmtN(first && groupCpu(first, g), 3)} → ${fmtN(last && groupCpu(last, g), 3)}</span>
+          </div>`).reverse().join('');
+    }
+
+    // ---------------- 队列积压 ----------------
+
+    // 队列积压的两组柱子：[名称, 字段, THEMES 里的颜色名]
+    const QUEUE_SERIES = [
+      ['队列待投递峰值', 'queue_ready_max', 'qReady'],
+      ['队列未确认峰值', 'queue_unacked_max', 'qUnacked'],
+    ];
+
+    /** 队列积压：选一次运行，每轮两根柱子（待投递、未确认的峰值），柱顶标出条数 */
+    function renderQueue(T)
+    {
+      const run = pickRun('queueRun');
+      renderTabs('queue-tabs', 'queueRun', T);
+      document.getElementById('queue-keys').innerHTML = QUEUE_SERIES
+        .map(([name, , color]) => `<span><span class="box" style="background:${T[color]}"></span>${name}</span>`).join('');
+
+      const opt = baseOption(T, run.rounds.map(r => r.label));
+      opt.tooltip.axisPointer = { type: 'shadow', shadowStyle: { color: T.shade } };
+      opt.tooltip.formatter = items =>
+      {
+        const r = run.rounds[items[0].dataIndex];
+        let html = `<div style="font-weight:700;margin-bottom:6px;font-family:${MONO}">${run.name} · ${r.label}</div>`;
+        for (const [name, field, color] of QUEUE_SERIES)
+        {
+          html += `<div style="display:flex;align-items:center;gap:8px;margin-top:3px"><span style="width:9px;height:9px;border-radius:3px;background:${T[color]}"></span>` +
+            `<span style="flex:1;color:${T.tipSub}">${name}</span><b style="margin-left:18px">${fmtN(r[field])} 条</b></div>`;
+        }
+        return html;
+      };
+      // 条数是整数；最大值很小（甚至为 0）时纵轴至少到 4，柱子不会顶到头
+      opt.yAxis = yAxis(T, {}, { minInterval: 1, max: ({ max }) => Math.max(4, Math.ceil(max * 1.2)) });
+      opt.series = QUEUE_SERIES.map(([name, field, color]) => ({
+        type: 'bar', name, data: run.rounds.map(r => ok(r[field]) ? r[field] : null),
+        barWidth: '22%', barMaxWidth: 30, barGap: '18%', emphasis: { disabled: true },
+        itemStyle: { color: T[color], borderRadius: [6, 6, 0, 0] },
+        label: { show: true, position: 'top', distance: 6, color: T.ink2, fontFamily: MONO, fontSize: 11 },
+      }));
+      chart('chart-queue').setOption(opt, true);
+    }
+
+    // ---------------- 数据明细 ----------------
+
+    // 数据明细的分组和各行：[名称, 取值函数, 小数位, 是否缩进]。默认只显示前两组
+    const TABLE = [
+      ['吞吐', [
+        ['放行请求数', r => r.accepted, 0], ['被限流', r => r.rejected, 0], ['失败', r => r.failed, 0],
+        ['其中 nginx 返回的 502', r => r.failed_502, 0, true], ['未能按时发出', r => r.dropped, 0],
+        ['放行吞吐（次/秒）', thr, 1], ['吞吐倍数', multiple, 2],
+      ]],
+      ['每个放行请求的 CPU（ms）', [['合计', cpuTotal, 3], ...GROUPS.map(g => [g.name, r => groupCpu(r, g), 3, true])]],
+      ['响应时间（ms）', [
+        ['放行请求 平均', r => r.accepted_latency_ms?.avg, 2], ['放行请求 P99', r => r.accepted_latency_ms?.p99, 2],
+        ['服务端 平均', r => r.server_latency_ms?.avg, 2], ['服务端 P99', r => r.server_latency_ms?.p99, 2],
+      ]],
+      ['写入链路', [
+        ['写入完成延迟（秒）', r => r.write_complete_latency_s, 3], ['队列待投递峰值', r => r.queue_ready_max, 0],
+        ['队列未确认峰值', r => r.queue_unacked_max, 0], ['MySQL 每秒更新行数峰值', r => r.mysql_rows_updated_per_s_max, 0],
+        ['MySQL 每秒查询数峰值', r => r.mysql_queries_per_s_max, 0], ['Redis 每秒命令数峰值', r => r.redis_commands_per_s_max, 0],
+        ['对账', r => r.reconcile_ok == null ? null : (r.reconcile_ok ? '通过' : '不通过')],
+        ['排空超时', r => r.drain_timed_out == null ? null : (r.drain_timed_out ? '是' : '否')],
+      ]],
+      ['资源', [
+        ['被测机 CPU 平均（%）', r => r.sut_cpu_pct?.avg, 1], ['被测机 CPU P95（%）', r => r.sut_cpu_pct?.p95, 1],
+        ['压测机 CPU P95（%）', r => r.load_cpu_p95_pct, 1], ['nilo-web 全量 GC 次数', r => r.web_full_gc, 0],
+      ]],
+    ];
+    const TABLE_ROW_COUNT = TABLE.reduce((n, [, rows]) => n + rows.length, 0);
+
+    /** 数据明细：选一次运行，列出它每一轮的全部指标；默认只显示前两组，可展开全部 */
+    function renderTable(T)
+    {
+      const run = pickRun('tableRun');
+      renderTabs('table-tabs', 'tableRun', T);
+      document.getElementById('table-meta').innerHTML =
+        `<span>${fmtDate(run.date)}</span><span>${loadText(run)}</span><span>往返 ${rttText(run)}</span>` +
+        `<span>被测机 ${machineText(run.sut)}</span>`;
+      const report = document.getElementById('table-report');
+      report.hidden = !run.url;
+      if (run.url) report.href = run.url;
+
+      const groups = state.tableAll ? TABLE : TABLE.slice(0, 2);
+      const cell = (f, r, dec) => { const v = f(r, run); return typeof v === 'string' ? v : fmtN(v, dec || 0); };
+      const table = document.getElementById('table');
+      table.style.minWidth = `${190 + run.rounds.length * 90}px`;
+      table.innerHTML =
+        `<thead><tr><th>指标</th>${run.rounds.map(r => `<th>${r.label}</th>`).join('')}</tr></thead><tbody>` +
+        groups.map(([name, rows]) =>
+          `<tr class="group"><th colspan="${run.rounds.length + 1}">${name}</th></tr>` +
+          rows.map(([label, f, dec, indent]) =>
+            `<tr><th${indent ? ' class="indent"' : ''}>${label}</th>${run.rounds.map(r => `<td>${cell(f, r, dec)}</td>`).join('')}</tr>`).join('')
+        ).join('') + '</tbody>';
+      document.getElementById('table-more').textContent = state.tableAll ? '收起' : `展开全部 ${TABLE_ROW_COUNT} 项指标`;
+    }
+
+    /** 分段切换：每次运行一个按钮，点击后 state[key] 改为这次运行 */
+    function renderTabs(id, key, T)
+    {
+      const current = pickRun(key);
+      const box = document.getElementById(id);
+      box.innerHTML = '';
+      for (const run of state.runs)
+      {
+        const btn = document.createElement('button');
+        btn.className = 'tab';
+        btn.setAttribute('role', 'tab');
+        btn.setAttribute('aria-selected', String(run === current));
+        btn.innerHTML = `${shape(run.idx, runColor(T, run))}${run.name}`;
+        btn.onclick = () => { state[key] = run.idx; renderAll(); };
+        box.appendChild(btn);
+      }
+    }
+
+    // ---------------- 图表的公共配置 ----------------
+
+    /** 折线图和柱状图共用的配置：横轴、网格、悬停提示的样式 */
+    function baseOption(T, cats)
+    {
+      return {
+        animationDuration: 350,
+        textStyle: { fontFamily: SANS, color: T.ink2 },
+        grid: { left: 4, right: 14, top: 20, bottom: 4, containLabel: true },
+        tooltip: {
+          trigger: 'axis', confine: true, backgroundColor: T.tipBg, borderWidth: 0, padding: [10, 14],
+          textStyle: { color: T.tipInk, fontSize: 12, fontFamily: SANS },
+          extraCssText: 'border-radius:14px;box-shadow:0 18px 40px -18px rgba(0,0,0,.5)',
+          axisPointer: { type: 'line', lineStyle: { color: T.axis, type: 'dashed' } },
+        },
+        xAxis: {
+          type: 'category', data: cats, axisLine: { lineStyle: { color: T.axis } }, axisTick: { show: false },
+          axisLabel: { color: T.ink2, fontSize: 12, interval: 0, margin: 12, fontFamily: MONO },
+        },
+      };
+    }
+
+    /** 纵轴：线性刻度从 0 开始，对数刻度自动；extra 用来覆盖个别设置（如目标速率要留在图内） */
+    function yAxis(T, spec, extra)
+    {
+      return {
+        type: spec.log ? 'log' : 'value', logBase: 10, min: spec.log ? undefined : 0, max: spec.max, splitNumber: 4,
+        interval: spec.max ? spec.max / 4 : undefined,  // 有固定上限时刻度均分成 4 格（如 0、25、50、75、100），免得顶上两个刻度挤在一起
+        axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: T.grid } },
+        axisLabel: { color: T.muted, fontSize: 11, fontFamily: MONO, formatter: fmtAxis },
+        ...(extra || {}),
+      };
+    }
+
+    /** 取得容器对应的图表实例，没有就创建（用 SVG 渲染，缩放时更清晰） */
+    function chart(id)
+    {
+      if (!state.charts[id])
+      {
+        const el = document.getElementById(id);
+        state.charts[id] = echarts.init(el, null, { renderer: 'svg' });
+        state.resizer?.observe(el);
+      }
+      return state.charts[id];
+    }
+
+    // ---------------- 数据 ----------------
+
+    /** 读取 data/index.json 列出的每次运行 */
+    async function loadRuns()
+    {
+      const index = await getJson('data/index.json');
+      return Promise.all(index.runs.map(name => getJson('data/runs/' + name)));
+    }
+
+    async function getJson(url)
+    {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`${url} 返回 ${res.status}`);
+      return res.json();
+    }
+
+    /** 整理每次运行：轮次按顺序排好并起名（V0、V0 对照……），按名字建索引，找出第 1 轮和对照轮，起运行的名字 */
+    function prepareRuns(raw)
+    {
+      const runs = raw.map((run, idx) =>
+      {
+        const rounds = [...(run.rounds || [])].sort((a, b) => a.n - b.n).map(r => ({ ...r, label: roundLabel(r) }));
+        const by = {};
+        rounds.forEach(r => { if (!(r.label in by)) by[r.label] = r; });
+        return {
+          ...run, idx, rounds, by, short: shortCpu(run.sut?.cpu),
+          base: rounds.find(r => !r.control) || rounds[0] || null,
+          control: rounds.find(r => r.control) || null,
+        };
+      });
+      // 名字用被测机 CPU 型号；型号相同的几次运行加编号
+      const count = {}, seen = {};
+      runs.forEach(run => { count[run.short] = (count[run.short] || 0) + 1; });
+      runs.forEach(run => { run.name = count[run.short] > 1 ? `${run.short} #${(seen[run.short] = (seen[run.short] || 0) + 1)}` : run.short; });
+      return runs;
+    }
+
+    /** 横轴的所有类别：正常轮次在前，对照轮在后，各自按出现顺序去重 */
+    function categories(runs)
+    {
+      const normal = [], control = [];
+      runs.forEach(run => run.rounds.forEach(r => { const list = r.control ? control : normal; if (!list.includes(r.label)) list.push(r.label); }));
+      return [...normal, ...control];
+    }
+
+    /** 轮次在横轴上的名字：perf-v1 → V1，对照轮加"对照"；其他版本（如提交号）取前 7 位 */
+    function roundLabel(r)
+    {
+      const v = String(r.version || '?');
+      const m = /^perf-v(\d+)$/.exec(v);
+      return (m ? 'V' + m[1] : v.slice(0, 7)) + (r.control ? ' 对照' : '');
+    }
+
+    /** CPU 型号的简称，如 "AMD EPYC 9V74 80-Core Processor" → "EPYC 9V74" */
+    function shortCpu(s)
+    {
+      return String(s || '未知').replace(/\(R\)|\(TM\)/gi, '').replace(/^(AMD|Intel)\s+/i, '').replace(/\s+\d+-Core Processor/i, '')
+        .replace(/\s+Processor/i, '').replace(/\s+CPU\b.*$/i, '').replace(/\s+@.*$/, '').trim();
+    }
+
+    /** 某张折线图隐藏了哪些运行（按 id），第一次用到时创建 */
+    function hiddenOf(key)
+    {
+      if (!state.hidden[key]) state.hidden[key] = new Set();
+      return state.hidden[key];
+    }
+
+    /** 某张折线图里显示中的运行 */
+    function visibleRuns(key) { const hidden = hiddenOf(key); return state.runs.filter(run => !hidden.has(run.id)); }
+
+    /** 分段切换当前选中的运行 */
+    function pickRun(key) { return state.runs.find(run => run.idx === state[key]) || state.runs[0]; }
+
+    // 由原始数据计算的指标
+    function thr(r, run) { return r && ok(r.accepted) && ok(run.duration_s) && run.duration_s > 0 ? r.accepted / run.duration_s : null; }
+    function multiple(r, run) { const b = thr(run.base, run), t = thr(r, run); return ok(b) && ok(t) && b > 0 ? t / b : null; }
+    function cpuTotal(r)
+    {
+      const values = Object.values(r?.cpu_ms_per_request || {}).filter(ok);
+      return values.length ? round3(values.reduce((a, b) => a + b, 0)) : null;
+    }
+    /** 一轮里某一组组件的每请求 CPU 之和；"其他"是所有没被归组的容器 */
+    function groupCpu(r, g)
+    {
+      const cpu = r?.cpu_ms_per_request;
+      if (!cpu) return null;
+      let sum = 0, any = false;
+      for (const name in cpu)
+      {
+        if (ok(cpu[name]) && (g.members ? g.members.includes(name) : !LISTED.includes(name))) { sum += cpu[name]; any = true; }
+      }
+      return any ? round3(sum) : (g.members ? null : 0);
+    }
+    /** 某次运行里某个版本（横轴名字）的指标值 */
+    function at(run, label, get) { const r = run.by[label]; return r ? get(r, run) : null; }
+    /** 对照轮与第 1 轮相差的百分比（绝对值）；没有对照轮时为 null */
+    function controlError(run, get)
+    {
+      const b = run.base && get(run.base, run), c = run.control && get(run.control, run);
+      return ok(b) && ok(c) && b !== 0 ? Math.abs(c / b - 1) * 100 : null;
+    }
+
+    // ---------------- 配色与形状 ----------------
+
+    // 图表用的颜色：runs 是各次运行（按顺序固定分配），ramp 是按组件拆解的各组，q 开头的是队列积压的两组柱子，tip 开头的是悬停提示
+    const THEMES = {
+      light: {
+        card: '#FFFFFF', ink: '#0B0C12', ink2: '#3A3D48', muted: '#6B6F7B', grid: '#EEF0F4', axis: '#C9CCD6', off: '#C9CCD6',
+        tipBg: '#0B0C12', tipInk: '#FFFFFF', tipSub: '#B5B8C4', shade: 'rgba(11,12,18,0.04)', qReady: '#2F2FF2', qUnacked: '#eda100',
+        runs: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'],
+        ramp: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#8a5cd0', '#e87ba4', '#8d93a3'],
+      },
+      dark: {
+        card: '#14151C', ink: '#F4F5F8', ink2: '#C2C5D0', muted: '#8A8E9A', grid: '#23252F', axis: '#3A3D48', off: '#3A3D48',
+        tipBg: '#F4F5F8', tipInk: '#0B0C12', tipSub: '#4A4D58', shade: 'rgba(255,255,255,0.04)', qReady: '#8384FF', qUnacked: '#c98500',
+        runs: ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'],
+        ramp: ['#3987e5', '#d95926', '#199e70', '#c98500', '#9a7be8', '#d55181', '#8a8e9a'],
+      },
+    };
+    const SANS = "system-ui,-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif";
+    const MONO = "ui-monospace,'SF Mono',Menlo,Consolas,monospace";
+
+    // 每次运行一种形状（与折线上的点一致），颜色之外再用形状区分，色弱读者也能分清。
+    // SHAPE_CSS 用 CSS 画出同样的形状：[圆角, 裁剪路径, 变换]
+    const SHAPES = ['circle', 'rect', 'triangle', 'diamond', 'pin', 'arrow', 'roundRect', 'circle'];
+    const SHAPE_CSS = {
+      circle: ['50%', 'none', 'none'], rect: ['1.5px', 'none', 'none'], triangle: ['0', 'polygon(50% 0,100% 100%,0 100%)', 'none'],
+      diamond: ['1px', 'none', 'rotate(45deg) scale(0.8)'], pin: ['50% 50% 50% 0', 'none', 'rotate(-45deg)'],
+      arrow: ['0', 'polygon(50% 0,100% 100%,50% 72%,0 100%)', 'none'], roundRect: ['3.5px', 'none', 'none'],
+    };
+
+    function runColor(T, run) { return T.runs[run.idx % T.runs.length]; }
+
+    /** 运行的小图形（实心） */
+    function shape(idx, color)
+    {
+      const [radius, clip, rotate] = SHAPE_CSS[SHAPES[idx % SHAPES.length]];
+      return `<span class="shape" style="background:${color};border-radius:${radius};clip-path:${clip};transform:${rotate}"></span>`;
+    }
+
+    /** 悬停提示里的小图形；对照轮画成空心 */
+    function marker(idx, color, hollow)
+    {
+      const [radius, clip, rotate] = SHAPE_CSS[SHAPES[idx % SHAPES.length]];
+      return `<span style="display:inline-block;flex-shrink:0;width:9px;height:9px;border-radius:${radius};clip-path:${clip};transform:${rotate};` +
+        `background:${hollow ? 'transparent' : color};box-shadow:${hollow ? `inset 0 0 0 2px ${color}` : 'none'}"></span>`;
+    }
+
+    // ---------------- 格式化 ----------------
+
+    function ok(v) { return typeof v === 'number' && isFinite(v); }
+    function round3(v) { return Math.round(v * 1000) / 1000; }
+    function maxOk(a) { const v = a.filter(ok); return v.length ? Math.max(...v) : null; }
+    function minOk(a) { const v = a.filter(ok); return v.length ? Math.min(...v) : null; }
+
+    /** 数字加千分位、固定 d 位小数；没有数据显示 - */
+    function fmtN(v, d = 0)
+    {
+      if (ok(v)) return v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+      return typeof v === 'string' ? v : '-';
+    }
+
+    /** 坐标轴刻度：一万以上写成"x万"，其余原样 */
+    function fmtAxis(v) { return v >= 10000 ? (v / 10000) + '万' : v.toLocaleString('en-US', { maximumFractionDigits: 3 }); }
+
+    /** 一组值的范围，如 "57～72"；只有一个值或都相同时只写一个 */
+    function range(values, f)
+    {
+      const v = values.filter(ok);
+      if (!v.length) return '-';
+      const lo = f(Math.min(...v)), hi = f(Math.max(...v));
+      return lo === hi ? `${lo}` : `${lo}～${hi}`;
+    }
+
+    /** 关键数字的写法：范围算得出来时套上 wrap，否则显示 - */
+    function withRange(values, f, wrap) { const r = range(values, f); return r === '-' ? '-' : wrap(r); }
+
+    function seconds(v) { return ok(v) ? (v >= 10 ? fmtN(v, 0) : fmtN(v, 1)) + ' s' : '-'; }
+
+    /** 紧凑的数字写法：10 以上取整，1～10 留一位小数，1 以下留两位 */
+    function compact(v) { return v >= 10 ? fmtN(v, 0) : v >= 1 ? fmtN(v, 1) : fmtN(v, 2); }
+
+    /** 倍数：10 倍以上取整，以下留一位小数 */
+    function times(x) { return x >= 10 ? String(Math.round(x)) : x.toFixed(1); }
+
+    /** 带正负号的百分比，如 "−9.4%"、"+5.5%" */
+    function signedPct(x) { return (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x).toFixed(1) + '%'; }
+
+    function fmtDate(iso)
+    {
+      const d = new Date(iso);
+      if (isNaN(d)) return '-';
+      const p = n => String(n).padStart(2, '0');
+      return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} UTC`;
+    }
+
+    function loadText(run)
+    {
+      const dist = { hot: '热点分布', uniform: '均匀分布' }[run.distribution] || run.distribution || '-';
+      return `${fmtN(run.rate)} 次/秒 · ${run.duration || '-'} · ${dist}`;
+    }
+
+    function rttText(run) { return ok(run.rtt_ms) ? `${Math.round(run.rtt_ms)} ms${run.relay ? '（经中继）' : ''}` : '-'; }
+    function machineText(m) { return m ? `${m.cpu || '-'} · ${m.nproc ?? '-'} 核` : '-'; }
+
+    function showStatus(text)
+    {
+      const el = document.getElementById('status');
+      el.textContent = text;
+      el.hidden = false;
+    }
+
+    main();
+  </script>
+</body>
+
+</html>

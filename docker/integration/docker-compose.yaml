@@ -1,6 +1,7 @@
 # 播放统计链路压测的被测环境：中间件与微服务放在同一个 compose 里，在一台机器上启动。
 # 镜像版本、内存上限、JVM 参数、MySQL/Redis 配置照抄线上；账号密码全部是测试专用的值，不含任何线上密钥。
 # 微服务镜像由 CI 构建，用 NILO_TAG 选择版本：perf-v0 ~ perf-v3，或某个提交号。
+# 压测工作流一次测多个版本时，每轮只用这一轮的 NILO_TAG 重建 nilo-web 和 nilo-mq-consumer，见 perf/sut/run_rounds.sh。
 #
 # 用法（在本目录执行）：
 #   NILO_TAG=perf-v3 BIND_IP=<对压测机开放的地址> docker compose up -d --build

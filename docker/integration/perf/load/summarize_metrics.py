@@ -1,4 +1,4 @@
-"""从压测机上的 Prometheus 汇总测试窗口内的关键指标，写成 JSON。工作流的 "Summarize metrics" 步骤运行它。
+"""从压测机上的 Prometheus 汇总测试窗口内的关键指标，写成 JSON。run_rounds.sh 每轮测完运行一次。
 用法：python summarize_metrics.py --start <秒级时间戳> --end <秒级时间戳> --out prom-summary.json
 
 对下面 QUERIES 里的每条 PromQL，向 Prometheus 的 HTTP 接口发一次查询，
@@ -63,6 +63,10 @@ QUERIES = {
     'host_cpu_cores_max': 'max_over_time(sum by (id) (rate(container_cpu_usage_seconds_total{{id=~"/system.slice/(nginx-perf|docker).service"}}[15s]))[{w}s:5s])',
     'host_cpu_cores_avg': 'avg_over_time(sum by (id) (rate(container_cpu_usage_seconds_total{{id=~"/system.slice/(nginx-perf|docker).service"}}[15s]))[{w}s:5s])',
     'host_memory_max_mib': 'max by (id) (max_over_time(container_memory_working_set_bytes{{id=~"/system.slice/(nginx-perf|docker).service"}}[{w}s])) / 1048576',
+    # 各容器、宿主机服务在窗口内一共用掉的 CPU 秒数。报告除以放行请求数，得到平均每个请求消耗多少 CPU：
+    # 窗口包括排空阶段，消费端在压测结束后才做完的工作也算在内，各版本处理同样多的请求，总开销可以直接比较
+    'container_cpu_seconds': 'sum by (name) (increase(container_cpu_usage_seconds_total{{name!=""}}[{w}s]))',
+    'host_cpu_seconds': 'sum by (id) (increase(container_cpu_usage_seconds_total{{id=~"/system.slice/(nginx-perf|docker).service"}}[{w}s]))',
     # 各微服务 JVM 堆内存峰值（MiB）：把 Eden、Survivor、老年代等各个堆区加起来
     'jvm_heap_used_max_mib': 'max_over_time(sum by (application) (jvm_memory_used_bytes{{area="heap"}})[{w}s:5s]) / 1048576',
     # 各微服务在窗口内 GC 暂停的总时长（秒）

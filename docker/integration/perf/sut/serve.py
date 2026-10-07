@@ -1,19 +1,20 @@
-"""被测机信号服务的入口：配合压测机完成一次测量。工作流的 "Serve and monitor" 步骤在本目录运行它。
-用法：python serve.py --bind <被测机隧道地址> --port 8099 --out <结果目录>
+"""被测机信号服务的入口：配合压测机完成一轮测量。run_rounds.sh 每轮换好版本后在本目录运行它一次。
+用法：python serve.py --bind <被测机隧道地址> --port 8099 --out <这一轮的结果目录> --round <轮次> --version <版本> [--last]
 
-一次测量按顺序走完 main() 里的 ①～④，每一步等压测机的一个指令：
+一轮测量按顺序走完 main() 里的 ①～④，每一步等压测机的一个指令：
   ① 压测机通知"要开始压测了"（POST /start-monitor）：接口记下起点，唤醒主线程，再把起点返回给压测机
   ② 每 0.1 秒查一次数据库；压测机通知"压测结束"（POST /load-finished）后，连续 100 次不变就判定写入停止
   ③ 全量读取最终数据，与放行请求数对账
   ④ 交出结果，压测机取走（GET /result）后退出，退出码表示对账是否通过
-压测机还会在开始前反复调用 GET /verify-ready，确认被测机已就绪。
+压测机还会在开始前反复调用 GET /verify-ready，确认被测机已就绪，并从返回里得知这是第几轮、测哪个版本、是不是最后一轮。
 
 主线程从上到下执行 ②～④；uvicorn 在后台线程接收压测机的请求，接口通过 SignalService 唤醒主线程、取走结果。
 
 目录结构（分层与 FastAPI 项目一致，依赖见 requirements.txt）：
   seed_videos.py                          入口：灌种子数据（工作流第一个运行）
-  wait_for_es_sync.py                     入口：等 ES 同步（工作流第二个运行）
-  serve.py                                入口：信号服务（工作流最后运行，就是本文件）
+  wait_for_es_sync.py                     入口：等 ES 同步（工作流第二个运行；run_rounds.sh 每轮换版本前也运行）
+  run_rounds.sh                           入口：逐个版本测试，每轮换好版本后运行 serve.py
+  serve.py                                入口：信号服务（就是本文件）
   routers/signal_router.py                HTTP 接口，相当于 @RestController
   services/signal_service.py              SignalService：在接口和主线程之间传递起点、结束信息和结果
   services/measurement_service.py         MeasurementService：记录起点、对账
@@ -52,6 +53,9 @@ def main() -> None:
     p.add_argument('--bind', required=True)
     p.add_argument('--port', type=int, default=8099)
     p.add_argument('--out', default='perf-results')
+    p.add_argument('--round', type=int, default=1)
+    p.add_argument('--version', default='-')
+    p.add_argument('--last', action='store_true')  # 是否最后一轮：压测机测完这一轮就不再等下一轮
     a = p.parse_args()
     os.makedirs(a.out, exist_ok=True)
 
@@ -59,7 +63,8 @@ def main() -> None:
     measurement = MeasurementService(repo, a.out)
     write_stop = WriteStopService(repo, a.out)
     signals = SignalService()
-    server, server_thread = start_server(signals, measurement, a.bind, a.port)
+    round_info = {'round': a.round, 'version': a.version, 'last': a.last}
+    server, server_thread = start_server(signals, measurement, round_info, a.bind, a.port)
 
     # ① 等压测机通知"要开始压测了"。起点由 /start-monitor 接口记好后才唤醒这里，这里直接拿到起点
     baseline = signals.wait_for_start()
@@ -84,14 +89,16 @@ def main() -> None:
     sys.exit(0 if result['reconcile']['ok'] and not result['drain_timed_out'] else 1)
 
 
-def start_server(signals: SignalService, measurement: MeasurementService,
+def start_server(signals: SignalService, measurement: MeasurementService, round_info: dict,
                  host: str, port: int) -> tuple[uvicorn.Server, threading.Thread]:
-    """main() 开头调用：创建 FastAPI 应用并挂上接口，在后台线程启动 uvicorn（HTTP 服务器），返回服务器和它所在的线程"""
+    """main() 开头调用：创建 FastAPI 应用并挂上接口，在后台线程启动 uvicorn（HTTP 服务器），返回服务器和它所在的线程。
+    round_info：这一轮的轮次、版本、是否最后一轮，/verify-ready 原样返回给压测机"""
     app = FastAPI()
     app.include_router(signal_router.router)
-    # 接口通过依赖注入拿到这两个对象，见 routers/signal_router.py
+    # 接口通过依赖注入拿到这些对象，见 routers/signal_router.py
     app.state.signal_service = signals
     app.state.measurement_service = measurement
+    app.state.round_info = round_info
     server = uvicorn.Server(uvicorn.Config(app, host=host, port=port))
     server_thread = threading.Thread(target=server.run, daemon=True)
     server_thread.start()

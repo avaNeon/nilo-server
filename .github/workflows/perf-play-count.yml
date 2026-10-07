@@ -6,6 +6,8 @@ name: Perf - Play Count
 #   - sut（被测机）：用 docker/integration 拉起中间件与微服务，灌种子数据，监控写入何时停止并对账
 #   - load（压测机）：等被测机就绪后用 k6 压测，同时用 Prometheus 抓取被测机的指标
 #   - report：合并两边的结果，写入本次运行的摘要页
+# 一次运行可以测多个版本，在同一对机器上逐个测，每个版本一轮；不止一个版本时，最后再测一遍第一个版本作对照。
+# 原因：每次运行分到的 CPU 型号、两台机器之间的网络都可能不同，分开运行的结果没法直接比较。详见 docker/integration/perf/sut/run_rounds.sh
 # 被测机对外的 7071 由 nginx 接住：压测请求、Prometheus 抓指标、诊断模式下载堆快照，都与线上一样先到 nginx，再经连接池转给 nilo-web。
 # 被测机只对压测机开放压测入口和只读的指标端口（由 Tailscale 访问控制规则限定），MySQL、Redis、ES 只监听被测机本机。
 #
@@ -18,10 +20,11 @@ name: Perf - Play Count
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: '被测版本（镜像标签：perf-v0 ~ perf-v3，或提交号）'
+      # 手动触发最多只能有 10 个输入，已经用满，所以对照轮不单设开关：版本不止一个就自动加上
+      versions:
+        description: '被测版本（镜像标签：perf-v0 ~ perf-v3，或提交号），多个用英文逗号分隔，按顺序逐个测试；不止一个时，最后再测一遍第一个作对照'
         required: true
-        default: perf-v3
+        default: perf-v0,perf-v1,perf-v2,perf-v3
       rate:
         description: '每秒请求数'
         required: true
@@ -51,7 +54,7 @@ on:
           - hot
         default: uniform
       diagnose:
-        description: '诊断模式：nilo-web 全程 JFR 录制，压测中和压测后共拍 3 张堆快照。拍快照会让服务停顿，本轮数字只用来看堆，不与其他轮次比较'
+        description: '诊断模式：nilo-web 全程 JFR 录制，每轮压测中和压测后共拍 3 张堆快照。拍快照会让服务停顿，这次运行的数字只用来看堆，不与其他运行比较'
         type: boolean
         default: false
       web_memory:
@@ -75,7 +78,8 @@ env:
 jobs:
   sut:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # 每轮约 10 分钟，排空慢的版本更久；GitHub 托管的机器单个任务最多 6 小时
+    timeout-minutes: 300
     env:
       # 被测机脚本在 docker/integration/perf/sut 目录下运行，用 Prepare host 步骤建好的虚拟环境里的 Python
       PYTHON: ${{ github.workspace }}/.venv/bin/python
@@ -103,19 +107,24 @@ jobs:
             echo "threads_per_core: $(lscpu | sed -n 's/^Thread(s) per core:[[:space:]]*//p' | head -1)"
             free -m; chronyc tracking 2>/dev/null || timedatectl; } > perf-results/sut-host.txt
 
+      # 先用第一个版本启动整套环境；之后每一轮开始时，run_rounds.sh 再用这一轮的版本重建 nilo-web 和 nilo-mq-consumer
       - name: Start environment
         working-directory: docker/integration
         env:
-          NILO_TAG: ${{ inputs.version }}
-          # 诊断模式：nilo-web 启动即开始 JFR 录制（profile 配置），JVM 退出时写出到 /diag/nilo-web.jfr（挂载到 docker/integration/diag），
-          # 并记录老年代抽样对象到 GC 根的引用路径；录制最多占 500 MB 磁盘，超出时丢弃最早的部分
-          NILO_WEB_DIAG_OPTS: ${{ inputs.diagnose && '-XX:StartFlightRecording=settings=profile,disk=true,maxsize=500m,dumponexit=true,path-to-gc-roots=true,filename=/diag/nilo-web.jfr' || '' }}
+          VERSIONS: ${{ inputs.versions }}
         run: |
           export BIND_IP=$(tailscale ip -4)
           # web_memory 形如 256m/512m：前半是 nilo-web 的最大堆，后半是容器内存上限
           IFS=/ read -r NILO_WEB_HEAP NILO_WEB_MEM_LIMIT <<< "${{ inputs.web_memory }}"
           export NILO_WEB_HEAP NILO_WEB_MEM_LIMIT
-          docker compose up -d --build
+          # 每轮重建容器时 docker-compose.yaml 还要用到这三个变量，写进 $GITHUB_ENV，之后的步骤都能读到
+          { echo "BIND_IP=$BIND_IP"; echo "NILO_WEB_HEAP=$NILO_WEB_HEAP"; echo "NILO_WEB_MEM_LIMIT=$NILO_WEB_MEM_LIMIT"; } >> "$GITHUB_ENV"
+          # 先把所有版本的镜像拉下来：版本写错时在这里就失败，不用等前面几轮跑完
+          IFS=, read -ra versions <<< "$VERSIONS"
+          for v in "${versions[@]}"; do
+            NILO_TAG=$v docker compose pull nilo-web nilo-mq-consumer
+          done
+          NILO_TAG=${versions[0]} docker compose up -d --build
 
       # nilo-canal-client 依赖链最长，它健康说明整套环境都已启动
       - name: Wait for services
@@ -170,17 +179,23 @@ jobs:
           done
           docker stats --no-stream > perf-results/docker-stats-before.txt
 
+      # 逐个版本测试，每个版本一轮：换版本、运行信号服务配合压测机测量，见 run_rounds.sh。
       # 同时每秒记录一次整机 CPU：按容器统计的 CPU 不包括 tailscale、内核的网络收发包处理、写入监控等。
-      # 采样覆盖这一步的全程，报告只取压测期间的部分
-      - name: Serve and monitor
-        timeout-minutes: 60
+      # 采样覆盖这一步的全程，报告按每一轮的压测时段分别截取
+      - name: Run rounds
+        timeout-minutes: 240
         working-directory: docker/integration/perf/sut
+        env:
+          VERSIONS: ${{ inputs.versions }}
+          DIAGNOSE: ${{ inputs.diagnose }}
         run: |
           python3 ../sample_cpu.py --out "$RESULTS_DIR/sut-cpu.csv" &
           sampler=$!
           trap 'kill "$sampler"' EXIT
-          $PYTHON serve.py --bind "$(tailscale ip -4)" --port "$SIGNAL_PORT" --out "$RESULTS_DIR"
+          bash run_rounds.sh
 
+      # 所有容器的日志。中间件全程没有重启，日志覆盖所有轮次；nilo-web、nilo-mq-consumer 每轮重建，这里只有最后一轮的，
+      # 前面各轮的已由 run_rounds.sh 存到各轮的目录
       - name: Collect logs
         if: always()
         run: |
@@ -191,13 +206,14 @@ jobs:
           sudo cat /var/log/nginx/perf-error.log > perf-results/logs/nginx-error.log 2>/dev/null || true
           docker stats --no-stream > perf-results/docker-stats-after.txt || true
 
-      # 诊断模式：正常停止 nilo-web，JVM 退出时才会写出 JFR 录制文件；计算 GC 根路径要花时间，最多等 2 分钟
+      # 诊断模式：正常停止最后一轮的 nilo-web，JVM 退出时才会写出 JFR 录制文件（前面各轮的在换版本时已经写出）；
+      # 计算 GC 根路径要花时间，最多等 2 分钟。每轮一个文件，文件名带轮次
       - name: Collect JFR recording
         if: always() && inputs.diagnose
         run: |
           docker stop -t 120 nilo-web || true
           mkdir -p diag
-          sudo cp docker/integration/diag/nilo-web.jfr diag/ && sudo chown "$USER" diag/nilo-web.jfr || echo "没有找到 JFR 录制文件" >&2
+          sudo cp docker/integration/diag/*.jfr diag/ && sudo chown "$USER" diag/*.jfr || echo "没有找到 JFR 录制文件" >&2
 
       - name: Upload results
         if: always()
@@ -216,7 +232,7 @@ jobs:
 
   load:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 300
     env:
       # 压测机上 Prometheus 的配置文件和数据目录，供 docker/integration/perf/load/docker-compose.yaml 使用
       PROM_CONFIG: ${{ github.workspace }}/perf-load/prometheus.yml
@@ -233,7 +249,7 @@ jobs:
           tags: tag:perf-load
           hostname: ${{ env.LOAD_NAME }}
 
-      # 反复询问被测机是否就绪。被测机要拉镜像、启动、灌数据、等 ES 同步，最多等 40 分钟
+      # 反复询问被测机第一轮是否就绪。被测机要拉镜像、启动、灌数据、等 ES 同步，最多等 40 分钟
       - name: Wait for SUT
         run: |
           for i in $(seq 1 240); do
@@ -265,79 +281,17 @@ jobs:
           mkdir -p "$PROM_DATA" && chmod 777 "$PROM_DATA"
           docker compose -f docker/integration/perf/load/docker-compose.yaml up -d
 
-      - name: Warm up
-        run: |
-          k6 run -q \
-            -e TARGET="http://$SUT_IP:7071" -e RATE=${{ inputs.warmup_rate }} -e DURATION=${{ inputs.warmup_duration }} \
-            -e VIDEO_COUNT=${{ inputs.seed_count }} -e VIDEO_ID_BASE=$VIDEO_ID_BASE -e DISTRIBUTION=${{ inputs.distribution }} \
-            -e SUMMARY_FILE=perf-load/k6-warmup.json \
-            docker/integration/perf/load/load.js
-          # 等预热产生的写入排空再记录起点：V1 及以后每 5 秒才把本地队列发往 MQ
-          sleep 20
-
-      # 通知被测机：要开始压测了，记下现在的数据作为起点，开始监控写入
-      - name: Start SUT monitor
-        run: |
-          curl -sf -X POST "http://$SUT_IP:$SIGNAL_PORT/start-monitor" | tee perf-load/baseline.json
-          echo "TEST_START=$(date +%s)" >> "$GITHUB_ENV"
-
-      # 压测期间每秒记录一次压测机的 CPU，用来判断瓶颈是不是压测机自己
-      - name: Load test
-        run: |
-          python3 docker/integration/perf/sample_cpu.py --out perf-load/load-cpu.csv &
-          sampler=$!
-          trap 'kill "$sampler"' EXIT
-          # 诊断模式：压测开始后第 60 秒、第 150 秒各拍一张堆快照。
-          # Spring 的 heapdump 端点会先做一次全量 GC，快照里只剩存活对象，即真正占着堆的东西
-          if [ "${{ inputs.diagnose }}" = true ]; then
-            mkdir -p diag
-            heap_dump() { curl -sf -m 180 -o "diag/heap-$1.hprof" "http://$SUT_IP:7071/actuator/heapdump" || echo "堆快照 $1 下载失败" >&2; }
-            start=$(date +%s)
-            (
-              sleep 60
-              heap_dump during-060s
-              left=$(( start + 150 - $(date +%s) ))
-              if [ "$left" -gt 0 ]; then sleep "$left"; fi
-              heap_dump during-150s
-            ) &
-            dumper=$!
-          fi
-          k6 run \
-            -e TARGET="http://$SUT_IP:7071" -e RATE=${{ inputs.rate }} -e DURATION=${{ inputs.duration }} \
-            -e VIDEO_COUNT=${{ inputs.seed_count }} -e VIDEO_ID_BASE=$VIDEO_ID_BASE -e DISTRIBUTION=${{ inputs.distribution }} \
-            -e SUMMARY_FILE=perf-load/k6-main.json \
-            docker/integration/perf/load/load.js
-          # 等后台的快照下载完再结束这一步
-          if [ -n "${dumper:-}" ]; then wait "$dumper"; fi
-
-      # 通知被测机：压测结束了，附带结束时刻和放行请求数，被测机据此判断写入何时停止并对账
-      - name: Notify SUT
-        run: |
-          curl -sf -X POST -H 'Content-Type: application/json' --data @perf-load/k6-main-brief.json "http://$SUT_IP:$SIGNAL_PORT/load-finished"
-
-      # 诊断模式：k6 已退出、连接全部断开后再拍一张，和压测中的两张对比，差出来的就是压力带来的占用（连接、排队的请求等）。
-      # 必须在索要结果之前拍：被测机交出结果后，很快就会停掉 nilo-web
-      - name: Heap dump after load
-        if: inputs.diagnose
-        run: |
-          mkdir -p diag
-          sleep 10
-          curl -sf -m 180 -o diag/heap-after-load.hprof "http://$SUT_IP:7071/actuator/heapdump" || echo "压测后的堆快照下载失败" >&2
-
-      # 反复索要结果，直到被测机判定写入停止、对账完成；Prometheus 在此期间继续采集，覆盖排空过程
-      - name: Wait for SUT result
-        run: |
-          for i in $(seq 1 200); do
-            code=$(curl -s -m 5 -o perf-load/sut-result.json -w '%{http_code}' "http://$SUT_IP:$SIGNAL_PORT/result" || true)
-            [ "$code" = 200 ] && break
-            sleep 10
-          done
-          echo "TEST_END=$(date +%s)" >> "$GITHUB_ENV"
-
-      - name: Summarize metrics
-        if: always()
-        continue-on-error: true
-        run: python3 docker/integration/perf/load/summarize_metrics.py --start "$TEST_START" --end "${TEST_END:-$(date +%s)}" --out perf-load/prom-summary.json
+      # 逐轮压测，每轮测一个版本：预热、压测、等被测机对账、汇总指标，见 run_rounds.sh
+      - name: Run rounds
+        env:
+          RATE: ${{ inputs.rate }}
+          DURATION: ${{ inputs.duration }}
+          WARMUP_RATE: ${{ inputs.warmup_rate }}
+          WARMUP_DURATION: ${{ inputs.warmup_duration }}
+          SEED_COUNT: ${{ inputs.seed_count }}
+          DISTRIBUTION: ${{ inputs.distribution }}
+          DIAGNOSE: ${{ inputs.diagnose }}
+        run: bash docker/integration/perf/load/run_rounds.sh
 
       - name: Archive Prometheus data
         if: always()
@@ -385,5 +339,5 @@ jobs:
       - name: Report
         run: |
           python3 docker/integration/perf/generate_report.py --sut sut-results --load load-results \
-            --title "播放统计压测：${{ inputs.version }}，${{ inputs.rate }} 次/秒，${{ inputs.duration }}，${{ inputs.distribution }}${{ inputs.web_memory != '256m/512m' && format('，nilo-web 堆/容器 {0}', inputs.web_memory) || '' }}${{ inputs.nginx_max_conns != '256' && format('，nginx 最大连接数 {0}', inputs.nginx_max_conns) || '' }}${{ inputs.diagnose && '，诊断模式（数字不与其他轮次比较）' || '' }}" \
+            --title "播放统计压测：${{ inputs.versions }}，${{ inputs.rate }} 次/秒，${{ inputs.duration }}，${{ inputs.distribution }}${{ inputs.web_memory != '256m/512m' && format('，nilo-web 堆/容器 {0}', inputs.web_memory) || '' }}${{ inputs.nginx_max_conns != '256' && format('，nginx 最大连接数 {0}', inputs.nginx_max_conns) || '' }}${{ inputs.diagnose && '，诊断模式（数字不与其他轮次比较）' || '' }}" \
             >> "$GITHUB_STEP_SUMMARY"

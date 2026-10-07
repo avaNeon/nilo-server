@@ -1,15 +1,19 @@
 """合并被测机与压测机的结果，生成 Markdown 报告，显示在 GitHub Actions 这次运行的 Summary 页面。工作流的 report 任务运行它。
 用法：python generate_report.py --sut <被测机结果目录> --load <压测机结果目录> --title <标题> >> $GITHUB_STEP_SUMMARY
 
+一次运行可以测多个版本，每个版本一轮，结果在两台机器各自的 round-<轮次> 目录下。
+只有一轮时，报告就是这一轮的详细结果；不止一轮时，先列各轮的对比表，各轮的详细结果折叠在下面。
+
 读取的文件：
-  被测机目录  sut-result.json      写入完成延迟、对账结果、监控开销（sut/services/measurement_service.py 生成）
-             sut-cpu.csv          被测机整机 CPU 采样（sample_cpu.py 生成），覆盖信号服务运行的全程，只取压测期间的部分
-             sut-host.txt         被测机的 CPU 型号、核数、超线程数（工作流的 Prepare host 步骤生成）
-  压测机目录  k6-main-brief.json   正式压测的请求数、响应时间（load/load.js 生成）
-             prom-summary.json    被测机各组件的资源与链路指标（load/summarize_metrics.py 生成）
-             load-cpu.csv         压测机 CPU 采样（sample_cpu.py 生成），只在压测期间运行
-             load-host.txt        压测机的 CPU 型号、核数、超线程数（工作流的 Network check 步骤生成）
-             tailscale-ping.txt   两台机器之间的网络情况
+  被测机目录  round-N/sut-result.json   这一轮的写入完成延迟、对账结果、监控开销（sut/services/measurement_service.py 生成）
+             sut-cpu.csv               被测机整机 CPU 采样（sample_cpu.py 生成），覆盖所有轮次，每轮只取自己压测期间的部分
+             sut-host.txt              被测机的 CPU 型号、核数、超线程数（工作流的 Prepare host 步骤生成）
+  压测机目录  round-N/round.json        这一轮测的版本（被测机 /verify-ready 的返回，load/run_rounds.sh 保存）
+             round-N/k6-main-brief.json  正式压测的请求数、响应时间（load/load.js 生成）
+             round-N/prom-summary.json   被测机各组件的资源与链路指标（load/summarize_metrics.py 生成）
+             round-N/load-cpu.csv      压测机 CPU 采样（sample_cpu.py 生成），只在压测期间运行
+             load-host.txt             压测机的 CPU 型号、核数、超线程数（工作流的 Network check 步骤生成）
+             tailscale-ping.txt        两台机器之间的网络情况
 任何一个文件缺失（比如某个任务中途失败）都不会报错，对应的项显示为 "-"。
 """
 # 标准库
@@ -18,6 +22,7 @@ import csv
 import json
 import math
 import os
+import re
 from datetime import datetime
 
 # 压测机 CPU 的 P95 达到这个值，判定压测机可能成为瓶颈
@@ -32,29 +37,122 @@ def main() -> None:
     p.add_argument('--title', required=True)
     a = p.parse_args()
 
-    # 1. 读取两台机器的结果文件。"x or {}"：文件缺失时用空字典代替，后面取值时就不用到处判空
-    sut = read_json(os.path.join(a.sut, 'sut-result.json')) or {}
-    k6 = read_json(os.path.join(a.load, 'k6-main-brief.json')) or {}
-    prom = read_json(os.path.join(a.load, 'prom-summary.json')) or {}
-    load_cpu = read_cpu(os.path.join(a.load, 'load-cpu.csv'))
-    # *：把 load_window 返回的 (起点, 终点) 拆开，作为 read_cpu 的后两个参数
-    sut_cpu = read_cpu(os.path.join(a.sut, 'sut-cpu.csv'), *load_window(sut))
+    # 1. 读取两台机器的结果文件：每一轮一份，机器配置和网络各轮共用
+    rounds = read_rounds(a.sut, a.load)
     net = read_text(os.path.join(a.load, 'tailscale-ping.txt'))
     hosts = {'被测机': read_host(os.path.join(a.sut, 'sut-host.txt')),
              '压测机': read_host(os.path.join(a.load, 'load-host.txt'))}
 
     # 2. 依次生成报告的各个部分，每个部分是若干行文本
     lines = [f'## {a.title}', '']
-    lines += conclusion_section(sut, load_cpu)          # 结论：写入完成延迟、对账、本次结果是否可信
-    lines += k6_section(k6, prom)                       # k6 的请求数和响应时间，以及 nilo-web 自己统计的响应时间
-    lines += resource_section(prom, sut_cpu, hosts['被测机'])  # 被测机每个容器的 CPU 和内存，以及整机 CPU
-    lines += chain_section(prom)                        # 链路各环节的指标，用来定位瓶颈
-    lines += pools_section(prom)                        # Tomcat 线程、数据库连接池、GC 分类
-    lines += redis_commands_section(prom, k6.get('accepted'))  # Redis 按命令类型的执行次数
-    lines += measurement_section(sut, load_cpu, net, hosts)  # 测量本身的可信度、两台机器的配置
+    if len(rounds) > 1:
+        lines += compare_section(rounds)                # 各轮的关键数字并排对比
+        for r in rounds:
+            # <details> 是可折叠的区块，默认收起，点开才显示这一轮的详细结果
+            lines += [f'<details><summary>{round_name(r)} 的详细结果</summary>', '']
+            lines += round_sections(r, hosts['被测机'])
+            lines += ['</details>', '']
+    else:
+        for r in rounds:                                # 只有一轮（或一轮都没有）时直接展开
+            lines += round_sections(r, hosts['被测机'])
+    lines += method_section(hosts, net)                 # 测量方法、两台机器的配置和网络
 
     # 3. 打印到标准输出，工作流用 >> 追加到 $GITHUB_STEP_SUMMARY
     print('\n'.join(lines))
+
+
+# ---------------- 各轮对比 ----------------
+
+def compare_section(rounds: list[dict]) -> list[str]:
+    """各轮的关键数字并排对比，每轮一列，按测试顺序排列。有对照轮时说明怎么用它"""
+    columns = [compare_column(r) for r in rounds]
+    # 每列是 [(指标名, 值), ...]，指标名取第一列的；按行重新排成 [指标名, 第 1 轮的值, 第 2 轮的值, ...]
+    rows = [[label] + [col[i][1] for col in columns] for i, (label, _) in enumerate(columns[0])]
+    lines = ['### 各轮对比', '', table(rows, ['指标'] + [round_name(r) for r in rounds]), '',
+             '- 各轮在同一对机器上依次测得，可以直接比较；每轮都重新启动 nilo-web 和 nilo-mq-consumer，中间件全程不重启']
+    control = next((r for r in rounds if r['control']), None)  # 第一个对照轮，没有则为 None
+    if control:
+        lines.append(f'- {round_name(rounds[0])} 与 {round_name(control)} 是同一版本：两者的差距反映先后顺序和机器波动带来的影响，'
+                     '版本之间比这个差距还小的差异，不宜下结论')
+    return lines + [
+        '- 每个放行请求的 CPU = 测试窗口内用掉的 CPU 秒数 ÷ 放行请求数。窗口从起点到被测机判定写入停止，'
+        '消费端在压测结束后才做完的工作也算在内；各组件空闲时的后台开销也按窗口长度摊了进来，排空越久摊得越多',
+        '- 各项的详细含义见各轮的详细结果', '']
+
+
+# 对比表里逐个列出每个放行请求 CPU 的组件：播放统计链路上的各环节
+CHAIN_COMPONENTS = ['nilo-web', 'nilo-mq-consumer', 'mysql', 'redis', 'rabbit', 'nilo-canal-client', 'elasticsearch',
+                    'nginx（宿主机）', 'dockerd（宿主机，含端口转发）']
+
+
+def compare_column(r: dict) -> list[tuple[str, str]]:
+    """对比表里一轮的那一列：[(指标名, 值), ...]"""
+    sut, k6, prom = r['sut'], r['k6'], r['prom']
+    accepted = k6.get('accepted')
+    acc = k6.get('accepted_latency_ms', {})
+    sut_cpu, load_cpu = r['sut_cpu'], r['load_cpu']
+    # 每个组件用掉的 CPU 秒数，宿主机服务换成可读的名字后并进来；| 合并两个字典
+    containers = prom_values(prom, 'container_cpu_seconds')
+    cpu_seconds = (containers or {}) | host_values(prom, 'host_cpu_seconds')
+    # 合计必须有容器的数据：容器的查询失败时，只把宿主机服务加起来会得到一个看似正常、实际偏小很多的数
+    total = sum(cpu_seconds.values()) if containers else None
+
+    def per_request_ms(seconds: float | None) -> str:
+        """CPU 秒数折算成平均每个放行请求的 CPU 毫秒数"""
+        return fmt(seconds / accepted * 1000, 3) if seconds is not None and accepted else '-'
+
+    gc_major = prom_values(prom, 'gc_major_count') or {}
+    return [
+        ('对账', reconcile_text(sut)),
+        ('放行 / 被限流 / 失败', f'{fmt(accepted)} / {fmt(k6.get("rejected"))} / {fmt(k6.get("failed"))}'),
+        ('其中 nginx 返回的 502', fmt(k6.get('failed_by_cause', {}).get('status_502'))),
+        ('未能按时发出的请求（dropped）', fmt(k6.get('dropped_iterations'))),
+        ('放行请求的响应时间 平均 / P99（ms）', f'{fmt(acc.get("avg"), 2)} / {fmt(acc.get("p99"), 2)}'),
+        ('服务端响应时间 平均 / P99（ms）',
+         f'{fmt(prom_value(prom, "server_latency_avg_ms"), 2)} / {fmt(prom_value(prom, "server_latency_p99_ms"), 2)}'),
+        ('写入完成延迟（秒）', fmt(sut.get('write_complete_latency_s'), 3)),
+        ('播放量队列积压峰值（待消费 / 处理中）',
+         f'{fmt(prom_sum(prom, "play_count_queue_ready_max"), 0)} / {fmt(prom_sum(prom, "play_count_queue_unacked_max"), 0)}'),
+        ('MySQL 每秒更新行数峰值', fmt(prom_sum(prom, 'mysql_rows_updated_per_s_max'), 0)),
+        ('MySQL 每秒查询数峰值', fmt(prom_sum(prom, 'mysql_queries_per_s_max'), 0)),
+        ('Redis 每秒命令数峰值', fmt(prom_sum(prom, 'redis_commands_per_s_max'), 0)),
+        ('被测机整机 CPU 使用率 平均 / P95（%，压测期间）',
+         f'{fmt(sut_cpu["avg"])} / {fmt(sut_cpu["p95"])}' if sut_cpu else '-'),
+    ] + [
+        (f'每个放行请求的 CPU（ms）：{name}', per_request_ms(cpu_seconds.get(name))) for name in CHAIN_COMPONENTS
+    ] + [
+        ('每个放行请求的 CPU（ms）：所有容器和宿主机服务合计', per_request_ms(total)),
+        ('nilo-web 全量 GC 次数', fmt(gc_major.get('nilo-web'), 0)),
+        ('压测机 CPU 使用率 P95（%）', fmt(load_cpu['p95']) if load_cpu else '-'),
+    ]
+
+
+def reconcile_text(sut: dict) -> str:
+    """对账结果的简短文字：通过 / 不通过，排空超时时注明；被测机没有结果时为 -"""
+    if not sut:
+        return '-'
+    text = '通过' if sut.get('reconcile', {}).get('ok') else '不通过'
+    return text + '（排空超时）' if sut.get('drain_timed_out') else text
+
+
+def round_name(r: dict) -> str:
+    """一轮的名字，如 "第 2 轮 perf-v1"，对照轮加上 "（对照）" """
+    return f'第 {r["n"]} 轮 {r["version"]}' + ('（对照）' if r['control'] else '')
+
+
+# ---------------- 一轮的详细结果 ----------------
+
+def round_sections(r: dict, host: dict[str, str]) -> list[str]:
+    """一轮的详细结果：只测一个版本时，这就是报告的主体。host：被测机配置"""
+    sut, k6, prom = r['sut'], r['k6'], r['prom']
+    lines = conclusion_section(sut, r['load_cpu'])      # 结论：写入完成延迟、对账、本次结果是否可信
+    lines += k6_section(k6, prom)                       # k6 的请求数和响应时间，以及 nilo-web 自己统计的响应时间
+    lines += resource_section(prom, r['sut_cpu'], host, k6.get('accepted'))  # 被测机每个容器的 CPU 和内存，以及整机 CPU
+    lines += chain_section(prom)                        # 链路各环节的指标，用来定位瓶颈
+    lines += pools_section(prom)                        # Tomcat 线程、数据库连接池、GC 分类
+    lines += redis_commands_section(prom, k6.get('accepted'))  # Redis 按命令类型的执行次数
+    lines += monitor_section(sut, r['load_cpu'])        # 这一轮测量本身的开销
+    return lines
 
 
 # ---------------- 报告的各个部分 ----------------
@@ -115,23 +213,28 @@ def k6_section(k6: dict, prom: dict) -> list[str]:
         '']
 
 
-def resource_section(prom: dict, sut_cpu: dict | None, host: dict[str, str]) -> list[str]:
+def resource_section(prom: dict, sut_cpu: dict | None, host: dict[str, str], accepted: int | None) -> list[str]:
     """被测机每个容器的 CPU 和内存，按 CPU 峰值从高到低排列；宿主机上不在容器里的 nginx、dockerd 也列在一起。
     表格下面是整机的 CPU：表格只统计容器和这两个宿主机服务，整机还包括 tailscale、内核的网络收发包处理、写入监控等。
-    sut_cpu：被测机 CPU 采样的汇总；host：被测机配置，用核数把百分比折算成核。两样都没有数据时不输出这一部分"""
+    sut_cpu：被测机 CPU 采样的汇总；host：被测机配置，用核数把百分比折算成核；accepted：放行请求数，用来折算每个请求的 CPU。
+    容器和整机 CPU 都没有数据时不输出这一部分"""
     lines = []
     cpu_max = prom_values(prom, 'container_cpu_cores_max')
     if cpu_max:
         cpu_avg = prom_values(prom, 'container_cpu_cores_avg') or {}
         mem_max = prom_values(prom, 'container_memory_max_mib') or {}
+        cpu_sec = prom_values(prom, 'container_cpu_seconds') or {}
         # 宿主机服务按 cgroup 路径查出来，换成可读的名字后并入容器的统计；| 合并两个字典
         cpu_max = cpu_max | host_values(prom, 'host_cpu_cores_max')
         cpu_avg = cpu_avg | host_values(prom, 'host_cpu_cores_avg')
         mem_max = mem_max | host_values(prom, 'host_memory_max_mib')
+        cpu_sec = cpu_sec | host_values(prom, 'host_cpu_seconds')
+        # 窗口内用掉的 CPU 秒数折算成平均每个放行请求的 CPU 毫秒数
+        per_req = {n: s / accepted * 1000 for n, s in cpu_sec.items()} if accepted else {}
         # set(cpu_max) | set(mem_max)：两边容器名的并集；key=lambda ...：按 CPU 峰值的相反数排序，即从高到低
         names = sorted(set(cpu_max) | set(mem_max), key=lambda n: -cpu_max.get(n, 0))
-        lines += [table([[n, cpu_avg.get(n), cpu_max.get(n), mem_max.get(n)] for n in names],
-                        ['容器', 'CPU 平均（核）', 'CPU 峰值（核）', '内存峰值（MiB）']), '']
+        lines += [table([[n, cpu_avg.get(n), cpu_max.get(n), fmt(per_req.get(n), 3), mem_max.get(n)] for n in names],
+                        ['容器', 'CPU 平均（核）', 'CPU 峰值（核）', '每个放行请求的 CPU（ms）', '内存峰值（MiB）']), '']
     if sut_cpu:
         nproc = int(host['nproc']) if host.get('nproc', '').isdigit() else None
         # 有核数时把百分比折算成核，方便和上表的容器相加对比
@@ -195,26 +298,31 @@ def redis_commands_section(prom: dict, accepted: int | None) -> list[str]:
             '']
 
 
-def measurement_section(sut: dict, load_cpu: dict | None, net: str, hosts: dict[str, dict[str, str]]) -> list[str]:
-    """测量本身的可信度：监控查询有没有跟上 0.1 秒的节拍、压测机 CPU、两台机器的配置和之间的网络。
-    hosts：{'被测机': {'cpu': ..., 'nproc': ..., 'threads_per_core': ...}, '压测机': {...}}"""
+def monitor_section(sut: dict, load_cpu: dict | None) -> list[str]:
+    """这一轮测量本身的开销：写入监控有没有跟上 0.1 秒的节拍、压测机 CPU 的采样情况"""
     mon = sut.get('monitor', {})
+    return ['### 测量本身', '',
+            f'- 写入监控共查询 {mon.get("polls", "-")} 次，单次平均 {mon.get("avg_poll_ms", "-")} ms，最长 {mon.get("max_poll_ms", "-")} ms',
+            # 相邻的几个字符串会自动拼成一个，用来把长句拆成多行书写
+            f'- 压测机 CPU 在压测期间每秒采样一次，共 {load_cpu["seconds"] if load_cpu else "-"} 秒，'
+            f'被云主机宿主占用（steal）平均 {fmt(load_cpu["steal_avg"]) if load_cpu else "-"}%', '']
+
+
+def method_section(hosts: dict[str, dict[str, str]], net: str) -> list[str]:
+    """各轮共用的部分：两台机器的配置、各项数字怎么测的、两台机器之间的网络。
+    hosts：{'被测机': {'cpu': ..., 'nproc': ..., 'threads_per_core': ...}, '压测机': {...}}"""
     # 每台机器一段，如 "被测机 AMD EPYC 7763 64-Core Processor，4 核（每个物理核 2 个超线程）"；文件缺失时显示 -
     host_text = '；'.join(f'{name} {h.get("cpu", "-")}，{h.get("nproc", "-")} 核{smt_text(h)}' for name, h in hosts.items())
-    lines = ['### 测量本身', '',
-             f'- 机器配置：{host_text}。每次分到的云主机硬件可能不同，型号不同的两次结果不宜直接比较']
+    lines = ['### 测量方法与机器配置', '',
+             f'- 机器配置：{host_text}。同一次运行的各轮使用同一对机器；每次运行分到的云主机硬件可能不同，型号不同的两次运行不宜直接比较']
     if any(smt_text(h) for h in hosts.values()):
         lines.append('- 超线程：一个物理核同时运行两个线程，两者共用计算资源，同时忙时合计只比单个线程快两三成。'
                      '所以按核数算的 CPU 使用率会低估机器的繁忙程度，使用率还没到 100% 时，物理核可能已经接近用满')
     return lines + [
-            f'- 写入监控共查询 {mon.get("polls", "-")} 次，单次平均 {mon.get("avg_poll_ms", "-")} ms，最长 {mon.get("max_poll_ms", "-")} ms',
             '- 写入完成延迟 = 写入停止时刻（被测机）− 压测结束时刻（压测机收到最后一个响应），两台机器均通过 NTP 对时',
             '- 写入停止时刻取第一次查到最终数据的那次查询结束的时间，只会比真正写完偏晚、不会偏早；'
-            '误差约为查询间隔 0.1 秒加单次查询耗时（见上面写入监控一条）',
-            # 相邻的几个字符串会自动拼成一个，用来把长句拆成多行书写
-            f'- 压测机 CPU 在压测期间每秒采样一次，共 {load_cpu["seconds"] if load_cpu else "-"} 秒，'
-            f'被云主机宿主占用（steal）平均 {fmt(load_cpu["steal_avg"]) if load_cpu else "-"}%；'
-            f'CPU 使用率的 P95（把每秒的采样从低到高排列，取第 95 百分位）达到 {LOAD_CPU_LIMIT:.0f}%，即判定压测机可能成为瓶颈',
+            '误差约为查询间隔 0.1 秒加单次查询耗时（见各轮"测量本身"里写入监控一条）',
+            f'- 压测机 CPU 使用率的 P95（把每秒的采样从低到高排列，取第 95 百分位）达到 {LOAD_CPU_LIMIT:.0f}%，即判定压测机可能成为瓶颈',
             # <details> 是可折叠的区块，默认收起，点开才显示 tailscale ping 的原始输出
             '', '<details><summary>两台机器之间的网络（tailscale ping）</summary>', '', '```', net or '-', '```', '</details>', '']
 
@@ -265,7 +373,52 @@ def prom_value(prom: dict, name: str) -> float | None:
     return v.get('value') if v else None
 
 
+def prom_sum(prom: dict, name: str) -> float | None:
+    """把一项指标的所有分组加起来，用于只有一个分组、但分组名不固定的指标（如 MySQL、队列积压）；没有数据时返回 None"""
+    v = prom_values(prom, name)
+    return sum(v.values()) if v else None
+
+
 # ---------------- 读取文件 ----------------
+
+def read_rounds(sut_dir: str, load_dir: str) -> list[dict]:
+    """读取每一轮的结果，按轮次排好。轮次取两台机器上 round-<轮次> 目录的并集：一台机器中途失败时，另一台已有的结果照样显示。
+    每一轮是一个字典：轮次 n、版本 version、是否对照轮 control，以及 sut、k6、prom 三份结果和两台机器的 CPU 采样汇总"""
+    numbers = set()
+    for d in (sut_dir, load_dir):
+        for name in list_dir(d):
+            m = re.fullmatch(r'round-(\d+)', name)  # 目录名是 round-<数字> 时，取出数字
+            if m:
+                numbers.add(int(m.group(1)))
+    rounds = []
+    for n in sorted(numbers):
+        sut_round = os.path.join(sut_dir, f'round-{n}')
+        load_round = os.path.join(load_dir, f'round-{n}')
+        # "x or {}"：文件缺失时用空字典代替，后面取值时就不用到处判空
+        sut = read_json(os.path.join(sut_round, 'sut-result.json')) or {}
+        info = read_json(os.path.join(load_round, 'round.json')) or {}
+        rounds.append({
+            'n': n,
+            'version': info.get('version', '-'),
+            'sut': sut,
+            'k6': read_json(os.path.join(load_round, 'k6-main-brief.json')) or {},
+            'prom': read_json(os.path.join(load_round, 'prom-summary.json')) or {},
+            'load_cpu': read_cpu(os.path.join(load_round, 'load-cpu.csv')),
+            # 被测机的整机 CPU 采样覆盖所有轮次，只取这一轮压测期间的部分。*：把 (起点, 终点) 拆开作为 read_cpu 的后两个参数
+            'sut_cpu': read_cpu(os.path.join(sut_dir, 'sut-cpu.csv'), *load_window(sut)),
+        })
+    # 对照轮：第一轮之后又测了一遍第一轮的版本
+    for r in rounds:
+        r['control'] = r is not rounds[0] and r['version'] != '-' and r['version'] == rounds[0]['version']
+    return rounds
+
+
+def list_dir(path: str) -> list[str]:
+    """目录下的文件和子目录名；目录不存在时返回空列表"""
+    try:
+        return os.listdir(path)
+    except OSError:
+        return []
 
 def read_json(path: str) -> dict | None:
     """读取 JSON 文件，返回字典；文件不存在或内容不是合法 JSON 时返回 None"""

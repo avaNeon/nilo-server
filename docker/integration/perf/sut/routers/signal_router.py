@@ -1,7 +1,7 @@
 """信号服务的 HTTP 接口，压测机通过它和被测机配合完成一次测量，相当于 Spring 的 @RestController。
 
-压测机按顺序调用 4 个接口：
-  GET  /verify-ready   压测机询问：被测机准备好了吗？
+压测机每轮按顺序调用 4 个接口：
+  GET  /verify-ready   压测机询问：被测机准备好了吗？返回这是第几轮、测哪个版本、是不是最后一轮
   POST /start-monitor  压测机通知：要开始压测了，记好起点、唤醒主线程后返回起点
   POST /load-finished  压测机通知：压测结束了，附带结束时刻和放行请求数
   GET  /result         压测机索要结果：还没算完返回 202，算完返回 200 和结果
@@ -32,17 +32,24 @@ def get_measurement_service(request: Request) -> MeasurementService:
     return request.app.state.measurement_service
 
 
+def get_round_info(request: Request) -> dict:
+    """取得 serve.py 挂在 app.state 上的这一轮信息：{'round': 轮次, 'version': 版本, 'last': 是否最后一轮}"""
+    return request.app.state.round_info
+
+
 # 接口参数声明为 signals: SignalServiceDep，FastAPI 就会调用 get_signal_service 把 SignalService 注入进来，相当于 @Autowired
 SignalServiceDep = Annotated[SignalService, Depends(get_signal_service)]
 MeasurementServiceDep = Annotated[MeasurementService, Depends(get_measurement_service)]
+RoundInfoDep = Annotated[dict, Depends(get_round_info)]
 
 
 @router.get('/verify-ready')
-def verify_ready() -> dict:
+def verify_ready(round_info: RoundInfoDep) -> dict:
     """压测机询问：被测机准备好了吗？
-    压测机启动后反复调用，直到返回 200 才开始压测。信号服务是被测机工作流的最后一步，
-    启动环境、灌数据、等 ES 同步都完成后才会运行，所以只要能响应就说明已就绪"""
-    return {'ready': True}
+    压测机每轮开始前反复调用，直到返回 200、并且轮次正是它在等的那一轮才开始压测。
+    信号服务是被测机每一轮的最后一步，换好版本、等 ES 同步都完成后才会运行，所以只要能响应就说明这一轮已就绪。
+    要核对轮次，是因为上一轮的信号服务交出结果后还会再运行 1 秒，压测机这时来问，答话的是上一轮"""
+    return {'ready': True} | round_info
 
 
 @router.post('/start-monitor')

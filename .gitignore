@@ -53,6 +53,9 @@ resource/
 *_thumb.*
 *thumb.*
 
+# 文档配图要纳入版本管理，不受上面图片规则的影响
+!docs/img/**
+
 ### Build outputs and caches ###
 # 各模块 target / build 已在上面以例外形式处理，但一般的 build /out 仍然忽略
 **/target/

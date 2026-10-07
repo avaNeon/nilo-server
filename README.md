@@ -1,10 +1,8 @@
 # Nilo
 
-Nilo 服务端。
+欢迎来到 Nilo 服务端仓库，本欢迎文档用于介绍关于 Nilo 开源视频网站服务端的相关信息，目前本仓库整理了一些技术文档，欢迎查看。
 
-用户界面见前端仓库 [nilo-webpage](https://github.com/avaNeon/nilo-webpage)。
-
-文中流程图为 SVG，建议下载后在浏览器中打开。
+同时也欢迎查看[前端仓库](https://github.com/avaNeon/nilo-webpage)
 
 ## 文档
 

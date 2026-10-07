@@ -10,7 +10,7 @@ Nilo 服务端。
 
 | 章节                                   | 内容                                           |
 |----------------------------------------|------------------------------------------------|
-| [部署](docs/md/deploy/README.md)       | 单体部署、中间件、发布、对外访问               |
-| [组件配置](docs/md/config/README.md)   | 中间件配置要点                                 |
 | [设计与实现](docs/md/source/README.md) | 模块划分，以及上传、播放统计、热度、评论的实现 |
+| [组件配置](docs/md/config/README.md)   | 各组件配置信息                                 |
+| [部署](docs/md/deploy/README.md)       | 部署方式与线上配置信息                         |
 | [测试与评估](docs/md/eval/README.md)   | 测试方法与评估结果                             |

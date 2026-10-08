@@ -93,6 +93,8 @@ minio:
 
 canal:
   host: canal-server
+  # 压测环境没有评论服务，关掉评论库副本表的同步，否则造数据时每个视频都会往 nilo-mq-consumer 发一条注定失败的消息，干扰测量
+  comment-replica-enabled: false
 
 seata:
   enabled: true

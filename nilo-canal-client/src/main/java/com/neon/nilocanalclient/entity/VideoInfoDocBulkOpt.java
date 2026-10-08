@@ -4,10 +4,10 @@ import com.neon.nilocommon.entity.po.document.VideoInfoDoc;
 import lombok.Getter;
 
 /**
- * 一次 ES bulk 中的单条操作：toIndex 或 toDelete
+ * 一次 ES bulk 中的单条操作：Index 或 Delete 操作
  */
 @Getter
-public class BulkDocOperation
+public class VideoInfoDocBulkOpt
 {
     private final Type type;
 
@@ -21,20 +21,20 @@ public class BulkDocOperation
     /**
      * 私有构造函数，只允许使用静态方法创建实例
      */
-    private BulkDocOperation(Type type, Long videoId, VideoInfoDoc doc)
+    private VideoInfoDocBulkOpt(Type type, Long videoId, VideoInfoDoc doc)
     {
         this.type = type;
         this.videoId = videoId;
         this.doc = doc;
     }
 
-    public static BulkDocOperation toIndex(VideoInfoDoc doc)
+    public static VideoInfoDocBulkOpt buildIndex(VideoInfoDoc doc)
     {
-        return new BulkDocOperation(Type.INDEX, doc.getVideoId(), doc);
+        return new VideoInfoDocBulkOpt(Type.INDEX, doc.getVideoId(), doc);
     }
 
-    public static BulkDocOperation toDelete(Long videoId)
+    public static VideoInfoDocBulkOpt buildDelete(Long videoId)
     {
-        return new BulkDocOperation(Type.DELETE, videoId, null);
+        return new VideoInfoDocBulkOpt(Type.DELETE, videoId, null);
     }
 }

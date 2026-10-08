@@ -4,7 +4,7 @@ import com.alibaba.otter.canal.client.CanalConnector;
 import com.alibaba.otter.canal.client.CanalConnectors;
 import com.alibaba.otter.canal.protocol.Message;
 import com.neon.nilocanalclient.config.CanalProperties;
-import com.neon.nilocanalclient.service.VideoInfoCanalService;
+import com.neon.nilocanalclient.service.EsSyncCanalService;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,26 +16,30 @@ import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 常驻拉取 Canal Server 变更并交给 {@link VideoInfoCanalService}
+ * 常驻拉取 Canal Server 变更并交给 {@link EsSyncCanalService}（ES、AI）
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class CanalClientRunner implements ApplicationRunner
 {
-    private final AtomicBoolean running = new AtomicBoolean(true);
-
     private Thread worker;
 
     private volatile CanalConnector connector;
 
+    /**
+     * 是否继续运行标签
+     */
+    private final AtomicBoolean running = new AtomicBoolean(true);
+
     private final CanalProperties canalProperties;
 
-    private final VideoInfoCanalService videoInfoCanalService;
+    private final EsSyncCanalService esSyncCanalService;
 
     @Override
     public void run(ApplicationArguments args)
     {
+        // 新开个线程，不断监听 binlog
         worker = new Thread(this::listenLoop, "canal-client-worker");
         worker.setDaemon(false);
         worker.start();
@@ -70,7 +74,9 @@ public class CanalClientRunner implements ApplicationRunner
                 try
                 {
                     // 处理数据
-                    videoInfoCanalService.handleEntries(message.getEntries());
+
+                    // ES 同步
+                    esSyncCanalService.handleEntries(message.getEntries());
 
                     // ACK
                     connector.ack(batchId);
@@ -94,6 +100,10 @@ public class CanalClientRunner implements ApplicationRunner
         log.info("Canal client 已结束监听");
     }
 
+    /**
+     * 确保连接正常<hr/>
+     * 如果没有连接，尝试重新连接。
+     */
     private void ensureConnected()
     {
         if (connector != null)

@@ -2,9 +2,10 @@ package com.neon.nilocanalclient.service;
 
 import com.alibaba.otter.canal.protocol.CanalEntry;
 import com.neon.nilocanalclient.canal.VideoInfoDocCanalTranslator;
-import com.neon.nilocanalclient.entity.BulkDocOperation;
+import com.neon.nilocanalclient.entity.VideoInfoDocBulkOpt;
 import com.neon.nilocanalclient.repository.elasticsearch.VideoInfoDocBulkRepository;
 import com.neon.nilocanalclient.repository.rabbitmq.VideoIndexMqRepository;
+import com.neon.nilocommon.entity.constants.NiloTable;
 import com.neon.nilocommon.entity.enums.videoIndex.VideoIndexTaskType;
 import com.neon.nilocommon.entity.po.document.VideoInfoDoc;
 import lombok.RequiredArgsConstructor;
@@ -13,19 +14,15 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 
-
+/**
+ * ES 同步业务代码<hr/>
+ * 目前只同步 video_info 和 video_info_file 表
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class VideoInfoCanalService
+public class EsSyncCanalService
 {
-    private static final String TABLE_NAME = "video_info";
-
-    /**
-     * 分P表。只有审核通过时才会按 videoId 全删全插，平时不动，所以事件量很小
-     */
-    private static final String FILE_TABLE_NAME = "video_info_file";
-
     /**
      * 只有这几列变了才值得让 AI 重建视频向量
      */
@@ -40,16 +37,18 @@ public class VideoInfoCanalService
     public void handleEntries(List <CanalEntry.Entry> entries)
     {
         // 同一 Canal 批次内按 videoId 折叠，保留最后一次操作（保持事件顺序）
-        Map <Long, BulkDocOperation> pendingByVideoId = new LinkedHashMap <>();
+        Map <Long, VideoInfoDocBulkOpt> pendingByVideoId = new LinkedHashMap <>();
 
         // AI 的视频向量也按 videoId 折叠，等 ES 写完再统一发消息
         Map <Long, VideoIndexTaskType> aiTaskByVideoId = new LinkedHashMap <>();
 
-        // 字幕块的数据源是分P表，和上面两个各走各的
+        // 字幕块的数据源是视频文件表，和上面两个各走各的
         Set <Long> subtitleTaskVideoIdSet = new LinkedHashSet <>();
 
+        // 收集每个事件的具体操作，保存到上面三个变量中
         for (CanalEntry.Entry entry : entries)
         {
+            // 不看行变更以外的消息
             if (entry.getEntryType() != CanalEntry.EntryType.ROWDATA)
             {
                 continue;
@@ -57,13 +56,13 @@ public class VideoInfoCanalService
 
             // 先检查一下是不是自己负责的表
             String tableName = entry.getHeader().getTableName();
-            boolean fileTable = FILE_TABLE_NAME.equalsIgnoreCase(tableName);
-            if (!fileTable && !TABLE_NAME.equalsIgnoreCase(tableName))
+            boolean isFileTable = NiloTable.VIDEO_INFO_FILE.equalsIgnoreCase(tableName);
+            if (!isFileTable && !NiloTable.VIDEO_INFO.equalsIgnoreCase(tableName))
             {
                 continue;
             }
 
-            // 获取一行数据库变更
+            // 将二进制字节转化为行变更事件
             CanalEntry.RowChange rowChange;
             try
             {
@@ -82,8 +81,8 @@ public class VideoInfoCanalService
             {
                 try
                 {
-                    // 分P表只关心涉及了哪些视频，改了什么无所谓：字幕块本来就是按视频整体重建的
-                    if (fileTable)
+                    // 如果是视频文件表，我们只关心涉及了哪些视频，改了什么无所谓：字幕块本来就是按视频整体重建的
+                    if (isFileTable)
                     {
                         collectSubtitleTask(subtitleTaskVideoIdSet, rowData, eventType);
                         continue;
@@ -120,7 +119,7 @@ public class VideoInfoCanalService
         // 批量写入 ES：item 级失败只打日志，整次请求失败才抛异常触发 Canal rollback
         if (!pendingByVideoId.isEmpty())
         {
-            List <BulkDocOperation> operations = new ArrayList <>(pendingByVideoId.values());
+            List <VideoInfoDocBulkOpt> operations = new ArrayList <>(pendingByVideoId.values());
             int failCount = videoInfoDocBulkRepository.bulkExecute(operations);
             if (failCount > 0)
             {
@@ -132,57 +131,7 @@ public class VideoInfoCanalService
             }
         }
 
-        sendAiTasks(aiTaskByVideoId);
-        sendSubtitleTasks(subtitleTaskVideoIdSet);
-    }
-
-    /**
-     * 收集要重建字幕块的视频<hr/>
-     * 删除行也发重建而不是删除：视频还在不在由 video_info 说了算。审核是「全删再全插」，
-     * 万一 canal 把一个事务拆成两批拉取，发删除就会出现中间态；发重建则是照库里现有的分P重新灌一遍，
-     * 视频真没了就是删掉旧块再写 0 条，效果和删除一样
-     */
-    private void collectSubtitleTask(Set <Long> subtitleTaskVideoIdSet,
-                                     CanalEntry.RowData rowData,
-                                     CanalEntry.EventType eventType)
-    {
-        List <CanalEntry.Column> columns = eventType == CanalEntry.EventType.DELETE ? rowData.getBeforeColumnsList() : rowData.getAfterColumnsList();
-        Long videoId = videoInfoDocCanalTranslator.extractVideoId(columns);
-        if (videoId == null)
-        {
-            log.warn("跳过无 video_id 的分P {} 事件", eventType);
-            return;
-        }
-        subtitleTaskVideoIdSet.add(videoId);
-    }
-
-    /**
-     * 收集要通知 AI 重建向量的视频<hr/>
-     * 只认标题、标签、简介这三列的变化。播放量、点赞数这些计数列一直在变，跟着重建纯属浪费
-     */
-    private void collectAiTask(Map <Long, VideoIndexTaskType> aiTaskByVideoId,
-                               List <CanalEntry.Column> columns,
-                               CanalEntry.EventType eventType)
-    {
-        Long videoId = videoInfoDocCanalTranslator.extractVideoId(columns);
-        if (videoId == null)
-        {
-            return;
-        }
-        if (eventType == CanalEntry.EventType.UPDATE && columns.stream()
-                                                               .noneMatch(column -> column.getUpdated() && AI_TEXT_COLUMNS.contains(
-                                                                       column.getName())))
-        {
-            return;
-        }
-        aiTaskByVideoId.put(videoId, VideoIndexTaskType.UPSERT);
-    }
-
-    /**
-     * 发消息失败不影响主站的 ES 同步，记日志即可：AI 那边还有全量灌入接口兜底
-     */
-    private void sendAiTasks(Map <Long, VideoIndexTaskType> aiTaskByVideoId)
-    {
+        // 交给MQ，让 ai 包处理向量重建
         for (Map.Entry <Long, VideoIndexTaskType> task : aiTaskByVideoId.entrySet())
         {
             try
@@ -195,13 +144,8 @@ public class VideoInfoCanalService
                 log.error("通知 AI 重建视频向量失败, videoId={}, type={}", task.getKey(), task.getValue(), e);
             }
         }
-    }
 
-    /**
-     * 同上，发失败也只记日志
-     */
-    private void sendSubtitleTasks(Set <Long> subtitleTaskVideoIdSet)
-    {
+        // 交给MQ，让 ai 包处理字幕块重建
         for (Long videoId : subtitleTaskVideoIdSet)
         {
             try
@@ -217,13 +161,58 @@ public class VideoInfoCanalService
     }
 
     /**
+     * 收集要重建字幕块的视频<hr/>
+     * 删除行也发重建而不是删除：视频还在不在由 video_info 说了算。审核是「全删再全插」，
+     * 万一 canal 把一个事务拆成两批拉取，发删除就会出现中间态；发重建则是照库里现有的分P重新灌一遍，
+     * 视频真没了就是删掉旧块再写 0 条，效果和删除一样
+     */
+    private void collectSubtitleTask(Set <Long> subtitleTaskVideoIdSet,
+                                     CanalEntry.RowData rowData,
+                                     CanalEntry.EventType eventType)
+    {
+        // 如果是删除就取改前的列，如果是增删就取改后的列，因为要拿 videoId，必须有数据
+        List <CanalEntry.Column> columns = eventType == CanalEntry.EventType.DELETE ? rowData.getBeforeColumnsList() : rowData.getAfterColumnsList();
+        Long videoId = videoInfoDocCanalTranslator.extractVideoId(columns);
+        if (videoId == null)
+        {
+            log.warn("跳过无 video_id 的视频文件更改 {} 事件", eventType);
+            return;
+        }
+        subtitleTaskVideoIdSet.add(videoId);
+    }
+
+    /**
+     * 收集要通知 AI 重建向量的视频<hr/>
+     * 只认标题、标签、简介这三列的变化。播放量、点赞数这些计数列一直在变，跟着重建纯属浪费
+     */
+    private void collectAiTask(Map <Long, VideoIndexTaskType> aiTaskByVideoId,
+                               List <CanalEntry.Column> columns,
+                               CanalEntry.EventType eventType)
+    {
+        Long videoId = videoInfoDocCanalTranslator.extractVideoId(columns);
+        // 没有 videoId 就不收集
+        if (videoId == null)
+        {
+            return;
+        }
+        // 如果是更新，不更新AI向量建立相关字段就不收集，没必要重建
+        if (eventType == CanalEntry.EventType.UPDATE && columns.stream()
+                                                               .noneMatch(column -> column.getUpdated() && AI_TEXT_COLUMNS.contains(
+                                                                       column.getName())))
+        {
+            return;
+        }
+        aiTaskByVideoId.put(videoId, VideoIndexTaskType.UPSERT);
+    }
+
+    /**
      * 收集保存（插入或更新）操作
      *
      * @param pendingByVideoId 待写入操作（按 videoId 折叠）
      * @param columns          列数据
      * @param eventType        事件类型
      */
-    private void collectIndex(Map <Long, BulkDocOperation> pendingByVideoId,
+    private void collectIndex(Map <Long, VideoInfoDocBulkOpt> pendingByVideoId,
                               List <CanalEntry.Column> columns,
                               CanalEntry.EventType eventType)
     {
@@ -237,7 +226,7 @@ public class VideoInfoCanalService
             return;
         }
 
-        pendingByVideoId.put(doc.getVideoId(), BulkDocOperation.toIndex(doc));
+        pendingByVideoId.put(doc.getVideoId(), VideoInfoDocBulkOpt.buildIndex(doc));
     }
 
     /**
@@ -246,7 +235,7 @@ public class VideoInfoCanalService
      * @param pendingByVideoId 待写入操作（按 videoId 折叠）
      * @param columns          列数据
      */
-    private void collectDelete(Map <Long, BulkDocOperation> pendingByVideoId, List <CanalEntry.Column> columns)
+    private void collectDelete(Map <Long, VideoInfoDocBulkOpt> pendingByVideoId, List <CanalEntry.Column> columns)
     {
         Long videoId = videoInfoDocCanalTranslator.extractVideoId(columns);
 
@@ -257,6 +246,6 @@ public class VideoInfoCanalService
             return;
         }
 
-        pendingByVideoId.put(videoId, BulkDocOperation.toDelete(videoId));
+        pendingByVideoId.put(videoId, VideoInfoDocBulkOpt.buildDelete(videoId));
     }
 }

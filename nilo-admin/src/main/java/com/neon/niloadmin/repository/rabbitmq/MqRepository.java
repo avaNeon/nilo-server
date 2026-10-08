@@ -2,6 +2,7 @@ package com.neon.niloadmin.repository.rabbitmq;
 
 import com.neon.nilocommon.entity.constants.MqInfo;
 import com.neon.nilocommon.entity.dto.comment.CommentArchiveDTO;
+import com.neon.nilocommon.entity.dto.mq.VideoDeleteDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Repository;
@@ -48,6 +49,16 @@ public class MqRepository
             List <String> batch = new ArrayList <>(keys.subList(i, end));
             rabbitTemplate.convertAndSend(MqInfo.STORAGE_EXCHANGE, MqInfo.STORAGE_IMAGE_DELETE_ROUTING_KEY, batch);
         }
+    }
+
+    /**
+     * 发送删除视频的任务，由 nilo-web 在消费时完成归档、移动文件等操作
+     *
+     * @param dto 删除任务
+     */
+    public void sendVideoDelete(VideoDeleteDTO dto)
+    {
+        rabbitTemplate.convertAndSend(MqInfo.VIDEO_EXCHANGE, MqInfo.VIDEO_DELETE_ROUTING_KEY, dto);
     }
 
     /**

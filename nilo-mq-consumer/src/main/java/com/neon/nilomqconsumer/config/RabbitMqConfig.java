@@ -202,6 +202,52 @@ public class RabbitMqConfig
         return BindingBuilder.bind(playCountQueue()).to(playCountExchange()).with(PLAY_COUNT_ROUTING_KEY);
     }
 
+    /* 视频交换机 */
+    @Bean
+    public DirectExchange videoExchange()
+    {
+        return new DirectExchange(VIDEO_EXCHANGE);
+    }
+
+    /* 删除视频队列 */
+    @Bean
+    public Queue videoDeleteQueue()
+    {
+        return QueueBuilder.durable(VIDEO_DELETE_QUEUE)
+                           .quorum()
+                           .deadLetterExchange(VIDEO_DLX)
+                           .deadLetterRoutingKey(VIDEO_DELETE_DLK)
+                           .build();
+    }
+
+    /* 删除视频队列-交换机绑定 */
+    @Bean
+    public Binding videoDeleteBinding()
+    {
+        return BindingBuilder.bind(videoDeleteQueue()).to(videoExchange()).with(VIDEO_DELETE_ROUTING_KEY);
+    }
+
+    /* 视频死信交换机 */
+    @Bean
+    public DirectExchange dlxVideoExchange()
+    {
+        return new DirectExchange(VIDEO_DLX);
+    }
+
+    /* 删除视频死信队列 */
+    @Bean
+    public Queue dlqVideoDeleteQueue()
+    {
+        return QueueBuilder.durable(VIDEO_DELETE_DLQ).quorum().build();
+    }
+
+    /* 删除视频死信队列-死信交换机绑定 */
+    @Bean
+    public Binding videoDeleteDlqBinding()
+    {
+        return BindingBuilder.bind(dlqVideoDeleteQueue()).to(dlxVideoExchange()).with(VIDEO_DELETE_DLK);
+    }
+
     /* 评论交换机 */
     @Bean
     public DirectExchange commentExchange()

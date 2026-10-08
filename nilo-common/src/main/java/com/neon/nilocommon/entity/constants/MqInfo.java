@@ -50,6 +50,16 @@ public class MqInfo
     public static final String PLAY_COUNT_QUEUE = "video.play-count.queue";
     public static final String PLAY_COUNT_ROUTING_KEY = "video.play-count.routing.key";
 
+    // ————VIDEO————————————————————————————————————————————————————————
+    public static final String VIDEO_EXCHANGE = "video.direct";
+    // 视频删除：请求端只做校验，归档、移动文件这些耗时操作由 nilo-web 在消费时完成
+    public static final String VIDEO_DELETE_QUEUE = "video.delete.queue";
+    public static final String VIDEO_DELETE_ROUTING_KEY = "video.delete";
+    // dlx
+    public static final String VIDEO_DLX = "video.dlx";
+    public static final String VIDEO_DELETE_DLQ = "video.delete.dlq";
+    public static final String VIDEO_DELETE_DLK = "video.delete.dead";
+
     // ————COMMENT————————————————————————————————————————————————————————
     public static final String COMMENT_EXCHANGE = "comment.direct";
     // 视频评论归档/恢复/彻底删除

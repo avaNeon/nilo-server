@@ -3,11 +3,14 @@ package com.neon.niloweb.controller.inner;
 import com.neon.nilocommon.entity.dto.VideoEmbedSourceDTO;
 import com.neon.nilocommon.entity.dto.VideoFileSourceDTO;
 import com.neon.nilocommon.entity.dto.VideoSnapshotDTO;
+import com.neon.nilocommon.entity.dto.mq.VideoDeleteDTO;
 import com.neon.nilocommon.entity.vo.PaginationResponseVO;
 import com.neon.nilocommon.entity.vo.ResponseVO;
+import com.neon.niloweb.service.VideoDeleteService;
 import com.neon.niloweb.service.VideoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -23,6 +26,19 @@ import org.springframework.web.bind.annotation.*;
 public class InnerVideoController
 {
     private final VideoService videoService;
+
+    private final VideoDeleteService videoDeleteService;
+
+    /**
+     * 执行删除视频的任务，由 nilo-mq-consumer 消费删除消息时调用。校验不通过只记日志，照样返回成功
+     */
+    @Operation(summary = "执行删除视频")
+    @PostMapping("/delete")
+    public ResponseVO <Void> deleteVideo(@RequestBody @Valid VideoDeleteDTO dto)
+    {
+        videoDeleteService.deleteVideo(dto);
+        return ResponseVO.success();
+    }
 
     /**
      * 分页提供标题、标签、简介，供 AI 服务做向量灌入

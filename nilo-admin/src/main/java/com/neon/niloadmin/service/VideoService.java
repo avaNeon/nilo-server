@@ -7,10 +7,11 @@ import com.neon.niloadmin.mapper.*;
 import com.neon.niloadmin.repository.rabbitmq.MqRepository;
 import com.neon.niloadmin.repository.redis.AccountRedisRepository;
 import com.neon.nilocommon.entity.constants.MinioKey;
-import com.neon.nilocommon.entity.dto.comment.CommentArchiveDTO;
 import com.neon.nilocommon.entity.dto.VideoInfoUploadAdminJoinDTO;
-import com.neon.nilocommon.entity.enums.comment.OperationType;
+import com.neon.nilocommon.entity.dto.comment.CommentArchiveDTO;
+import com.neon.nilocommon.entity.dto.mq.VideoDeleteDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
+import com.neon.nilocommon.entity.enums.comment.OperationType;
 import com.neon.nilocommon.entity.enums.videoInfo.RecommendType;
 import com.neon.nilocommon.entity.enums.videoInfoArchive.DeleterType;
 import com.neon.nilocommon.entity.enums.videoInfoFileUpload.UpdateType;
@@ -31,7 +32,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
@@ -543,20 +543,21 @@ public class VideoService
     }
 
     /**
-     * 删除用户视频
+     * 删除用户视频<hr/>
+     * 这里只做校验，通过后把删除任务交给 MQ，由 nilo-web 在消费时完成（和用户在创作中心删除是同一套处理）。
+     * 消费时还会按当时的数据再校验一遍，这里先挡住不合法的请求，尽量不往队列里放错误的消息
      *
      * @param userId  发布者ID
      * @param videoId 视频ID
      * @param detail  删除详情
      */
-    @Transactional(rollbackFor = Exception.class)
     public void deleteVideo(long userId, long videoId, String detail)
     {
         VideoInfo videoInfo = videoInfoMapper.selectByVideoId(videoId);
         // 放到这里只是为了让两个分支都有同样的通知代码逻辑
         String videoName;
 
-        // 如果正式表没有数据，就说明视频还没发布，直接删除上传表中的数据，不可恢复
+        // 如果正式表没有数据，就说明视频还没发布，删除时直接删除上传表中的数据，不可恢复
         if (videoInfo == null)
         {
             VideoInfoUpload videoInfoUpload = videoInfoUploadMapper.selectByVideoId(videoId);
@@ -570,64 +571,18 @@ public class VideoService
                 throw new BusinessException("不是该用户的视频");
             }
 
+            // 只能删除 转码失败/待审核/审核失败 的视频；转码中的视频还在生成文件，这时删除会留下残缺的文件
+            Short status = videoInfoUpload.getStatus();
+            if (!(VideoStatus.TRANSCODING_FAIL.getStatus().equals(status) || VideoStatus.PENDING_REVIEW.getStatus()
+                                                                                                       .equals(status) || VideoStatus.REVIEW_FAILED.getStatus()
+                                                                                                                                                   .equals(status)))
+            {
+                throw new BusinessException("视频当前状态不允许删除");
+            }
+
             videoName = videoInfoUpload.getVideoName();
-
-            // 获取删除路径列表
-            List <VideoInfoFileUpload> uploadFileList = videoInfoFileUploadMapper.selectByVideoId(videoId);
-            List <String> deletePathList;
-            if (uploadFileList == null || uploadFileList.isEmpty())
-            {
-                deletePathList = List.of();
-            }
-            else
-            {
-                // 这个时候所有视频文件都在PENDING状态
-                deletePathList = uploadFileList.stream()
-                                               .map(VideoInfoFileUpload::getFilePath)
-                                               .filter(filePath -> filePath != null && !filePath.isBlank())
-                                               .distinct()
-                                               .toList();
-            }
-
-            // 查出图片路径
-            String coverKey = videoInfoUpload.getVideoCover();
-
-            ArrayList <String> deleteKeys = new ArrayList <>();
-            // 添加视频
-            if (!deletePathList.isEmpty())
-            {
-                deleteKeys.addAll(deletePathList);
-            }
-            // 添加图片和缩略图
-            if (coverKey != null && !coverKey.isBlank())
-            {
-                deleteKeys.add(coverKey);
-                deleteKeys.add(FileUtil.constructThumbnailName(coverKey));
-            }
-
-            // 删除文件记录和视频信息记录
-            videoInfoFileUploadMapper.deleteByVideoId(videoId);
-            videoInfoUploadMapper.deleteByVideoId(videoId);
-
-            // 删除文件从属表
-            mediaOwnershipMapper.deleteBatchByObjectKey(deleteKeys);
-
-            // --- 在事务提交后把删除路径交给MQ ---
-
-            // 删除视频文件
-            // 额外校验下是否存在，有的时候可能会出现没有文件的情况
-            if (!deletePathList.isEmpty())
-            {
-                addKeysToVideoDeleteQueueAfterCommit(deletePathList);
-            }
-
-            // 删除封面文件
-            if (coverKey != null && !coverKey.isBlank())
-            {
-                addKeysToImageDeleteQueueAfterCommit(List.of(coverKey, FileUtil.constructThumbnailName(coverKey)));
-            }
         }
-        // 否则，这是个已发布的视频，我们将其归档到存档表中，文件移动到PENDING，这样别人看不到
+        // 否则，这是个已发布的视频，删除时将其归档到存档表中，文件移动到PENDING，这样别人看不到
         else
         {
             // 如果 视频不属于该用户
@@ -637,24 +592,9 @@ public class VideoService
             }
 
             videoName = videoInfo.getVideoName();
-
-            // 给用户扣除发布视频时获得的硬币
-            userInfoMapper.decreaseCoinForVideoDelete(userId,
-                                                      systemConfigRedisRepository.getSystemConfig().getRewardsPreUpload());
-
-            // 数据迁移前先查出数据
-            List <VideoInfoFile> videoInfoFiles = videoInfoFileMapper.selectByVideoId(videoId);
-
-            // 数据迁移和删除
-            archiveVideo(userId, videoId, detail, videoInfo);
-
-            // 移动封面和缩略图
-            moveImage(MinioKey.PUBLIC_PREFIX, MinioKey.PENDING_PREFIX, videoInfo.getVideoCover());
-
-            // 移动视频文件
-            List <String> videoBaseKeyList = videoInfoFiles.stream().map(VideoInfoFile::getFilePath).toList();
-            moveVideoFiles(MinioKey.PUBLIC_PREFIX, MinioKey.PENDING_PREFIX, videoBaseKeyList);
         }
+
+        mqRepository.sendVideoDelete(new VideoDeleteDTO(userId, videoId, DeleterType.ADMIN, detail));
 
         // 通知用户视频被删除
         CompletableFuture <Void> completableFuture = userMessageService.sendVideoRelatedMessage(userId,
@@ -790,83 +730,6 @@ public class VideoService
         {
             throw new RuntimeException("视频文件移动失败");
         }
-    }
-
-    /**
-     * 视频归档
-     *
-     * @param userId    用户ID
-     * @param videoId   视频ID
-     * @param detail    详细信息
-     * @param videoInfo 视频信息
-     */
-    private void archiveVideo(long userId, long videoId, String detail, VideoInfo videoInfo)
-    {
-        // --- 将所有数据迁移到 archive 表 ---
-
-        // video_info
-        // 我们认为 video_info 代表了删除的操作，因此其他表如果存在原来的记录，将不会认为是重复删除，并会将archive中对应的记录清除并重新录入
-        VideoInfoArchive videoInfoArchive = videoInfoArchiveMapper.selectByVideoId(videoId);
-        if (videoInfoArchive != null)
-        {
-            throw new BusinessException("请勿重复删除");
-        }
-        videoInfoArchive = new VideoInfoArchive();
-        videoInfoArchive.setDeleteTime(LocalDateTime.now());
-        videoInfoArchive.setDeleterType(DeleterType.ADMIN.getValue());
-        videoInfoArchive.setDeleteDetail(detail);
-        BeanUtils.copyProperties(videoInfo, videoInfoArchive);
-        videoInfoArchiveMapper.insert(videoInfoArchive);
-
-        // video_info_file
-        VideoInfoFileQuery videoInfoFileQuery = new VideoInfoFileQuery();
-        videoInfoFileQuery.setVideoId(videoId);
-        List <VideoInfoFile> videoInfoFileList = videoInfoFileMapper.selectList(videoInfoFileQuery);
-        VideoInfoFileArchiveQuery videoInfoFileArchiveQuery = new VideoInfoFileArchiveQuery();
-        videoInfoFileArchiveQuery.setVideoId(videoId);
-        videoInfoFileArchiveMapper.deleteByParam(videoInfoFileArchiveQuery);
-        archiveBatch(videoInfoFileList, VideoInfoFileArchive::new, videoInfoFileArchiveMapper);
-
-        // video_comment + user_comment_action：事务提交后异步通知评论服务归档，保证最终一致性
-        sendCommentArchiveOperationAfterCommit(new CommentArchiveDTO(videoId, OperationType.ARCHIVE));
-
-        // video_danmaku
-        VideoDanmakuQuery videoDanmakuQuery = new VideoDanmakuQuery();
-        videoDanmakuQuery.setVideoId(videoId);
-        List <VideoDanmaku> videoDanmakuList = videoDanmakuMapper.selectList(videoDanmakuQuery);
-        VideoDanmakuArchiveQuery videoDanmakuArchiveQuery = new VideoDanmakuArchiveQuery();
-        videoDanmakuArchiveQuery.setVideoId(videoId);
-        videoDanmakuArchiveMapper.deleteByParam(videoDanmakuArchiveQuery);
-        archiveBatch(videoDanmakuList, VideoDanmakuArchive::new, videoDanmakuArchiveMapper);
-
-        // user_video_action
-        UserVideoActionQuery userVideoActionQuery = new UserVideoActionQuery();
-        userVideoActionQuery.setVideoId(videoId);
-        List <UserVideoAction> userVideoActionList = userVideoActionMapper.selectList(userVideoActionQuery);
-        UserVideoActionArchiveQuery userVideoActionArchiveQuery = new UserVideoActionArchiveQuery();
-        userVideoActionArchiveQuery.setVideoId(videoId);
-        userVideoActionArchiveMapper.deleteByParam(userVideoActionArchiveQuery);
-        archiveBatch(userVideoActionList, UserVideoActionArchive::new, userVideoActionArchiveMapper);
-
-        // --- 删除原业务表数据 ---
-
-        userVideoActionMapper.deleteByParam(userVideoActionQuery);
-        videoDanmakuMapper.deleteByParam(videoDanmakuQuery);
-        videoInfoFileMapper.deleteByParam(videoInfoFileQuery);
-        videoInfoMapper.deleteByVideoId(videoId);
-
-        // --- 清理 upload 表 ---
-
-        VideoInfoFileUploadQuery videoInfoFileUploadQuery = new VideoInfoFileUploadQuery();
-        videoInfoFileUploadQuery.setVideoId(videoId);
-        videoInfoFileUploadMapper.deleteByParam(videoInfoFileUploadQuery);
-
-        VideoInfoUploadQuery videoInfoUploadQuery = new VideoInfoUploadQuery();
-        videoInfoUploadQuery.setVideoId(videoId);
-        videoInfoUploadMapper.deleteByParam(videoInfoUploadQuery);
-
-        // 更新 UserState
-        accountRedisRepository.deleteUserState(userId);
     }
 
     /**

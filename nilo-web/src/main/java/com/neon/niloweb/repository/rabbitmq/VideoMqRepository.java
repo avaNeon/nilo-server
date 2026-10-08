@@ -1,6 +1,7 @@
 package com.neon.niloweb.repository.rabbitmq;
 
 import com.neon.nilocommon.entity.constants.MqInfo;
+import com.neon.nilocommon.entity.dto.mq.VideoDeleteDTO;
 import com.neon.nilocommon.entity.po.VideoInfoFileUpload;
 import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -42,5 +43,15 @@ public class VideoMqRepository
         {
             rabbitTemplate.convertAndSend(MqInfo.STORAGE_EXCHANGE, MqInfo.STORAGE_TRANSCODING_ROUTING_KEY, fileUpload);
         }
+    }
+
+    /**
+     * 发送删除视频的任务，归档、移动文件这些耗时操作在消费时完成
+     *
+     * @param dto 删除任务
+     */
+    public void sendVideoDelete(VideoDeleteDTO dto)
+    {
+        rabbitTemplate.convertAndSend(MqInfo.VIDEO_EXCHANGE, MqInfo.VIDEO_DELETE_ROUTING_KEY, dto);
     }
 }

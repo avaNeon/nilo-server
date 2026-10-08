@@ -10,6 +10,7 @@ import com.neon.nilocomment.mapper.*;
 import com.neon.nilocommon.entity.constants.MinioKey;
 import com.neon.nilocommon.entity.dto.CommentMessageDTO;
 import com.neon.nilocommon.entity.dto.MediaOwnershipBatchDTO;
+import com.neon.nilocommon.entity.dto.UserSnapshotDTO;
 import com.neon.nilocommon.entity.dto.VideoSnapshotDTO;
 import com.neon.nilocommon.entity.dto.comment.CommentDailyStatisticsDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
@@ -546,11 +547,16 @@ public class VideoCommentService
     }
 
     /**
-     * 将指定视频下的评论及评论行为归档（视频删除时调用）
+     * 将指定视频下的评论及评论行为归档（视频删除时调用）<hr/>
+     * <p>先删视频副本、再迁移评论，两步在同一个事务里：副本删掉后发表评论的校验就会拦下这个视频，
+     * 归档之前发的评论都排在迁移前面，会被一起迁走，不会有评论留在已删除的视频下。</p>
+     * <p>canal 监听到 video_info 删除后也会删副本，可能已经先删过了；这里再删一遍是保险，行不存在时什么都不做。</p>
      */
     @Transactional(rollbackFor = Exception.class)
     public void archiveByVideoId(long videoId)
     {
+        videoInfoReplicaMapper.deleteByVideoId(videoId);
+
         VideoCommentQuery videoCommentQuery = new VideoCommentQuery();
         videoCommentQuery.setVideoId(videoId);
         List <VideoComment> videoCommentList = videoCommentMapper.selectList(videoCommentQuery);
@@ -626,43 +632,43 @@ public class VideoCommentService
     }
 
     /**
-     * 同步视频标题到 video_info_replica<hr/>
-     * 由 web 端 video_info.video_name 变更时调用，与 web 端方法共处同一个 Seata AT 全局事务（本方法只是分支）
+     * 新增或覆盖 video_info_replica 中的视频快照<hr/>
+     * 由 canal 监听到 video_info 新增、更新后经 MQ 触发。评论接口靠这张表判断视频是否存在，新视频没有这一行就无法查看或发表评论
      */
     @Transactional(rollbackFor = Exception.class)
-    public void updateVideoNameByVideoId(long videoId, String videoName)
+    public void upsertVideoReplica(VideoSnapshotDTO video)
     {
-        videoInfoReplicaMapper.updateVideoNameByVideoId(videoId, videoName);
+        videoInfoReplicaMapper.upsert(video);
     }
 
     /**
-     * 同步视频封面到 video_info_replica<hr/>
-     * 由 web 端 video_info.video_cover 变更时调用，与 web 端方法共处同一个 Seata AT 全局事务（本方法只是分支）
+     * 新增或覆盖 user_info_replica 中的用户快照<hr/>
+     * 由 canal 监听到 user_info 新增、昵称或头像更新后经 MQ 触发
      */
     @Transactional(rollbackFor = Exception.class)
-    public void updateVideoCoverByVideoId(long videoId, String videoCover)
+    public void upsertUserReplica(UserSnapshotDTO user)
     {
-        videoInfoReplicaMapper.updateVideoCoverByVideoId(videoId, videoCover);
+        userInfoReplicaMapper.upsert(user);
     }
 
     /**
-     * 同步用户昵称到 user_info_replica<hr/>
-     * 由 web 端 user_info.nick_name 变更时调用，与 web 端方法共处同一个 Seata AT 全局事务（本方法只是分支）
+     * 删除 video_info_replica 中的视频快照<hr/>
+     * 视频删除后由 canal 经 MQ 触发。副本没了，发表评论的校验就会拦下这个视频，不会再有评论写进已删除的视频
      */
     @Transactional(rollbackFor = Exception.class)
-    public void updateNickNameByUserId(long userId, String nickName)
+    public void deleteVideoReplica(long videoId)
     {
-        userInfoReplicaMapper.updateNickNameByUserId(userId, nickName);
+        videoInfoReplicaMapper.deleteByVideoId(videoId);
     }
 
     /**
-     * 同步用户头像到 user_info_replica<hr/>
-     * 由 web 端 user_info.avatar 变更时调用，与 web 端方法共处同一个 Seata AT 全局事务（本方法只是分支）
+     * 删除 user_info_replica 中的用户快照<hr/>
+     * 用户注销后由 canal 经 MQ 触发
      */
     @Transactional(rollbackFor = Exception.class)
-    public void updateAvatarByUserId(long userId, String avatar)
+    public void deleteUserReplica(long userId)
     {
-        userInfoReplicaMapper.updateAvatarByUserId(userId, avatar);
+        userInfoReplicaMapper.deleteByUserId(userId);
     }
 
     /**

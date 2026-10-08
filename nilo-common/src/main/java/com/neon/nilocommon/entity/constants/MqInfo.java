@@ -52,18 +52,26 @@ public class MqInfo
 
     // ————COMMENT————————————————————————————————————————————————————————
     public static final String COMMENT_EXCHANGE = "comment.direct";
-    public static final String COMMENT_UPDATE_QUEUE = "comment.update.queue";
-    public static final String COMMENT_UPDATE_ROUTING_KEY = "comment.update";
     // 视频评论归档/恢复/彻底删除
     public static final String COMMENT_ARCHIVE_QUEUE = "comment.archive.queue";
     public static final String COMMENT_ARCHIVE_ROUTING_KEY = "comment.archive";
+    // 评论库的视频副本表（video_info_replica）新增、更新与删除，由 canal 监听 video_info 触发
+    public static final String COMMENT_VIDEO_REPLICA_QUEUE = "comment.video.replica.queue";
+    public static final String COMMENT_VIDEO_REPLICA_ROUTING_KEY = "comment.video.replica";
+    // 评论库的用户副本表（user_info_replica）新增、更新与删除，由 canal 监听 user_info 触发
+    public static final String COMMENT_USER_REPLICA_QUEUE = "comment.user.replica.queue";
+    public static final String COMMENT_USER_REPLICA_ROUTING_KEY = "comment.user.replica";
     // dlx
     public static final String COMMENT_DLX = "comment.dlx";
-    public static final String COMMENT_UPDATE_DLQ = "comment.update.dlq";
-    public static final String COMMENT_UPDATE_DLK = "comment.update.dead";
     // [死信]视频评论归档/恢复/彻底删除
     public static final String COMMENT_ARCHIVE_DLQ = "comment.archive.dlq";
     public static final String COMMENT_ARCHIVE_DLK = "comment.archive.dead";
+    // [死信]视频副本表同步
+    public static final String COMMENT_VIDEO_REPLICA_DLQ = "comment.video.replica.dlq";
+    public static final String COMMENT_VIDEO_REPLICA_DLK = "comment.video.replica.dead";
+    // [死信]用户副本表同步
+    public static final String COMMENT_USER_REPLICA_DLQ = "comment.user.replica.dlq";
+    public static final String COMMENT_USER_REPLICA_DLK = "comment.user.replica.dead";
 
     // ————EMAIL————————————————————————————————————————————————————————
     public static final String EMAIL_EXCHANGE = "email.direct";

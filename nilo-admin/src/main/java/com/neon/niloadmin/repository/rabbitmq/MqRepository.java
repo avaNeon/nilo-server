@@ -2,7 +2,6 @@ package com.neon.niloadmin.repository.rabbitmq;
 
 import com.neon.nilocommon.entity.constants.MqInfo;
 import com.neon.nilocommon.entity.dto.comment.CommentArchiveDTO;
-import com.neon.nilocommon.entity.dto.comment.CommentRedundantDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Repository;
@@ -49,20 +48,6 @@ public class MqRepository
             List <String> batch = new ArrayList <>(keys.subList(i, end));
             rabbitTemplate.convertAndSend(MqInfo.STORAGE_EXCHANGE, MqInfo.STORAGE_IMAGE_DELETE_ROUTING_KEY, batch);
         }
-    }
-
-    /**
-     * 发送评论冗余字段更新消息
-     *
-     * @param dto 需要同步的冗余字段（非空字段才会被消费端处理）
-     */
-    public void sendCommentRedundantUpdate(CommentRedundantDTO dto)
-    {
-        if (dto == null)
-        {
-            return;
-        }
-        rabbitTemplate.convertAndSend(MqInfo.COMMENT_EXCHANGE, MqInfo.COMMENT_UPDATE_ROUTING_KEY, dto);
     }
 
     /**

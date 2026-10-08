@@ -4,6 +4,7 @@ import com.alibaba.otter.canal.client.CanalConnector;
 import com.alibaba.otter.canal.client.CanalConnectors;
 import com.alibaba.otter.canal.protocol.Message;
 import com.neon.nilocanalclient.config.CanalProperties;
+import com.neon.nilocanalclient.service.CommentReplicaSyncCanalService;
 import com.neon.nilocanalclient.service.EsSyncCanalService;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +17,7 @@ import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 常驻拉取 Canal Server 变更并交给 {@link EsSyncCanalService}（ES、AI）
+ * 常驻拉取 Canal Server 变更并交给 {@link EsSyncCanalService}（ES、AI）和 {@link CommentReplicaSyncCanalService}（评论库副本表）
  */
 @Slf4j
 @Component
@@ -35,6 +36,8 @@ public class CanalClientRunner implements ApplicationRunner
     private final CanalProperties canalProperties;
 
     private final EsSyncCanalService esSyncCanalService;
+
+    private final CommentReplicaSyncCanalService commentReplicaSyncCanalService;
 
     @Override
     public void run(ApplicationArguments args)
@@ -77,6 +80,8 @@ public class CanalClientRunner implements ApplicationRunner
 
                     // ES 同步
                     esSyncCanalService.handleEntries(message.getEntries());
+                    // comment 微服务副本表同步
+                    commentReplicaSyncCanalService.handleEntries(message.getEntries());
 
                     // ACK
                     connector.ack(batchId);

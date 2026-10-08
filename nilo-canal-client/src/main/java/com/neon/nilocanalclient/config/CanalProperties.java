@@ -37,4 +37,10 @@ public class CanalProperties
      * 无消息时休眠毫秒数
      */
     private long idleSleepMs = 1000L;
+
+    /**
+     * 同步 comment 微服务副本开关<hr/>
+     * 是否把 video_info、user_info 的变更同步到评论库的副本表。没有评论服务的环境（如压测环境）要关掉，否则消息只会失败重试。
+     */
+    private boolean commentReplicaEnabled = true;
 }

@@ -8,5 +8,5 @@
 - nilo-mq-consumer：监听RabbitMQ的消费者，处理所有消费者逻辑
 - nilo-admin：提供后台管理接口
 - nilo-storage：存储微服务，提供与MinIO交互的存储功能相关的接口，接口全部用于内微服务调用
-- nilo-comment：评论微服务，只负责评论相关逻辑；评论业务拆出，评论相关表分库，保证评论业务异常不影响核心功能，降低故障打击面。添加未迁移的关联表的冗余复制，利用分布式事务更改保证强一致
-- nilo-canal-client：基于canal读取mysql的binlog，从而自动同步写入Elasticsearch，这里保留了从binlog到es的转化逻辑
+- nilo-comment：评论微服务，只负责评论相关逻辑；评论业务拆出，评论相关表分库，保证评论业务异常不影响核心功能，降低故障打击面。评论库中保留视频、用户两张精简副本表（未迁移的关联表），由 nilo-canal-client 监听主库变更后经 MQ 同步，最终一致
+- nilo-canal-client：基于canal读取mysql的binlog，从而自动同步写入Elasticsearch，这里保留了从binlog到es的转化逻辑；同时把视频、用户的变更同步到评论库的副本表

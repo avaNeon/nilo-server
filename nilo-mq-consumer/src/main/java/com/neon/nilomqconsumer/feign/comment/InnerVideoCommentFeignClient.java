@@ -1,5 +1,7 @@
 package com.neon.nilomqconsumer.feign.comment;
 
+import com.neon.nilocommon.entity.dto.UserSnapshotDTO;
+import com.neon.nilocommon.entity.dto.VideoSnapshotDTO;
 import com.neon.nilocommon.entity.dto.comment.CommentDailyStatisticsDTO;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -9,6 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.time.LocalDate;
@@ -26,21 +29,17 @@ public interface InnerVideoCommentFeignClient
     @DeleteMapping("/archive/{videoId}")
     ResponseVO <Void> purgeArchiveByVideoId(@PathVariable(name = "videoId") Long videoId);
 
-    @PutMapping("/video/{videoId}/name")
-    ResponseVO <Void> updateVideoNameByVideoId(@PathVariable(name = "videoId") Long videoId,
-                                               @RequestParam(name = "videoName") String videoName);
+    @PutMapping("/replica/video")
+    ResponseVO <Void> upsertVideoReplica(@RequestBody VideoSnapshotDTO video);
 
-    @PutMapping("/video/{videoId}/cover")
-    ResponseVO <Void> updateVideoCoverByVideoId(@PathVariable(name = "videoId") Long videoId,
-                                                @RequestParam(name = "videoCover") String videoCover);
+    @PutMapping("/replica/user")
+    ResponseVO <Void> upsertUserReplica(@RequestBody UserSnapshotDTO user);
 
-    @PutMapping("/user/{userId}/nickName")
-    ResponseVO <Void> updateNickNameByUserId(@PathVariable(name = "userId") Long userId,
-                                             @RequestParam(name = "nickName") String nickName);
+    @DeleteMapping("/replica/video/{videoId}")
+    ResponseVO <Void> deleteVideoReplica(@PathVariable(name = "videoId") Long videoId);
 
-    @PutMapping("/user/{userId}/avatar")
-    ResponseVO <Void> updateAvatarByUserId(@PathVariable(name = "userId") Long userId,
-                                           @RequestParam(name = "avatar") String avatar);
+    @DeleteMapping("/replica/user/{userId}")
+    ResponseVO <Void> deleteUserReplica(@PathVariable(name = "userId") Long userId);
 
     @GetMapping("/statistics/daily")
     ResponseVO <List <CommentDailyStatisticsDTO>> getDailyCommentStatistics(

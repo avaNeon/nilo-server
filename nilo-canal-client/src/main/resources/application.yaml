@@ -31,6 +31,6 @@ canal:
   destination: es-canal
   username:
   password:
-  subscribe: nilo\.video_info,nilo\.video_info_file
+  subscribe: nilo\.video_info,nilo\.video_info_file,nilo\.user_info
   batch-size: 1000
   idle-sleep-ms: 1000

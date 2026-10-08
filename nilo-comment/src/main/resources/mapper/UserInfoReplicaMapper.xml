@@ -2,23 +2,22 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.neon.nilocomment.mapper.UserInfoReplicaMapper">
+    <insert id="upsert">
+        INSERT INTO user_info_replica (user_id, nick_name, avatar)
+        VALUES (#{user.userId}, #{user.nickName}, #{user.avatar})
+        ON DUPLICATE KEY UPDATE nick_name = VALUES(nick_name),
+                                avatar    = VALUES(avatar)
+    </insert>
+
+    <delete id="deleteByUserId">
+        DELETE
+        FROM user_info_replica
+        WHERE user_id = #{userId}
+    </delete>
 
     <select id="selectNickNameByUserId" resultType="java.lang.String">
         SELECT nick_name
         FROM user_info_replica
         WHERE user_id = #{userId}
     </select>
-
-    <update id="updateNickNameByUserId">
-        UPDATE user_info_replica
-        SET nick_name = #{nickName}
-        WHERE user_id = #{userId}
-    </update>
-
-    <update id="updateAvatarByUserId">
-        UPDATE user_info_replica
-        SET avatar = #{avatar}
-        WHERE user_id = #{userId}
-    </update>
-
 </mapper>

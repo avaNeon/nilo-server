@@ -8,15 +8,18 @@
         WHERE video_id = #{videoId}
     </select>
 
-    <update id="updateVideoNameByVideoId">
-        UPDATE video_info_replica
-        SET video_name = #{videoName}
-        WHERE video_id = #{videoId}
-    </update>
+    <insert id="upsert">
+        INSERT INTO video_info_replica (video_id, user_id, video_name, video_cover, interaction)
+        VALUES (#{video.videoId}, #{video.userId}, #{video.videoName}, #{video.videoCover}, #{video.interaction})
+        ON DUPLICATE KEY UPDATE user_id     = VALUES(user_id),
+                                video_name  = VALUES(video_name),
+                                video_cover = VALUES(video_cover),
+                                interaction = VALUES(interaction)
+    </insert>
 
-    <update id="updateVideoCoverByVideoId">
-        UPDATE video_info_replica
-        SET video_cover = #{videoCover}
+    <delete id="deleteByVideoId">
+        DELETE
+        FROM video_info_replica
         WHERE video_id = #{videoId}
-    </update>
+    </delete>
 </mapper>

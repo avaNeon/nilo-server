@@ -14,12 +14,12 @@ public interface VideoInfoReplicaMapper
     VideoSnapshotDTO selectByVideoId(@Param("videoId") long videoId);
 
     /**
-     * 同步视频标题（web 端 video_info.video_name 变更时调用，与 web 端方法处于同一个 Seata AT 全局事务中）
+     * 新增或覆盖视频快照（canal 监听到 video_info 新增、更新后触发），重复执行结果相同
      */
-    Integer updateVideoNameByVideoId(@Param("videoId") long videoId, @Param("videoName") String videoName);
+    Integer upsert(@Param("video") VideoSnapshotDTO video);
 
     /**
-     * 同步视频封面（web 端 video_info.video_cover 变更时调用，与 web 端方法处于同一个 Seata AT 全局事务中）
+     * 删除视频快照（视频删除时触发），行不存在时什么都不做
      */
-    Integer updateVideoCoverByVideoId(@Param("videoId") long videoId, @Param("videoCover") String videoCover);
+    Integer deleteByVideoId(@Param("videoId") long videoId);
 }

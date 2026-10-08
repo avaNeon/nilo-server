@@ -1,14 +1,16 @@
 package com.neon.nilocomment.controller.inner;
 
 import com.neon.nilocomment.service.VideoCommentService;
+import com.neon.nilocommon.entity.dto.UserSnapshotDTO;
+import com.neon.nilocommon.entity.dto.VideoSnapshotDTO;
 import com.neon.nilocommon.entity.dto.comment.CommentDailyStatisticsDTO;
 import com.neon.nilocommon.entity.vo.ResponseVO;
 import com.neon.nilocommon.entity.vo.comment.CommentManagementVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -78,39 +80,35 @@ public class InnerVideoCommentController
         return ResponseVO.success();
     }
 
-    @Operation(summary = "同步视频标题冗余字段")
-    @PutMapping("/video/{videoId}/name")
-    public ResponseVO <Void> updateVideoNameByVideoId(@PathVariable(name = "videoId") @NotNull Long videoId,
-                                                      @RequestParam(name = "videoName") @NotBlank String videoName)
+    @Operation(summary = "新增或覆盖视频副本")
+    @PutMapping("/replica/video")
+    public ResponseVO <Void> upsertVideoReplica(@RequestBody @Valid VideoSnapshotDTO video)
     {
-        videoCommentService.updateVideoNameByVideoId(videoId, videoName);
+        videoCommentService.upsertVideoReplica(video);
         return ResponseVO.success();
     }
 
-    @Operation(summary = "同步视频封面冗余字段")
-    @PutMapping("/video/{videoId}/cover")
-    public ResponseVO <Void> updateVideoCoverByVideoId(@PathVariable(name = "videoId") @NotNull Long videoId,
-                                                       @RequestParam(name = "videoCover") @NotBlank String videoCover)
+    @Operation(summary = "新增或覆盖用户副本")
+    @PutMapping("/replica/user")
+    public ResponseVO <Void> upsertUserReplica(@RequestBody @Valid UserSnapshotDTO user)
     {
-        videoCommentService.updateVideoCoverByVideoId(videoId, videoCover);
+        videoCommentService.upsertUserReplica(user);
         return ResponseVO.success();
     }
 
-    @Operation(summary = "同步用户昵称冗余字段")
-    @PutMapping("/user/{userId}/nickName")
-    public ResponseVO <Void> updateNickNameByUserId(@PathVariable(name = "userId") @NotNull Long userId,
-                                                    @RequestParam(name = "nickName") @NotBlank String nickName)
+    @Operation(summary = "删除视频副本")
+    @DeleteMapping("/replica/video/{videoId}")
+    public ResponseVO <Void> deleteVideoReplica(@PathVariable(name = "videoId") @NotNull Long videoId)
     {
-        videoCommentService.updateNickNameByUserId(userId, nickName);
+        videoCommentService.deleteVideoReplica(videoId);
         return ResponseVO.success();
     }
 
-    @Operation(summary = "同步用户头像冗余字段")
-    @PutMapping("/user/{userId}/avatar")
-    public ResponseVO <Void> updateAvatarByUserId(@PathVariable(name = "userId") @NotNull Long userId,
-                                                  @RequestParam(name = "avatar") @NotBlank String avatar)
+    @Operation(summary = "删除用户副本")
+    @DeleteMapping("/replica/user/{userId}")
+    public ResponseVO <Void> deleteUserReplica(@PathVariable(name = "userId") @NotNull Long userId)
     {
-        videoCommentService.updateAvatarByUserId(userId, avatar);
+        videoCommentService.deleteUserReplica(userId);
         return ResponseVO.success();
     }
 

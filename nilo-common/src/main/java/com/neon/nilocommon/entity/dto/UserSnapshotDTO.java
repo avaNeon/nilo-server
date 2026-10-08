@@ -6,21 +6,17 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 视频快照（跨服务精简字段，供评论等场景使用）
+ * 用户快照（跨服务精简字段，供评论等场景使用）
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class VideoSnapshotDTO
+public class UserSnapshotDTO
 {
     @NotNull
-    private Long videoId;
-
     private Long userId;
 
-    private String videoName;
+    private String nickName;
 
-    private String videoCover;
-
-    private String interaction;
+    private String avatar;
 }

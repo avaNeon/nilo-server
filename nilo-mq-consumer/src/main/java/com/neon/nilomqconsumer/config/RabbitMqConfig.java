@@ -209,24 +209,6 @@ public class RabbitMqConfig
         return new DirectExchange(COMMENT_EXCHANGE);
     }
 
-    /* 评论冗余字段更新队列 */
-    @Bean
-    public Queue commentUpdateQueue()
-    {
-        return QueueBuilder.durable(COMMENT_UPDATE_QUEUE)
-                           .quorum()
-                           .deadLetterExchange(COMMENT_DLX)
-                           .deadLetterRoutingKey(COMMENT_UPDATE_DLK)
-                           .build();
-    }
-
-    /* 评论冗余字段更新队列-交换机绑定 */
-    @Bean
-    public Binding commentUpdateBinding()
-    {
-        return BindingBuilder.bind(commentUpdateQueue()).to(commentExchange()).with(COMMENT_UPDATE_ROUTING_KEY);
-    }
-
     /* 视频评论归档/恢复/彻底删除队列 */
     @Bean
     public Queue commentArchiveQueue()
@@ -245,25 +227,47 @@ public class RabbitMqConfig
         return BindingBuilder.bind(commentArchiveQueue()).to(commentExchange()).with(COMMENT_ARCHIVE_ROUTING_KEY);
     }
 
+    /* 评论库视频副本同步队列 */
+    @Bean
+    public Queue commentVideoReplicaQueue()
+    {
+        return QueueBuilder.durable(COMMENT_VIDEO_REPLICA_QUEUE)
+                           .quorum()
+                           .deadLetterExchange(COMMENT_DLX)
+                           .deadLetterRoutingKey(COMMENT_VIDEO_REPLICA_DLK)
+                           .build();
+    }
+
+    /* 评论库视频副本同步队列-交换机绑定 */
+    @Bean
+    public Binding commentVideoReplicaBinding()
+    {
+        return BindingBuilder.bind(commentVideoReplicaQueue()).to(commentExchange()).with(COMMENT_VIDEO_REPLICA_ROUTING_KEY);
+    }
+
+    /* 评论库用户副本同步队列 */
+    @Bean
+    public Queue commentUserReplicaQueue()
+    {
+        return QueueBuilder.durable(COMMENT_USER_REPLICA_QUEUE)
+                           .quorum()
+                           .deadLetterExchange(COMMENT_DLX)
+                           .deadLetterRoutingKey(COMMENT_USER_REPLICA_DLK)
+                           .build();
+    }
+
+    /* 评论库用户副本同步队列-交换机绑定 */
+    @Bean
+    public Binding commentUserReplicaBinding()
+    {
+        return BindingBuilder.bind(commentUserReplicaQueue()).to(commentExchange()).with(COMMENT_USER_REPLICA_ROUTING_KEY);
+    }
+
     /* 评论死信交换机 */
     @Bean
     public DirectExchange dlxCommentExchange()
     {
         return new DirectExchange(COMMENT_DLX);
-    }
-
-    /* 评论冗余字段更新死信队列 */
-    @Bean
-    public Queue dlqCommentUpdateQueue()
-    {
-        return QueueBuilder.durable(COMMENT_UPDATE_DLQ).quorum().build();
-    }
-
-    /* 评论冗余字段更新死信队列-死信交换机绑定 */
-    @Bean
-    public Binding commentUpdateDlqBinding()
-    {
-        return BindingBuilder.bind(dlqCommentUpdateQueue()).to(dlxCommentExchange()).with(COMMENT_UPDATE_DLK);
     }
 
     /* 视频评论归档/恢复/彻底删除死信队列 */
@@ -278,6 +282,34 @@ public class RabbitMqConfig
     public Binding commentArchiveDlqBinding()
     {
         return BindingBuilder.bind(dlqCommentArchiveQueue()).to(dlxCommentExchange()).with(COMMENT_ARCHIVE_DLK);
+    }
+
+    /* 评论库视频副本同步死信队列 */
+    @Bean
+    public Queue dlqCommentVideoReplicaQueue()
+    {
+        return QueueBuilder.durable(COMMENT_VIDEO_REPLICA_DLQ).quorum().build();
+    }
+
+    /* 评论库视频副本同步死信队列-死信交换机绑定 */
+    @Bean
+    public Binding commentVideoReplicaDlqBinding()
+    {
+        return BindingBuilder.bind(dlqCommentVideoReplicaQueue()).to(dlxCommentExchange()).with(COMMENT_VIDEO_REPLICA_DLK);
+    }
+
+    /* 评论库用户副本同步死信队列 */
+    @Bean
+    public Queue dlqCommentUserReplicaQueue()
+    {
+        return QueueBuilder.durable(COMMENT_USER_REPLICA_DLQ).quorum().build();
+    }
+
+    /* 评论库用户副本同步死信队列-死信交换机绑定 */
+    @Bean
+    public Binding commentUserReplicaDlqBinding()
+    {
+        return BindingBuilder.bind(dlqCommentUserReplicaQueue()).to(dlxCommentExchange()).with(COMMENT_USER_REPLICA_DLK);
     }
 
     /* 邮件交换机 */

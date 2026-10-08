@@ -3,7 +3,6 @@ package com.neon.niloweb.service;
 import com.neon.nilocommon.entity.constants.MinioKey;
 import com.neon.nilocommon.entity.dto.UpdatedUserInfoDTO;
 import com.neon.nilocommon.entity.dto.UserInfoDTO;
-import com.neon.nilocommon.entity.dto.comment.CommentRedundantDTO;
 import com.neon.nilocommon.entity.enums.ResponseCode;
 import com.neon.nilocommon.entity.enums.userInfo.UserGender;
 import com.neon.nilocommon.entity.enums.userInfo.UserTheme;
@@ -27,7 +26,6 @@ import com.neon.niloweb.config.WebConfig;
 import com.neon.niloweb.feign.comment.InnerVideoCommentFeignClient;
 import com.neon.niloweb.feign.storage.InnerImageFeignClient;
 import com.neon.niloweb.mapper.*;
-import com.neon.niloweb.repository.rabbitmq.CommentMqRepository;
 import com.neon.niloweb.repository.redis.AccountRedisRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -67,8 +65,6 @@ public class UserHomeService
     private final InnerImageFeignClient innerImageFeignClient;
 
     private final InnerVideoCommentFeignClient innerVideoCommentFeignClient;
-
-    private final CommentMqRepository commentMqRepository;
 
     /**
      * 获取用户主页信息
@@ -274,12 +270,6 @@ public class UserHomeService
                             log.error("删除旧头像缩略图{}失败！", oldAvatarThumbnail);
                         }
                     }
-
-                    // 异步更新评论表冗余头像
-                    CommentRedundantDTO avatarUpdateDTO = new CommentRedundantDTO();
-                    avatarUpdateDTO.setUserId(userId);
-                    avatarUpdateDTO.setAvatar(newAvatar);
-                    commentMqRepository.sendCommentRedundantUpdate(avatarUpdateDTO);
                 }
                 catch (Exception e)
                 {
@@ -307,19 +297,6 @@ public class UserHomeService
                         // 算你狠
                         log.error("删除redis中用户名为{}的 user state 记录失败！", userId);
                     }
-                }
-
-                try
-                {
-                    // 异步更新评论表冗余昵称
-                    CommentRedundantDTO nickNameUpdateDTO = new CommentRedundantDTO();
-                    nickNameUpdateDTO.setUserId(userId);
-                    nickNameUpdateDTO.setNickName(updatedUserInfoDTO.getNickName());
-                    commentMqRepository.sendCommentRedundantUpdate(nickNameUpdateDTO);
-                }
-                catch (Exception e)
-                {
-                    log.error("发送更新评论昵称MQ任务失败！原因：{}", e.toString());
                 }
 
                 // 回写

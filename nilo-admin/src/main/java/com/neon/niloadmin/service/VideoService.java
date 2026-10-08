@@ -8,7 +8,6 @@ import com.neon.niloadmin.repository.rabbitmq.MqRepository;
 import com.neon.niloadmin.repository.redis.AccountRedisRepository;
 import com.neon.nilocommon.entity.constants.MinioKey;
 import com.neon.nilocommon.entity.dto.comment.CommentArchiveDTO;
-import com.neon.nilocommon.entity.dto.comment.CommentRedundantDTO;
 import com.neon.nilocommon.entity.dto.VideoInfoUploadAdminJoinDTO;
 import com.neon.nilocommon.entity.enums.comment.OperationType;
 import com.neon.nilocommon.entity.enums.ResponseCode;
@@ -381,16 +380,7 @@ public class VideoService
                 }
             }
 
-            // 检查标题是否改变，如果改变，事务提交后异步更新评论冗余标题
-            if (videoInfo != null && !Objects.equals(infoUpload.getVideoName(), videoInfo.getVideoName()))
-            {
-                CommentRedundantDTO commentUpdateDTO = new CommentRedundantDTO();
-                commentUpdateDTO.setVideoId(videoId);
-                commentUpdateDTO.setVideoName(infoUpload.getVideoName());
-                sendCommentRedundantUpdateAfterCommit(commentUpdateDTO);
-            }
-
-            // 更新/填入 mysql 数据（ES 由 Canal 同步）
+            // 更新/填入 mysql 数据（ES、评论库的视频副本由 Canal 同步）
             videoInfoMapper.insertOrUpdate(newVideoInfo);
 
             // 检查新封面和旧封面状态
@@ -425,12 +415,6 @@ public class VideoService
             {
                 // 把新封面移动
                 moveImage(MinioKey.PENDING_PREFIX, MinioKey.PUBLIC_PREFIX, coverKey);
-
-                // 事务提交后异步更新评论冗余封面
-                CommentRedundantDTO commentUpdateDTO = new CommentRedundantDTO();
-                commentUpdateDTO.setVideoId(videoId);
-                commentUpdateDTO.setVideoCover(coverKey);
-                sendCommentRedundantUpdateAfterCommit(commentUpdateDTO);
             }
 
             // 如果有新文件，把新文件全部移动
@@ -731,32 +715,6 @@ public class VideoService
             public void afterCommit()
             {
                 mqRepository.addKeysToImageDeleteQueue(keys);
-            }
-        });
-    }
-
-    /**
-     * 在事务提交后发送评论冗余字段更新消息
-     */
-    private void sendCommentRedundantUpdateAfterCommit(CommentRedundantDTO dto)
-    {
-        if (dto == null)
-        {
-            return;
-        }
-
-        if (!TransactionSynchronizationManager.isSynchronizationActive())
-        {
-            mqRepository.sendCommentRedundantUpdate(dto);
-            return;
-        }
-
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization()
-        {
-            @Override
-            public void afterCommit()
-            {
-                mqRepository.sendCommentRedundantUpdate(dto);
             }
         });
     }

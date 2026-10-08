@@ -200,31 +200,32 @@
 				 #{bean.duration},
 			</if>
 		 </trim>
+		 AS new
 		 on DUPLICATE key update 
 		 <trim prefix="" suffix="" suffixOverrides=",">
 			<if test="bean.fileId!=null">
-				 file_id = VALUES(file_id),
+				 file_id = new.file_id,
 			</if>
 			<if test="bean.userId!=null">
-				 user_id = VALUES(user_id),
+				 user_id = new.user_id,
 			</if>
 			<if test="bean.videoId!=null">
-				 video_id = VALUES(video_id),
+				 video_id = new.video_id,
 			</if>
 			<if test="bean.fileName!=null">
-				 file_name = VALUES(file_name),
+				 file_name = new.file_name,
 			</if>
 			<if test="bean.fileIndex!=null">
-				 file_index = VALUES(file_index),
+				 file_index = new.file_index,
 			</if>
 			<if test="bean.fileSize!=null">
-				 file_size = VALUES(file_size),
+				 file_size = new.file_size,
 			</if>
 			<if test="bean.filePath!=null">
-				 file_path = VALUES(file_path),
+				 file_path = new.file_path,
 			</if>
 			<if test="bean.duration!=null">
-				 duration = VALUES(duration),
+				 duration = new.duration,
 			</if>
 		 </trim>
 	</insert>
@@ -279,15 +280,16 @@
 				 #{item.duration}
 			 )
 		 </foreach>
+			AS new
 			on DUPLICATE key update 
-			file_id = VALUES(file_id),
-			user_id = VALUES(user_id),
-			video_id = VALUES(video_id),
-			file_name = VALUES(file_name),
-			file_index = VALUES(file_index),
-			file_size = VALUES(file_size),
-			file_path = VALUES(file_path),
-			duration = VALUES(duration)
+			file_id = new.file_id,
+			user_id = new.user_id,
+			video_id = new.video_id,
+			file_name = new.file_name,
+			file_index = new.file_index,
+			file_size = new.file_size,
+			file_path = new.file_path,
+			duration = new.duration
 	</insert>
 
 	<!--多条件修改-->

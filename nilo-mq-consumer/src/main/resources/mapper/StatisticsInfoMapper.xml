@@ -132,19 +132,20 @@
                 #{bean.statisticsCount},
             </if>
         </trim>
+        AS new
         on DUPLICATE key update
         <trim prefix="" suffix="" suffixOverrides=",">
             <if test="bean.statisticsDate!=null">
-                statistics_date = VALUES(statistics_date),
+                statistics_date = new.statistics_date,
             </if>
             <if test="bean.userId!=null">
-                user_id = VALUES(user_id),
+                user_id = new.user_id,
             </if>
             <if test="bean.dataType!=null">
-                data_type = VALUES(data_type),
+                data_type = new.data_type,
             </if>
             <if test="bean.statisticsCount!=null">
-                statistics_count = VALUES(statistics_count),
+                statistics_count = new.statistics_count,
             </if>
         </trim>
     </insert>
@@ -183,11 +184,12 @@
             #{item.statisticsCount}
             )
         </foreach>
+        AS new
         on DUPLICATE key update
-        statistics_date = VALUES(statistics_date),
-        user_id = VALUES(user_id),
-        data_type = VALUES(data_type),
-        statistics_count = VALUES(statistics_count)
+        statistics_date = new.statistics_date,
+        user_id = new.user_id,
+        data_type = new.data_type,
+        statistics_count = new.statistics_count
     </insert>
 
     <!--多条件修改-->
@@ -249,14 +251,15 @@
                                     user_id,
                                     data_type,
                                     statistics_count)
-        SELECT statistics_date,
-               video_user_id,
-               2,
-               SUM(play_count)
-        FROM video_play_daily
-        WHERE statistics_date = #{statisticsDate}
-        GROUP BY statistics_date, video_user_id
-        ON DUPLICATE KEY UPDATE statistics_count = VALUES(statistics_count)
+        SELECT *
+        FROM (SELECT statistics_date,
+                     video_user_id   AS user_id,
+                     2               AS data_type,
+                     SUM(play_count) AS daily_count
+              FROM video_play_daily
+              WHERE statistics_date = #{statisticsDate}
+              GROUP BY statistics_date, video_user_id) AS daily
+        ON DUPLICATE KEY UPDATE statistics_count = daily_count
     </insert>
 
     <insert id="reduceDailyFollower">
@@ -264,15 +267,16 @@
                                     user_id,
                                     data_type,
                                     statistics_count)
-        SELECT #{statisticsDate},
-               following_user_id,
-               1,
-               COUNT(1)
-        FROM follow_info
-        WHERE follow_time &gt;= #{startDate}
-          AND follow_time &lt; #{endDate}
-        GROUP BY following_user_id
-        ON DUPLICATE KEY UPDATE statistics_count = VALUES(statistics_count)
+        SELECT *
+        FROM (SELECT #{statisticsDate}   AS statistics_date,
+                     following_user_id   AS user_id,
+                     1                   AS data_type,
+                     COUNT(1)            AS daily_count
+              FROM follow_info
+              WHERE follow_time &gt;= #{startDate}
+                AND follow_time &lt; #{endDate}
+              GROUP BY following_user_id) AS daily
+        ON DUPLICATE KEY UPDATE statistics_count = daily_count
     </insert>
 
     <insert id="reduceDailyDanmaku">
@@ -280,16 +284,17 @@
                                     user_id,
                                     data_type,
                                     statistics_count)
-        SELECT #{statisticsDate},
-               v.user_id,
-               4,
-               COUNT(1)
-        FROM video_danmaku d
-                 JOIN video_info v ON d.video_id = v.video_id
-        WHERE d.post_time &gt;= #{startDate}
-          AND d.post_time &lt; #{endDate}
-        GROUP BY v.user_id
-        ON DUPLICATE KEY UPDATE statistics_count = VALUES(statistics_count)
+        SELECT *
+        FROM (SELECT #{statisticsDate} AS statistics_date,
+                     v.user_id         AS user_id,
+                     4                 AS data_type,
+                     COUNT(1)          AS daily_count
+              FROM video_danmaku d
+                       JOIN video_info v ON d.video_id = v.video_id
+              WHERE d.post_time &gt;= #{startDate}
+                AND d.post_time &lt; #{endDate}
+              GROUP BY v.user_id) AS daily
+        ON DUPLICATE KEY UPDATE statistics_count = daily_count
     </insert>
 
     <insert id="reduceDailyVideoAction">
@@ -297,23 +302,24 @@
                                     user_id,
                                     data_type,
                                     statistics_count)
-        SELECT #{statisticsDate},
-               video_user_id,
-               CASE action_type
-                   WHEN 1 THEN 5
-                   WHEN 2 THEN 6
-                   WHEN 3 THEN 7
-                   END,
-               CASE
-                   WHEN action_type = 3 THEN SUM(coin_amount)
-                   ELSE COUNT(1)
-                   END
-        FROM user_video_action
-        WHERE action_time &gt;= #{startDate}
-          AND action_time &lt; #{endDate}
-          AND action_type IN (1, 2, 3)
-        GROUP BY video_user_id, action_type
-        ON DUPLICATE KEY UPDATE statistics_count = VALUES(statistics_count)
+        SELECT *
+        FROM (SELECT #{statisticsDate} AS statistics_date,
+                     video_user_id     AS user_id,
+                     CASE action_type
+                         WHEN 1 THEN 5
+                         WHEN 2 THEN 6
+                         WHEN 3 THEN 7
+                         END           AS data_type,
+                     CASE
+                         WHEN action_type = 3 THEN SUM(coin_amount)
+                         ELSE COUNT(1)
+                         END           AS daily_count
+              FROM user_video_action
+              WHERE action_time &gt;= #{startDate}
+                AND action_time &lt; #{endDate}
+                AND action_type IN (1, 2, 3)
+              GROUP BY video_user_id, action_type) AS daily
+        ON DUPLICATE KEY UPDATE statistics_count = daily_count
     </insert>
 
     <delete id="deleteStatisticsBeforeDate">

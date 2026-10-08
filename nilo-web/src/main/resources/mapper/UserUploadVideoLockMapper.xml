@@ -75,10 +75,11 @@
                 #{bean.userId},
             </if>
         </trim>
+        AS new
         on DUPLICATE key update
         <trim prefix="" suffix="" suffixOverrides=",">
             <if test="bean.userId!=null">
-                user_id = VALUES(user_id),
+                user_id = new.user_id,
             </if>
         </trim>
     </insert>
@@ -105,8 +106,9 @@
             #{item.userId}
             )
         </foreach>
+        AS new
         on DUPLICATE key update
-        user_id = VALUES(user_id)
+        user_id = new.user_id
     </insert>
 
     <!--多条件修改-->

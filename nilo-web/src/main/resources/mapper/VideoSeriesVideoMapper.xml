@@ -126,19 +126,20 @@
                 #{bean.sortIndex},
             </if>
         </trim>
+        AS new
         on DUPLICATE key update
         <trim prefix="" suffix="" suffixOverrides=",">
             <if test="bean.seriesId!=null">
-                series_id = VALUES(series_id),
+                series_id = new.series_id,
             </if>
             <if test="bean.videoId!=null">
-                video_id = VALUES(video_id),
+                video_id = new.video_id,
             </if>
             <if test="bean.userId!=null">
-                user_id = VALUES(user_id),
+                user_id = new.user_id,
             </if>
             <if test="bean.sortIndex!=null">
-                sort_index = VALUES(sort_index),
+                sort_index = new.sort_index,
             </if>
         </trim>
     </insert>
@@ -177,11 +178,12 @@
             #{item.sortIndex}
             )
         </foreach>
+        AS new
         on DUPLICATE key update
-        series_id = VALUES(series_id),
-        video_id = VALUES(video_id),
-        user_id = VALUES(user_id),
-        sort_index = VALUES(sort_index)
+        series_id = new.series_id,
+        video_id = new.video_id,
+        user_id = new.user_id,
+        sort_index = new.sort_index
     </insert>
 
     <!--多条件修改-->

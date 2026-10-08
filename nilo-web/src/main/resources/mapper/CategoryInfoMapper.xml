@@ -249,28 +249,29 @@
                 #{bean.sort},
             </if>
         </trim>
+        AS new
         on DUPLICATE key update
         <trim prefix="" suffix="" suffixOverrides=",">
             <if test="bean.categoryNumber!=null">
-                category_number = VALUES(category_number),
+                category_number = new.category_number,
             </if>
             <if test="bean.categoryName!=null">
-                category_name = VALUES(category_name),
+                category_name = new.category_name,
             </if>
             <if test="bean.pCategoryId!=null">
-                p_category_id = VALUES(p_category_id),
+                p_category_id = new.p_category_id,
             </if>
             <if test="bean.icon!=null">
-                icon = VALUES(icon),
+                icon = new.icon,
             </if>
             <if test="bean.background!=null">
-                background = VALUES(background),
+                background = new.background,
             </if>
             <if test="bean.color!=null">
-                color = VALUES(color),
+                color = new.color,
             </if>
             <if test="bean.sort!=null">
-                sort = VALUES(sort),
+                sort = new.sort,
             </if>
         </trim>
     </insert>
@@ -322,14 +323,15 @@
             #{item.sort}
             )
         </foreach>
+        AS new
         on DUPLICATE key update
-        category_number = VALUES(category_number),
-        category_name = VALUES(category_name),
-        p_category_id = VALUES(p_category_id),
-        icon = VALUES(icon),
-        background = VALUES(background),
-        color = VALUES(color),
-        sort = VALUES(sort)
+        category_number = new.category_number,
+        category_name = new.category_name,
+        p_category_id = new.p_category_id,
+        icon = new.icon,
+        background = new.background,
+        color = new.color,
+        sort = new.sort
     </insert>
 
     <!--多条件修改-->

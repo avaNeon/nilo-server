@@ -353,52 +353,53 @@
                 #{bean.duration},
             </if>
         </trim>
+        AS new
         on DUPLICATE key update
         <trim prefix="" suffix="" suffixOverrides=",">
             <if test="bean.videoId!=null">
-                video_id = VALUES(video_id),
+                video_id = new.video_id,
             </if>
             <if test="bean.videoCover!=null">
-                video_cover = VALUES(video_cover),
+                video_cover = new.video_cover,
             </if>
             <if test="bean.videoName!=null">
-                video_name = VALUES(video_name),
+                video_name = new.video_name,
             </if>
             <if test="bean.userId!=null">
-                user_id = VALUES(user_id),
+                user_id = new.user_id,
             </if>
             <if test="bean.createTime!=null">
-                create_time = VALUES(create_time),
+                create_time = new.create_time,
             </if>
             <if test="bean.lastUpdateTime!=null">
-                last_update_time = VALUES(last_update_time),
+                last_update_time = new.last_update_time,
             </if>
             <if test="bean.pCategoryId!=null">
-                p_category_id = VALUES(p_category_id),
+                p_category_id = new.p_category_id,
             </if>
             <if test="bean.categoryId!=null">
-                category_id = VALUES(category_id),
+                category_id = new.category_id,
             </if>
             <if test="bean.status!=null">
-                status = VALUES(status),
+                status = new.status,
             </if>
             <if test="bean.postType!=null">
-                post_type = VALUES(post_type),
+                post_type = new.post_type,
             </if>
             <if test="bean.originInfo!=null">
-                origin_info = VALUES(origin_info),
+                origin_info = new.origin_info,
             </if>
             <if test="bean.tags!=null">
-                tags = VALUES(tags),
+                tags = new.tags,
             </if>
             <if test="bean.introduction!=null">
-                introduction = VALUES(introduction),
+                introduction = new.introduction,
             </if>
             <if test="bean.interaction!=null">
-                interaction = VALUES(interaction),
+                interaction = new.interaction,
             </if>
             <if test="bean.duration!=null">
-                duration = VALUES(duration),
+                duration = new.duration,
             </if>
         </trim>
     </insert>
@@ -481,22 +482,23 @@
             #{item.duration}
             )
         </foreach>
+        AS new
         on DUPLICATE key update
-        video_id = VALUES(video_id),
-        video_cover = VALUES(video_cover),
-        video_name = VALUES(video_name),
-        user_id = VALUES(user_id),
-        create_time = VALUES(create_time),
-        last_update_time = VALUES(last_update_time),
-        p_category_id = VALUES(p_category_id),
-        category_id = VALUES(category_id),
-        status = VALUES(status),
-        post_type = VALUES(post_type),
-        origin_info = VALUES(origin_info),
-        tags = VALUES(tags),
-        introduction = VALUES(introduction),
-        interaction = VALUES(interaction),
-        duration = VALUES(duration)
+        video_id = new.video_id,
+        video_cover = new.video_cover,
+        video_name = new.video_name,
+        user_id = new.user_id,
+        create_time = new.create_time,
+        last_update_time = new.last_update_time,
+        p_category_id = new.p_category_id,
+        category_id = new.category_id,
+        status = new.status,
+        post_type = new.post_type,
+        origin_info = new.origin_info,
+        tags = new.tags,
+        introduction = new.introduction,
+        interaction = new.interaction,
+        duration = new.duration
     </insert>
 
     <!--多条件修改-->

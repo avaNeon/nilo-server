@@ -5,8 +5,9 @@
     <insert id="upsert">
         INSERT INTO user_info_replica (user_id, nick_name, avatar)
         VALUES (#{user.userId}, #{user.nickName}, #{user.avatar})
-        ON DUPLICATE KEY UPDATE nick_name = VALUES(nick_name),
-                                avatar    = VALUES(avatar)
+        AS new
+        ON DUPLICATE KEY UPDATE nick_name = new.nick_name,
+                                avatar    = new.avatar
     </insert>
 
     <delete id="deleteByUserId">

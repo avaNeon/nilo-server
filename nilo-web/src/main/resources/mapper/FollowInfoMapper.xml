@@ -115,16 +115,17 @@
                 #{bean.followTime},
             </if>
         </trim>
+        AS new
         on DUPLICATE key update
         <trim prefix="" suffix="" suffixOverrides=",">
             <if test="bean.followerUserId!=null">
-                follower_user_id = VALUES(follower_user_id),
+                follower_user_id = new.follower_user_id,
             </if>
             <if test="bean.followingUserId!=null">
-                following_user_id = VALUES(following_user_id),
+                following_user_id = new.following_user_id,
             </if>
             <if test="bean.followTime!=null">
-                follow_time = VALUES(follow_time),
+                follow_time = new.follow_time,
             </if>
         </trim>
     </insert>
@@ -159,10 +160,11 @@
             #{item.followTime}
             )
         </foreach>
+        AS new
         on DUPLICATE key update
-        follower_user_id = VALUES(follower_user_id),
-        following_user_id = VALUES(following_user_id),
-        follow_time = VALUES(follow_time)
+        follower_user_id = new.follower_user_id,
+        following_user_id = new.following_user_id,
+        follow_time = new.follow_time
     </insert>
 
     <!--多条件修改-->

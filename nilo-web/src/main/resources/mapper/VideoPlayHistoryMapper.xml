@@ -153,19 +153,20 @@
                 #{bean.lastUpdateTime},
             </if>
         </trim>
+        AS new
         on DUPLICATE key update
         <trim prefix="" suffix="" suffixOverrides=",">
             <if test="bean.userId!=null">
-                user_id = VALUES(user_id),
+                user_id = new.user_id,
             </if>
             <if test="bean.videoId!=null">
-                video_id = VALUES(video_id),
+                video_id = new.video_id,
             </if>
             <if test="bean.fileIndex!=null">
-                file_index = VALUES(file_index),
+                file_index = new.file_index,
             </if>
             <if test="bean.lastUpdateTime!=null">
-                last_update_time = VALUES(last_update_time),
+                last_update_time = new.last_update_time,
             </if>
         </trim>
     </insert>
@@ -204,11 +205,12 @@
             #{item.lastUpdateTime}
             )
         </foreach>
+        AS new
         on DUPLICATE key update
-        user_id = VALUES(user_id),
-        video_id = VALUES(video_id),
-        file_index = VALUES(file_index),
-        last_update_time = VALUES(last_update_time)
+        user_id = new.user_id,
+        video_id = new.video_id,
+        file_index = new.file_index,
+        last_update_time = new.last_update_time
     </insert>
 
     <!--多条件修改-->

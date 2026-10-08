@@ -226,34 +226,35 @@
                 #{bean.displayMoment},
             </if>
         </trim>
+        AS new
         on DUPLICATE key update
         <trim prefix="" suffix="" suffixOverrides=",">
             <if test="bean.danmakuId!=null">
-                danmaku_id = VALUES(danmaku_id),
+                danmaku_id = new.danmaku_id,
             </if>
             <if test="bean.videoId!=null">
-                video_id = VALUES(video_id),
+                video_id = new.video_id,
             </if>
             <if test="bean.fileId!=null">
-                file_id = VALUES(file_id),
+                file_id = new.file_id,
             </if>
             <if test="bean.userId!=null">
-                user_id = VALUES(user_id),
+                user_id = new.user_id,
             </if>
             <if test="bean.postTime!=null">
-                post_time = VALUES(post_time),
+                post_time = new.post_time,
             </if>
             <if test="bean.content!=null">
-                content = VALUES(content),
+                content = new.content,
             </if>
             <if test="bean.position!=null">
-                position = VALUES(position),
+                position = new.position,
             </if>
             <if test="bean.color!=null">
-                color = VALUES(color),
+                color = new.color,
             </if>
             <if test="bean.displayMoment!=null">
-                display_moment = VALUES(display_moment),
+                display_moment = new.display_moment,
             </if>
         </trim>
     </insert>
@@ -312,16 +313,17 @@
             #{item.displayMoment}
             )
         </foreach>
+        AS new
         on DUPLICATE key update
-        danmaku_id = VALUES(danmaku_id),
-        video_id = VALUES(video_id),
-        file_id = VALUES(file_id),
-        user_id = VALUES(user_id),
-        post_time = VALUES(post_time),
-        content = VALUES(content),
-        position = VALUES(position),
-        color = VALUES(color),
-        display_moment = VALUES(display_moment)
+        danmaku_id = new.danmaku_id,
+        video_id = new.video_id,
+        file_id = new.file_id,
+        user_id = new.user_id,
+        post_time = new.post_time,
+        content = new.content,
+        position = new.position,
+        color = new.color,
+        display_moment = new.display_moment
     </insert>
 
     <!--多条件修改-->

@@ -219,34 +219,35 @@
                 #{bean.extendJson},
             </if>
         </trim>
+        AS new
         on DUPLICATE key update
         <trim prefix="" suffix="" suffixOverrides=",">
             <if test="bean.messageId!=null">
-                message_id = VALUES(message_id),
+                message_id = new.message_id,
             </if>
             <if test="bean.userId!=null">
-                user_id = VALUES(user_id),
+                user_id = new.user_id,
             </if>
             <if test="bean.videoId!=null">
-                video_id = VALUES(video_id),
+                video_id = new.video_id,
             </if>
             <if test="bean.messageType!=null">
-                message_type = VALUES(message_type),
+                message_type = new.message_type,
             </if>
             <if test="bean.senderUserId!=null">
-                sender_user_id = VALUES(sender_user_id),
+                sender_user_id = new.sender_user_id,
             </if>
             <if test="bean.repeatableType!=null">
-                repeatable_type = VALUES(repeatable_type),
+                repeatable_type = new.repeatable_type,
             </if>
             <if test="bean.readType!=null">
-                read_type = VALUES(read_type),
+                read_type = new.read_type,
             </if>
             <if test="bean.createTime!=null">
-                create_time = VALUES(create_time),
+                create_time = new.create_time,
             </if>
             <if test="bean.extendJson!=null">
-                extend_json = VALUES(extend_json),
+                extend_json = new.extend_json,
             </if>
         </trim>
     </insert>
@@ -305,16 +306,17 @@
             #{item.extendJson}
             )
         </foreach>
+        AS new
         on DUPLICATE key update
-        message_id = VALUES(message_id),
-        user_id = VALUES(user_id),
-        video_id = VALUES(video_id),
-        message_type = VALUES(message_type),
-        sender_user_id = VALUES(sender_user_id),
-        repeatable_type = VALUES(repeatable_type),
-        read_type = VALUES(read_type),
-        create_time = VALUES(create_time),
-        extend_json = VALUES(extend_json)
+        message_id = new.message_id,
+        user_id = new.user_id,
+        video_id = new.video_id,
+        message_type = new.message_type,
+        sender_user_id = new.sender_user_id,
+        repeatable_type = new.repeatable_type,
+        read_type = new.read_type,
+        create_time = new.create_time,
+        extend_json = new.extend_json
     </insert>
 
     <!--多条件修改-->

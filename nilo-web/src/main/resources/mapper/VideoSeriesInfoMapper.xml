@@ -215,25 +215,26 @@
                 #{bean.updateTime},
             </if>
         </trim>
+        AS new
         on DUPLICATE key update
         <trim prefix="" suffix="" suffixOverrides=",">
             <if test="bean.seriesId!=null">
-                series_id = VALUES(series_id),
+                series_id = new.series_id,
             </if>
             <if test="bean.userId!=null">
-                user_id = VALUES(user_id),
+                user_id = new.user_id,
             </if>
             <if test="bean.seriesName!=null">
-                series_name = VALUES(series_name),
+                series_name = new.series_name,
             </if>
             <if test="bean.seriesDescription!=null">
-                series_description = VALUES(series_description),
+                series_description = new.series_description,
             </if>
             <if test="bean.sortIndex!=null">
-                sort_index = VALUES(sort_index),
+                sort_index = new.sort_index,
             </if>
             <if test="bean.updateTime!=null">
-                update_time = VALUES(update_time),
+                update_time = new.update_time,
             </if>
         </trim>
     </insert>
@@ -280,13 +281,14 @@
             #{item.updateTime}
             )
         </foreach>
+        AS new
         on DUPLICATE key update
-        series_id = VALUES(series_id),
-        user_id = VALUES(user_id),
-        series_name = VALUES(series_name),
-        series_description = VALUES(series_description),
-        sort_index = VALUES(sort_index),
-        update_time = VALUES(update_time)
+        series_id = new.series_id,
+        user_id = new.user_id,
+        series_name = new.series_name,
+        series_description = new.series_description,
+        sort_index = new.sort_index,
+        update_time = new.update_time
     </insert>
 
     <!--多条件修改-->

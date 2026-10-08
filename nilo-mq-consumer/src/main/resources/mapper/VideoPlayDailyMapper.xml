@@ -132,19 +132,20 @@
                 #{bean.playCount},
             </if>
         </trim>
+        AS new
         on DUPLICATE key update
         <trim prefix="" suffix="" suffixOverrides=",">
             <if test="bean.statisticsDate!=null">
-                statistics_date = VALUES(statistics_date),
+                statistics_date = new.statistics_date,
             </if>
             <if test="bean.videoId!=null">
-                video_id = VALUES(video_id),
+                video_id = new.video_id,
             </if>
             <if test="bean.videoUserId!=null">
-                video_user_id = VALUES(video_user_id),
+                video_user_id = new.video_user_id,
             </if>
             <if test="bean.playCount!=null">
-                play_count = VALUES(play_count),
+                play_count = new.play_count,
             </if>
         </trim>
     </insert>
@@ -183,9 +184,10 @@
             #{item.playCount}
             )
         </foreach>
+        AS new
         on DUPLICATE key update
-        video_user_id = VALUES(video_user_id),
-        play_count = VALUES(play_count)
+        video_user_id = new.video_user_id,
+        play_count = new.play_count
     </insert>
 
     <!--多条件修改-->

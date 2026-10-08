@@ -198,25 +198,26 @@
                 #{bean.usedTime},
             </if>
         </trim>
+        AS new
         on DUPLICATE key update
         <trim prefix="" suffix="" suffixOverrides=",">
             <if test="bean.objectKey!=null">
-                object_key = VALUES(object_key),
+                object_key = new.object_key,
             </if>
             <if test="bean.bucket!=null">
-                bucket = VALUES(bucket),
+                bucket = new.bucket,
             </if>
             <if test="bean.ownerId!=null">
-                owner_id = VALUES(owner_id),
+                owner_id = new.owner_id,
             </if>
             <if test="bean.used!=null">
-                used = VALUES(used),
+                used = new.used,
             </if>
             <if test="bean.createdTime!=null">
-                created_time = VALUES(created_time),
+                created_time = new.created_time,
             </if>
             <if test="bean.usedTime!=null">
-                used_time = VALUES(used_time),
+                used_time = new.used_time,
             </if>
         </trim>
     </insert>
@@ -263,13 +264,14 @@
             #{item.usedTime}
             )
         </foreach>
+        AS new
         on DUPLICATE key update
-        object_key = VALUES(object_key),
-        bucket = VALUES(bucket),
-        owner_id = VALUES(owner_id),
-        used = VALUES(used),
-        created_time = VALUES(created_time),
-        used_time = VALUES(used_time)
+        object_key = new.object_key,
+        bucket = new.bucket,
+        owner_id = new.owner_id,
+        used = new.used,
+        created_time = new.created_time,
+        used_time = new.used_time
     </insert>
 
     <!--多条件修改-->

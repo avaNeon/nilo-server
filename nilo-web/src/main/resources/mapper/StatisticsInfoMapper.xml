@@ -137,19 +137,20 @@
                 #{bean.statisticsCount},
             </if>
         </trim>
+        AS new
         on DUPLICATE key update
         <trim prefix="" suffix="" suffixOverrides=",">
             <if test="bean.statisticsDate!=null">
-                statistics_date = VALUES(statistics_date),
+                statistics_date = new.statistics_date,
             </if>
             <if test="bean.userId!=null">
-                user_id = VALUES(user_id),
+                user_id = new.user_id,
             </if>
             <if test="bean.dataType!=null">
-                data_type = VALUES(data_type),
+                data_type = new.data_type,
             </if>
             <if test="bean.statisticsCount!=null">
-                statistics_count = VALUES(statistics_count),
+                statistics_count = new.statistics_count,
             </if>
         </trim>
     </insert>
@@ -188,11 +189,12 @@
             #{item.statisticsCount}
             )
         </foreach>
+        AS new
         on DUPLICATE key update
-        statistics_date = VALUES(statistics_date),
-        user_id = VALUES(user_id),
-        data_type = VALUES(data_type),
-        statistics_count = VALUES(statistics_count)
+        statistics_date = new.statistics_date,
+        user_id = new.user_id,
+        data_type = new.data_type,
+        statistics_count = new.statistics_count
     </insert>
 
     <!--多条件修改-->

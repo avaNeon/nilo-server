@@ -312,49 +312,50 @@
                 #{bean.deleted},
             </if>
         </trim>
+        AS new
         on DUPLICATE key update
         <trim prefix="" suffix="" suffixOverrides=",">
             <if test="bean.commentId!=null">
-                comment_id = VALUES(comment_id),
+                comment_id = new.comment_id,
             </if>
             <if test="bean.parentCommentId!=null">
-                parent_comment_id = VALUES(parent_comment_id),
+                parent_comment_id = new.parent_comment_id,
             </if>
             <if test="bean.videoId!=null">
-                video_id = VALUES(video_id),
+                video_id = new.video_id,
             </if>
             <if test="bean.videoUserId!=null">
-                video_user_id = VALUES(video_user_id),
+                video_user_id = new.video_user_id,
             </if>
             <if test="bean.content!=null">
-                content = VALUES(content),
+                content = new.content,
             </if>
             <if test="bean.imgPaths!=null">
-                img_paths = VALUES(img_paths),
+                img_paths = new.img_paths,
             </if>
             <if test="bean.userId!=null">
-                user_id = VALUES(user_id),
+                user_id = new.user_id,
             </if>
             <if test="bean.replyUserId!=null">
-                reply_user_id = VALUES(reply_user_id),
+                reply_user_id = new.reply_user_id,
             </if>
             <if test="bean.topType!=null">
-                top_type = VALUES(top_type),
+                top_type = new.top_type,
             </if>
             <if test="bean.postTime!=null">
-                post_time = VALUES(post_time),
+                post_time = new.post_time,
             </if>
             <if test="bean.upvoteCount!=null">
-                upvote_count = VALUES(upvote_count),
+                upvote_count = new.upvote_count,
             </if>
             <if test="bean.downvoteCount!=null">
-                downvote_count = VALUES(downvote_count),
+                downvote_count = new.downvote_count,
             </if>
             <if test="bean.replyCount!=null">
-                reply_count = VALUES(reply_count),
+                reply_count = new.reply_count,
             </if>
             <if test="bean.deleted!=null">
-                deleted = VALUES(deleted),
+                deleted = new.deleted,
             </if>
         </trim>
     </insert>
@@ -433,21 +434,22 @@
             #{item.deleted}
             )
         </foreach>
+        AS new
         on DUPLICATE key update
-        comment_id = VALUES(comment_id),
-        parent_comment_id = VALUES(parent_comment_id),
-        video_id = VALUES(video_id),
-        video_user_id = VALUES(video_user_id),
-        content = VALUES(content),
-        img_paths = VALUES(img_paths),
-        user_id = VALUES(user_id),
-        reply_user_id = VALUES(reply_user_id),
-        top_type = VALUES(top_type),
-        post_time = VALUES(post_time),
-        upvote_count = VALUES(upvote_count),
-        downvote_count = VALUES(downvote_count),
-        reply_count = VALUES(reply_count),
-        deleted = VALUES(deleted)
+        comment_id = new.comment_id,
+        parent_comment_id = new.parent_comment_id,
+        video_id = new.video_id,
+        video_user_id = new.video_user_id,
+        content = new.content,
+        img_paths = new.img_paths,
+        user_id = new.user_id,
+        reply_user_id = new.reply_user_id,
+        top_type = new.top_type,
+        post_time = new.post_time,
+        upvote_count = new.upvote_count,
+        downvote_count = new.downvote_count,
+        reply_count = new.reply_count,
+        deleted = new.deleted
     </insert>
 
     <!--多条件修改-->

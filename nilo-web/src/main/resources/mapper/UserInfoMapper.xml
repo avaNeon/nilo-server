@@ -375,55 +375,56 @@
                 #{bean.theme},
             </if>
         </trim>
+        AS new
         on DUPLICATE key update
         <trim prefix="" suffix="" suffixOverrides=",">
             <if test="bean.userId!=null">
-                user_id = VALUES(user_id),
+                user_id = new.user_id,
             </if>
             <if test="bean.nickName!=null">
-                nick_name = VALUES(nick_name),
+                nick_name = new.nick_name,
             </if>
             <if test="bean.avatar!=null">
-                avatar = VALUES(avatar),
+                avatar = new.avatar,
             </if>
             <if test="bean.email!=null">
-                email = VALUES(email),
+                email = new.email,
             </if>
             <if test="bean.password!=null">
-                password = VALUES(password),
+                password = new.password,
             </if>
             <if test="bean.gender!=null">
-                gender = VALUES(gender),
+                gender = new.gender,
             </if>
             <if test="bean.birthday!=null">
-                birthday = VALUES(birthday),
+                birthday = new.birthday,
             </if>
             <if test="bean.school!=null">
-                school = VALUES(school),
+                school = new.school,
             </if>
             <if test="bean.personalIntroduction!=null">
-                personal_introduction = VALUES(personal_introduction),
+                personal_introduction = new.personal_introduction,
             </if>
             <if test="bean.registerTime!=null">
-                register_time = VALUES(register_time),
+                register_time = new.register_time,
             </if>
             <if test="bean.lastLoginTime!=null">
-                last_login_time = VALUES(last_login_time),
+                last_login_time = new.last_login_time,
             </if>
             <if test="bean.lastLoginIp!=null">
-                last_login_ip = VALUES(last_login_ip),
+                last_login_ip = new.last_login_ip,
             </if>
             <if test="bean.status!=null">
-                status = VALUES(status),
+                status = new.status,
             </if>
             <if test="bean.noticeInfo!=null">
-                notice_info = VALUES(notice_info),
+                notice_info = new.notice_info,
             </if>
             <if test="bean.currentCoin!=null">
-                current_coin = VALUES(current_coin),
+                current_coin = new.current_coin,
             </if>
             <if test="bean.theme!=null">
-                theme = VALUES(theme),
+                theme = new.theme,
             </if>
         </trim>
     </insert>
@@ -510,23 +511,24 @@
             #{item.theme}
             )
         </foreach>
+        AS new
         on DUPLICATE key update
-        user_id = VALUES(user_id),
-        nick_name = VALUES(nick_name),
-        avatar = VALUES(avatar),
-        email = VALUES(email),
-        password = VALUES(password),
-        gender = VALUES(gender),
-        birthday = VALUES(birthday),
-        school = VALUES(school),
-        personal_introduction = VALUES(personal_introduction),
-        register_time = VALUES(register_time),
-        last_login_time = VALUES(last_login_time),
-        last_login_ip = VALUES(last_login_ip),
-        status = VALUES(status),
-        notice_info = VALUES(notice_info),
-        current_coin = VALUES(current_coin),
-        theme = VALUES(theme)
+        user_id = new.user_id,
+        nick_name = new.nick_name,
+        avatar = new.avatar,
+        email = new.email,
+        password = new.password,
+        gender = new.gender,
+        birthday = new.birthday,
+        school = new.school,
+        personal_introduction = new.personal_introduction,
+        register_time = new.register_time,
+        last_login_time = new.last_login_time,
+        last_login_ip = new.last_login_ip,
+        status = new.status,
+        notice_info = new.notice_info,
+        current_coin = new.current_coin,
+        theme = new.theme
     </insert>
 
     <!--多条件修改-->

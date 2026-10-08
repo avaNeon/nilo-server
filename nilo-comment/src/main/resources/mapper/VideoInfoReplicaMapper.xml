@@ -11,10 +11,11 @@
     <insert id="upsert">
         INSERT INTO video_info_replica (video_id, user_id, video_name, video_cover, interaction)
         VALUES (#{video.videoId}, #{video.userId}, #{video.videoName}, #{video.videoCover}, #{video.interaction})
-        ON DUPLICATE KEY UPDATE user_id     = VALUES(user_id),
-                                video_name  = VALUES(video_name),
-                                video_cover = VALUES(video_cover),
-                                interaction = VALUES(interaction)
+        AS new
+        ON DUPLICATE KEY UPDATE user_id     = new.user_id,
+                                video_name  = new.video_name,
+                                video_cover = new.video_cover,
+                                interaction = new.interaction
     </insert>
 
     <delete id="deleteByVideoId">

@@ -181,25 +181,26 @@
                 #{bean.actionTime},
             </if>
         </trim>
+        AS new
         on DUPLICATE key update
         <trim prefix="" suffix="" suffixOverrides=",">
             <if test="bean.videoId!=null">
-                video_id = VALUES(video_id),
+                video_id = new.video_id,
             </if>
             <if test="bean.videoUserId!=null">
-                video_user_id = VALUES(video_user_id),
+                video_user_id = new.video_user_id,
             </if>
             <if test="bean.actionType!=null">
-                action_type = VALUES(action_type),
+                action_type = new.action_type,
             </if>
             <if test="bean.coinAmount!=null">
-                coin_amount = VALUES(coin_amount),
+                coin_amount = new.coin_amount,
             </if>
             <if test="bean.userId!=null">
-                user_id = VALUES(user_id),
+                user_id = new.user_id,
             </if>
             <if test="bean.actionTime!=null">
-                action_time = VALUES(action_time),
+                action_time = new.action_time,
             </if>
         </trim>
     </insert>
@@ -247,13 +248,14 @@
             #{item.actionTime}
             )
         </foreach>
+        AS new
         on DUPLICATE key update
-        video_id = VALUES(video_id),
-        video_user_id = VALUES(video_user_id),
-        action_type = VALUES(action_type),
-        coin_amount = VALUES(coin_amount),
-        user_id = VALUES(user_id),
-        action_time = VALUES(action_time)
+        video_id = new.video_id,
+        video_user_id = new.video_user_id,
+        action_type = new.action_type,
+        coin_amount = new.coin_amount,
+        user_id = new.user_id,
+        action_time = new.action_time
     </insert>
 
     <!--多条件修改-->

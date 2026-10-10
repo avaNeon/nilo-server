@@ -12,19 +12,6 @@ public enum VideoResolution
     private final String folderName;
     private final int resolution;
 
-    public static VideoResolution fromResolution(Integer resolution)
-    {
-        if (resolution == null || resolution == 720)
-        {
-            return RES_720P;
-        }
-        if (resolution == 480)
-        {
-            return RES_480P;
-        }
-        return null;
-    }
-
     public static VideoResolution fromFolderName(String folderName)
     {
         if (folderName == null)

@@ -11,8 +11,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * 视频向量消费者<hr/>
- * <p>canal 监听到 video_info 增删改后发消息过来：发布或改了标题、标签、简介就重建，下架或删除就清掉。
- * 这份向量只用标题、标签、简介，和分P无关，所以分P增删不走这里，看 {@link SubtitleIndexConsumer}。</p>
+ * <p>canal 监听到 video_info 增删改后发消息过来：发布或改了标题、标签、简介就重建，下架或删除就清掉。</p>
+ * <p>这个消费者只处理 video_info，video_info_file 看 {@link SubtitleIndexConsumer}。</p>
  * <p>重建走「先删后写」，重复投递不会留下脏数据。</p>
  */
 @Slf4j

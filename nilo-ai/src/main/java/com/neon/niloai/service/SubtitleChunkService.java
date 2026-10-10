@@ -221,6 +221,7 @@ public class SubtitleChunkService
     }
 
     /**
+     * 将字幕转换为 Document 类型的字幕 chunk <hr/>
      * 按 30 秒一块切，下一块从上一块开始 20 秒后的第一条字幕起，所以相邻块重叠约 10 秒
      */
     static List <Document> toChunks(VideoFileSourceDTO file, List <SubtitleCueDTO> cues)
@@ -230,17 +231,24 @@ public class SubtitleChunkService
         while (start < cues.size())
         {
             long windowStart = cues.get(start).getStartMs();
+
             int end = start;
+            // 先从前往后找出所有开始时间在接下来30s内的字幕区间
             while (end < cues.size() && cues.get(end).getStartMs() < windowStart + WINDOW_MS)
             {
                 end++;
             }
+
             int leadIn = start;
+            // 再找出前20s的所有字幕的区间
             while (leadIn > 0 && cues.get(leadIn - 1).getStartMs() >= windowStart - LEAD_IN_MS)
             {
                 leadIn--;
             }
+
+            // 将其转化为 Document
             chunks.add(toDocument(file, cues.subList(start, end), cues.subList(leadIn, start)));
+
             if (end >= cues.size())
             {
                 break;
@@ -256,6 +264,8 @@ public class SubtitleChunkService
     }
 
     /**
+     * chunk to Document<hr/>
+     *
      * @param cues       这一块的字幕，拼起来做向量化
      * @param leadInCues 这一块前面 20 秒的字幕，只放进给模型看的 lines
      */
@@ -264,10 +274,12 @@ public class SubtitleChunkService
         StringBuilder text = new StringBuilder();
         StringBuilder lines = new StringBuilder();
         long endMs = 0;
+        // 把前20s内容和30s内内容按照字幕为单位，依次塞入 lines 中
         for (SubtitleCueDTO cue : leadInCues)
         {
             appendLine(lines, cue);
         }
+        // text 只保存本30s内的字幕
         for (SubtitleCueDTO cue : cues)
         {
             if (!text.isEmpty())
@@ -276,6 +288,7 @@ public class SubtitleChunkService
             }
             text.append(cue.getText());
             appendLine(lines, cue);
+            // 防止最后一条不是结束最晚的情况，避免字母之间重叠
             endMs = Math.max(endMs, cue.getEndMs());
         }
         long startMs = cues.get(0).getStartMs();

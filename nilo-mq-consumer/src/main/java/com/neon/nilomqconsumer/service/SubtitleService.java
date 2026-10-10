@@ -16,9 +16,8 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 import java.io.IOException;
@@ -27,20 +26,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * 字幕生成：把视频里说的话识别成带时间的 SRT 字幕<hr/>
- * <p>用的是阿里云百炼的录音文件识别，它只认公网地址，所以音频先传到百炼的免费临时存储（48 小时有效），
- * 拿到 oss:// 地址再提交识别。识别是异步的：提交拿到任务 id，之后轮询到结束再下载结果。</p>
+ * <p>用的是 AssemblyAI 的异步转写：音频先传到它的存储拿到地址，再提交识别拿到任务 id，之后轮询到结束再取分好句的结果。</p>
  * <p>分成 {@link #submit} 和 {@link #writeSrt} 两步，是为了让云端识别和本地转码同时进行。</p>
  */
 @Slf4j
@@ -54,9 +46,14 @@ public class SubtitleService
     private static final String AUDIO_NAME = "audio.m4a";
 
     /**
-     * 申请临时存储上传凭证的地址。官方文档只给了这个通用域名，没给业务空间专属域名的写法
+     * 打开自动识别语种后，音频里没有人声时任务报的错误信息里带这句
      */
-    private static final String UPLOAD_POLICY_URL = "https://dashscope.aliyuncs.com/api/v1/uploads?action=getPolicy&model=";
+    private static final String NO_SPEECH_ERROR = "no spoken audio";
+
+    /**
+     * 拆转化后的文本的词：前面是词本身，结尾连着的标点单独拿出来
+     */
+    private static final Pattern WORD_PUNCTUATION = Pattern.compile("^(.*?)(\\p{P}*)$");
 
     private static final Duration POLL_INTERVAL = Duration.ofSeconds(3);
 
@@ -122,8 +119,10 @@ public class SubtitleService
         try
         {
             FfmpegUtil.extractAudio(videoPath.toString(), audioPath.toString(), false);
-            String fileUrl = uploadTempFile(audioPath);
-            String taskId = submitTask(fileUrl);
+            // 先上传音频文件
+            String audioUrl = uploadAudio(audioPath);
+            // 然后开始音频识别任务
+            String taskId = submitTask(audioUrl);
             log.info("字幕识别任务已提交, taskId={}, videoPath={}", taskId, videoPath);
             return taskId;
         }
@@ -142,8 +141,10 @@ public class SubtitleService
 
     /**
      * 等识别任务结束，把结果写成 SRT 字幕文件<hr/>
-     * <p>写之前先让大模型判断识别结果是不是乱码（唱歌、背景音乐很强时常见），乱码就不生成；
-     * 判断这一步调用失败则保留字幕，之后靠用户反馈修正。</p>
+     * <p>
+     * 写之前先让大模型判断识别结果是不是乱码（唱歌、背景音乐很强时常见），乱码就不生成；
+     * 判断这一步调用失败则保留字幕，之后靠用户反馈修正。
+     * </p>
      * <p>原文不是中文时，再让大模型逐行翻译一份中文字幕，放在同一目录；翻译失败就只保留原文。</p>
      *
      * @param taskId       {@link #submit} 返回的任务 id
@@ -154,32 +155,20 @@ public class SubtitleService
     {
         Path chinesePath = subtitlePath.resolveSibling(Constants.SUBTITLE_ZH_NAME);
         Path summaryPath = subtitlePath.resolveSibling(Constants.SUMMARY_NAME);
+
         // 先清掉上次留下的文件。乱码、没人声、原文已是中文时不再生成对应文件，
         // 否则旧字幕会跟着转码目录一起上传
         deleteIfExists(subtitlePath);
         deleteIfExists(chinesePath);
         deleteIfExists(summaryPath);
 
-        String transcriptionUrl = waitForResult(taskId);
-        if (transcriptionUrl == null)
+        if (!waitForResult(taskId))
         {
             log.info("视频里没有识别出语音，不生成字幕, taskId={}", taskId);
             return SubtitleResult.NO_SPEECH;
         }
 
-        // 结果地址是带签名的 OSS 链接，必须原样使用，不能按模板再编码一遍；
-        // 用 byte[] 接收再交给 Jackson，避免响应头没写字符集时中文按 ISO-8859-1 解码成乱码
-        byte[] resultBytes = asrRestClient.get().uri(URI.create(transcriptionUrl)).retrieve().body(byte[].class);
-        JsonNode sentences;
-        try
-        {
-            // 抽音频时转成了单声道，只会有一条 transcript
-            sentences = objectMapper.readTree(resultBytes).path("transcripts").path(0).path("sentences");
-        }
-        catch (IOException e)
-        {
-            throw new IllegalStateException("解析识别结果失败, taskId=" + taskId, e);
-        }
+        JsonNode sentences = fetchTranscriptToSentences(taskId);
         List <String> cues = toCues(sentences);
         if (cues.isEmpty())
         {
@@ -200,6 +189,8 @@ public class SubtitleService
         }
         writeFile(subtitlePath, cues);
         log.info("字幕生成成功, taskId={}, lines={}, subtitlePath={}", taskId, cues.size(), subtitlePath);
+
+        // 字幕生成完毕后，让大模型根据字幕写出总结
         writeSummary(taskId, summaryPath, sentences, sentenceTexts);
 
         if (isChinese(sentenceTexts))
@@ -264,7 +255,10 @@ public class SubtitleService
             {
                 lines.append('\n');
             }
-            lines.append('[').append(sentences.get(i).path("begin_time").asLong() / 1000).append("] ").append(sentenceTexts.get(i));
+            lines.append('[')
+                 .append(sentences.get(i).path("begin_time").asLong() / 1000)
+                 .append("] ")
+                 .append(sentenceTexts.get(i));
         }
         return lines.toString();
     }
@@ -284,8 +278,7 @@ public class SubtitleService
         Set <Integer> used = new HashSet <>();
         for (SubtitleChapterDTO chapter : chapters)
         {
-            if (chapter == null || chapter.getStartSec() == null || !StringUtils.hasText(chapter.getTitle()) || chapter.getStartSec() < 0
-                || chapter.getStartSec() > lastSec)
+            if (chapter == null || chapter.getStartSec() == null || !StringUtils.hasText(chapter.getTitle()) || chapter.getStartSec() < 0 || chapter.getStartSec() > lastSec)
             {
                 continue;
             }
@@ -406,147 +399,243 @@ public class SubtitleService
     }
 
     /**
-     * 把本地文件传到百炼的临时存储<hr/>
-     * 先申请上传凭证，再按凭证直传 OSS
+     * 把本地音频传到 AI 提供商的云存储空间<hr/>
+     * 按文件流式上传，不整个读进内存；请求头会带上文件长度
      *
-     * @return oss:// 开头的临时地址，48 小时有效
+     * @return 上传后的地址，只有 AI 提供商自己能访问，提交识别时用
      */
-    private String uploadTempFile(Path file)
+    private String uploadAudio(Path filePath)
     {
-        // 凭证申请时的 model 必须和识别时用的一致，否则识别时读不到这个文件；凭证 5 分钟过期，所以每次上传前现申请
-        JsonNode policy = asrRestClient.get()
-                                       .uri(URI.create(UPLOAD_POLICY_URL + asrProperties.getModel()))
-                                       .header(HttpHeaders.AUTHORIZATION, bearer())
-                                       .retrieve()
-                                       .body(JsonNode.class)
-                                       .path("data");
+        JsonNode response = asrRestClient.post()
+                                         .uri(URI.create(asrProperties.getBaseUrl() + "/v2/upload"))
+                                         .header(HttpHeaders.AUTHORIZATION, asrProperties.getApiKey())
+                                         .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                                         .body(new FileSystemResource(filePath))
+                                         .retrieve()
+                                         .body(JsonNode.class);
 
-        // 超过临时存储的大小上限就不传了：上传时整个文件要先读进内存，特别长的音频可能把内存撑爆
-        long maxBytes = policy.path("max_file_size_mb").asLong() * Constants.Mebibyte;
-        long fileBytes;
-        try
+        String uploadUrl = response == null ? null : response.path("upload_url").asText(null);
+        if (!StringUtils.hasText(uploadUrl))
         {
-            fileBytes = Files.size(file);
+            throw new IllegalStateException("上传音频没有返回 upload_url, response=" + response);
         }
-        catch (IOException e)
-        {
-            throw new IllegalStateException("读取音频大小失败, file=" + file, e);
-        }
-        if (maxBytes > 0 && fileBytes > maxBytes)
-        {
-            throw new IllegalStateException("音频超过临时存储上限，跳过字幕, fileBytes=" + fileBytes + ", maxBytes=" + maxBytes);
-        }
-
-        // 临时存储禁止覆盖同名文件，文件名用 UUID 保证不重复
-        String key = policy.path("upload_dir").asText() + "/" + UUID.randomUUID() + ".m4a";
-
-        // LinkedMultiValueMap 保持放入顺序，OSS 要求 file 必须是最后一个字段
-        MultiValueMap <String, Object> form = new LinkedMultiValueMap <>();
-        form.add("OSSAccessKeyId", policy.path("oss_access_key_id").asText());
-        form.add("Signature", policy.path("signature").asText());
-        form.add("policy", policy.path("policy").asText());
-        form.add("key", key);
-        form.add("x-oss-object-acl", policy.path("x_oss_object_acl").asText());
-        form.add("x-oss-forbid-overwrite", policy.path("x_oss_forbid_overwrite").asText());
-        form.add("success_action_status", "200");
-        form.add("file", new FileSystemResource(file));
-
-        asrRestClient.post()
-                     .uri(URI.create(policy.path("upload_host").asText()))
-                     .contentType(MediaType.MULTIPART_FORM_DATA)
-                     .body(form)
-                     .retrieve()
-                     .toBodilessEntity();
-
-        return "oss://" + key;
+        return uploadUrl;
     }
 
     /**
      * 提交异步识别任务
      *
-     * @param fileUrl 音频地址
+     * @param audioUrl 音频地址
      * @return 任务 id
      */
-    private String submitTask(String fileUrl)
+    private String submitTask(String audioUrl)
     {
-        // 不传 language_hints：站内视频语种不固定，paraformer-v2 会自行判断。
-        // 限定成中英时，日语、韩语等会被识别成乱码，后面的质检会把整份字幕丢掉
-        Map <String, Object> body = Map.of("model",
-                                           asrProperties.getModel(),
-                                           "input",
-                                           Map.of("file_urls", List.of(fileUrl)),
-                                           "parameters",
-                                           Map.of("timestamp_alignment_enabled", true));
+        // 不限定语种，打开自动识别：站内视频语种不固定，限定成某种语言时，其他语言会被识别成乱码，后面的质检会把整份字幕丢掉
+        Map <String, Object> body = Map.of("audio_url",
+                                           audioUrl,
+                                           "speech_models",
+                                           asrProperties.getSpeechModels(),
+                                           "language_detection",
+                                           true);
 
         JsonNode response = asrRestClient.post()
-                                         .uri(URI.create(asrProperties.getBaseUrl() + "/api/v1/services/audio/asr/transcription"))
-                                         .header(HttpHeaders.AUTHORIZATION, bearer())
-                                         // 异步提交
-                                         .header("X-DashScope-Async", "enable")
-                                         // 允许使用 oss:// 临时地址
-                                         .header("X-DashScope-OssResourceResolve", "enable")
+                                         .uri(URI.create(asrProperties.getBaseUrl() + "/v2/transcript"))
+                                         .header(HttpHeaders.AUTHORIZATION, asrProperties.getApiKey())
                                          .contentType(MediaType.APPLICATION_JSON)
                                          .body(body)
                                          .retrieve()
                                          .body(JsonNode.class);
 
-        String taskId = response == null ? null : response.path("output").path("task_id").asText(null);
+        String taskId = response == null ? null : response.path("id").asText(null);
         if (!StringUtils.hasText(taskId))
         {
-            throw new IllegalStateException("提交识别任务没有返回 task_id, response=" + response);
+            throw new IllegalStateException("提交识别任务没有返回 id, response=" + response);
         }
         return taskId;
     }
 
     /**
+     * 获取转换后的文本，并标准化分词格式<hr/>
+     * <p>标准化后的结构如下，时间单位是毫秒。把每个词的 text 和 punctuation 依次首尾相接，就能还原出整句：
+     * {@code "Hello" + " " + "world" + "." = "Hello world."}</p>
+     * <pre>
+     * [
+     *   {
+     *     "text": "Hello world.",
+     *     "begin_time": 1000,
+     *     "end_time": 2500,
+     *     "words": [
+     *       {
+     *         "text": "Hello",
+     *         "punctuation": " ",
+     *         "begin_time": 1000,
+     *         "end_time": 1400
+     *       },
+     *       {
+     *         "text": "world",
+     *         "punctuation": ".",
+     *         "begin_time": 1400,
+     *         "end_time": 2500
+     *       }
+     *     ]
+     *   }
+     * ]
+     * </pre>
+     * <p>每个词的标准化规则：</p>
+     * <ul>
+     *     <li>text：去掉结尾标点后的词本身。词中间的符号保留，比如 mid-20s、wouldn't</li>
+     *     <li>punctuation：词结尾连着的标点，再加上整句文本里紧跟在这个词后面的空格。
+     *     对位方法是在整句里按顺序往后找这个词，找不到就只放标点、不补空格</li>
+     * </ul>
+     * <p>举例：</p>
+     * <ul>
+     *     <li>"ago," 后面有空格 → text = "ago"，punctuation = ", "</li>
+     *     <li>"some" 后面有空格 → text = "some"，punctuation = " "</li>
+     *     <li>句末的 "transplant." → text = "transplant"，punctuation = "."</li>
+     *     <li>中文的 "上，" → text = "上"，punctuation = "，"</li>
+     *     <li>中文里夹的英文有时会被切碎（DOTA 切成 D、OT、A），整句里它们连在一起，三个词的 punctuation 都是空串</li>
+     * </ul>
+     * <p>空格以整句文本为准，不按字符类型猜：英文词间有空格，中文里夹的英文没有，猜的话会把 DOTA 拼成 "D OT A"。</p>
+     * <p>下游怎么用：断行时只把含有可见字符的 punctuation 当作可以断开的位置，纯空格不算，所以英文不会逐词断行；
+     * 每行字幕输出时再去掉行尾的逗号、句号这类标点和空格，见 {@link #addCue}。</p>
+     */
+    private ArrayNode fetchTranscriptToSentences(String taskId)
+    {
+        JsonNode response = asrRestClient.get()
+                                         .uri(URI.create(asrProperties.getBaseUrl() + "/v2/transcript/" + taskId + "/sentences"))
+                                         .header(HttpHeaders.AUTHORIZATION, asrProperties.getApiKey())
+                                         .retrieve()
+                                         .body(JsonNode.class);
+
+        ArrayNode sentences = objectMapper.createArrayNode();
+        if (response == null)
+        {
+            return sentences;
+        }
+        for (JsonNode source : response.path("sentences"))
+        {
+            String sentenceText = source.path("text").asText();
+            ObjectNode sentence = sentences.addObject()
+                                           .put("text", sentenceText)
+                                           .put("begin_time", source.path("start").asLong())
+                                           .put("end_time", source.path("end").asLong());
+            ArrayNode words = sentence.putArray("words");
+            // 整句文本里已经对到哪了，下一个词从这里往后找
+            int cursor = 0;
+            for (JsonNode word : source.path("words"))
+            {
+                String wordText = word.path("text").asText();
+                String prefixText = wordText;
+                String punctuation = "";
+                Matcher matcher = WORD_PUNCTUATION.matcher(wordText);
+                if (matcher.matches())
+                {
+                    prefixText = matcher.group(1);
+                    punctuation = matcher.group(2);
+                }
+
+                // 找不到就不补空格，也不挪位置，后面的词照常往后找
+                int index = sentenceText.indexOf(wordText, cursor);
+                if (index >= 0)
+                {
+                    cursor = index + wordText.length();
+                    int spaceEnd = cursor;
+                    while (spaceEnd < sentenceText.length() && Character.isWhitespace(sentenceText.charAt(spaceEnd)))
+                    {
+                        spaceEnd++;
+                    }
+                    punctuation += sentenceText.substring(cursor, spaceEnd);
+                    cursor = spaceEnd;
+                }
+
+                words.addObject()
+                     .put("text", prefixText)
+                     .put("punctuation", punctuation)
+                     .put("begin_time", word.path("start").asLong())
+                     .put("end_time", word.path("end").asLong());
+            }
+        }
+        return sentences;
+    }
+
+    /**
      * 轮询任务直到结束
      *
-     * @return 识别结果的下载地址；音频里没有语音时返回 null
+     * @return 识别完成返回 true；音频里没有人声返回 false
      */
-    private String waitForResult(String taskId)
+    private boolean waitForResult(String taskId)
     {
         long deadline = System.nanoTime() + MAX_WAIT.toNanos();
         while (true)
         {
-            JsonNode output = asrRestClient.get()
-                                           .uri(URI.create(asrProperties.getBaseUrl() + "/api/v1/tasks/" + taskId))
-                                           .header(HttpHeaders.AUTHORIZATION, bearer())
-                                           .retrieve()
-                                           .body(JsonNode.class)
-                                           .path("output");
-
-            String status = output.path("task_status").asText();
-            if ("PENDING".equals(status) || "RUNNING".equals(status))
+            JsonNode transcript;
+            try
             {
-                if (System.nanoTime() > deadline)
-                {
-                    throw new IllegalStateException("等待识别结果超时, taskId=" + taskId);
-                }
-                try
-                {
-                    Thread.sleep(POLL_INTERVAL.toMillis());
-                }
-                catch (InterruptedException e)
-                {
-                    Thread.currentThread().interrupt();
-                    throw new IllegalStateException("等待识别结果时被中断, taskId=" + taskId, e);
-                }
+                transcript = asrRestClient.get()
+                                          .uri(URI.create(asrProperties.getBaseUrl() + "/v2/transcript/" + taskId))
+                                          .header(HttpHeaders.AUTHORIZATION, asrProperties.getApiKey())
+                                          .retrieve()
+                                          .body(JsonNode.class);
+            }
+            catch (ResourceAccessException e)
+            {
+                // 网络出错不放弃，识别任务还在云端跑，等一会儿再问。
+                // 典型情况是转码期间连接闲置太久被对方关掉，复用时读到 EOF；出错的连接会被丢掉，下一轮会新建连接
+                log.warn("查询识别结果时网络出错，稍后重试, taskId={}, error={}", taskId, e.getMessage());
+                waitNextPoll(taskId, deadline);
                 continue;
             }
 
-            // 任务结束了。一次只提交了一个文件，只有一条结果；任务整体可能是 SUCCEEDED 也可能是 FAILED，以这条结果为准
-            JsonNode result = output.path("results").path(0);
-            if ("SUCCEEDED".equals(result.path("subtask_status").asText()))
+            String status = transcript == null ? "" : transcript.path("status").asText();
+            if ("queued".equals(status) || "processing".equals(status))
             {
-                return result.path("transcription_url").asText();
+                waitNextPoll(taskId, deadline);
             }
-            // 音频里没有有效语音（比如纯音乐、静音），不算失败
-            String code = result.path("code").asText();
-            if ("SUCCESS_WITH_NO_VALID_FRAGMENT".equals(code) || "ASR_RESPONSE_HAVE_NO_WORDS".equals(code))
+            else if ("completed".equals(status))
             {
-                return null;
+                // 打出实际用的模型和识别出的语种，接口里模型名写错、语种判断不对时一眼能看出来
+                log.info("字幕识别完成, taskId={}, model={}, language={}",
+                         taskId,
+                         transcript.path("speech_model_used").asText(),
+                         transcript.path("language_code").asText());
+                return true;
             }
-            throw new IllegalStateException("识别失败, taskId=" + taskId + ", output=" + output);
+            else
+            {
+                // 打开了自动识别语种，音频里没有人声（比如纯音乐、静音）时任务会直接报错，不算失败
+                String error = transcript == null ? "" : transcript.path("error").asText();
+                if (error.contains(NO_SPEECH_ERROR))
+                {
+                    return false;
+                }
+                else
+                {
+                    throw new IllegalStateException("识别失败, taskId=" + taskId + ", transcript=" + transcript);
+                }
+            }
+        }
+    }
+
+    /**
+     * 等到下一次轮询<hr/>
+     * 已经超过总期限就不再等，直接报超时
+     *
+     * @param deadline 总期限，System.nanoTime() 的时刻
+     */
+    private void waitNextPoll(String taskId, long deadline)
+    {
+        if (System.nanoTime() > deadline)
+        {
+            throw new IllegalStateException("等待音频转文本识别结果超时, taskId=" + taskId);
+        }
+        try
+        {
+            Thread.sleep(POLL_INTERVAL.toMillis());
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("等待识别结果时被中断, taskId=" + taskId, e);
         }
     }
 
@@ -577,7 +666,8 @@ public class SubtitleService
     }
 
     /**
-     * 按每个词自己的时间，把一句话切成几条字幕<hr/>
+     * 切分句子<hr/>
+     * <p>按每个词自己的时间，把一句话切成几条字幕</p>
      * <p>识别按说话停顿断句，一句可能有二三十个字。宽度攒到 {@link #LINE_MIN_WIDTH} 以后遇到标点就断，
      * 最宽不超过 {@link #LINE_MAX_WIDTH}，句尾太短的一截挤进上一行。</p>
      *
@@ -672,6 +762,15 @@ public class SubtitleService
         }
     }
 
+    /**
+     * 添加一条字幕<hr/>
+     * 自动处理结尾符号
+     *
+     * @param cues    字幕列表
+     * @param startMs 开始时间，毫秒
+     * @param endMs   结束时间，毫秒
+     * @param text    字幕文本
+     */
     private void addCue(List <String> cues, long startMs, long endMs, String text)
     {
         String cleaned = TRAILING_PUNCTUATION.matcher(text).replaceAll("").trim();
@@ -696,10 +795,5 @@ public class SubtitleService
     private String srtTime(long ms)
     {
         return "%02d:%02d:%02d,%03d".formatted(ms / 3_600_000, ms / 60_000 % 60, ms / 1000 % 60, ms % 1000);
-    }
-
-    private String bearer()
-    {
-        return "Bearer " + asrProperties.getApiKey();
     }
 }

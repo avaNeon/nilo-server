@@ -53,7 +53,9 @@ mybatis:
     map-underscore-to-camel-case: true
 
 asr:
-  # 和 spring-ai 共用同一个 DashScope key（在 nacos 里）
-  api-key: ${spring.ai.openai.api-key}
-  base-url: ${spring.ai.openai.base-url}
-  model: paraformer-v2
+  # 默认使用 AssemblyAI，api-key 在 nacos 配置
+  base-url: https://api.assemblyai.com
+  # Universal-3.5 Pro 支持中、英、日、韩等 18 种语言，识别出其它语种时自动换 Universal-2
+  speech-models:
+    - universal-3-5-pro
+    - universal-2

@@ -62,6 +62,7 @@ public class VideoTransCodingConsumer
      * 消费转码视频文件的任务<hr/>
      * 任务流程：<br/>
      * <ol>
+     *      <li>查分P状态，不是转码中就跳过（消息超时被重投时，上一次可能已经转完并删掉了源文件）</li>
      *      <li>从MinIO查询转码文件的记录，获取文件地址</li>
      *      <li>抽出音轨提交语音识别任务（在云端和下面的转码同时进行）</li>
      *      <li>将文件合并、转码为TS文件</li>
@@ -79,6 +80,16 @@ public class VideoTransCodingConsumer
     @RabbitListener(queues = MqInfo.STORAGE_TRANSCODING_QUEUE)
     public void receiveMessage(VideoInfoFileUpload fileUpload)
     {
+        // 重投的消息再走一遍会下载不到源文件，进而把上一次成功的结果覆盖成失败，所以必须在 try 之前退出
+        VideoInfoFileUpload current = videoInfoFileUploadMapper.selectByFileId(fileUpload.getFileId());
+        if (current == null || !VideoFileStatus.TRANSCODING.getStatus().equals(current.getTransferResult()))
+        {
+            log.warn("分P不在转码中，跳过这条消息, fileId={}, transferResult={}",
+                     fileUpload.getFileId(),
+                     current == null ? null : current.getTransferResult());
+            return;
+        }
+
         String baseKey = fileUpload.getFilePath();
         String key = MinioKey.PENDING_PREFIX + baseKey;
         Path localPath = Path.of(Constants.FILE_FOLDER_NAME, Constants.TMP_FOLDER_NAME, baseKey, Constants.SOURCE_VIDEO_NAME);

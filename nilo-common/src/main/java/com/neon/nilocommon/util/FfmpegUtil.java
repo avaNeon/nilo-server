@@ -181,8 +181,10 @@ public class FfmpegUtil
         // 限制内存占用：ffmpeg 是容器里的子进程，占用算在容器内存上限里。
         // 默认设置下按 CPU 核数开一堆解码/编码线程，每个线程各占一批帧缓冲（实测 1080p 源约 440~730MB，4K 源约 830MB）；
         // 解码 1 线程、编码 2 线程并使用 veryfast 预设后，两者都降到约 200MB。代价是同码率下画质略低、转码耗时略长
+        // 帧率只封顶 60，不补帧：-r 60 会把 30 帧的视频复制成 60 帧，编码量翻倍
+        // 每 5 秒强制一个关键帧：下面切分片只能在关键帧处下刀，按时间放关键帧，分片才能不分帧率都切在 10 秒整，各档清晰度的切点也对得齐
         String cmd = """
-                ffmpeg -y -threads 1 -i "%s" -vf "%s" -r 60 -threads 2 -preset veryfast -c:v libx264 -b:v %s -maxrate %s -bufsize %s -c:a aac -b:a 128k -ar 44100 -ac 2 -pix_fmt yuv420p "%s"
+                ffmpeg -y -threads 1 -i "%s" -vf "%s" -fpsmax 60 -threads 2 -preset veryfast -c:v libx264 -force_key_frames "expr:gte(t,n_forced*5)" -b:v %s -maxrate %s -bufsize %s -c:a aac -b:a 128k -ar 44100 -ac 2 -pix_fmt yuv420p "%s"
                 """.formatted(srcPathStr, videoFilter, bitrate, bitrate, bufferSize, tsPathStr);
         ProcessUtil.executeCommand(cmd, showLogs);
 
@@ -195,8 +197,10 @@ public class FfmpegUtil
         // 公开直连 MinIO 时，index.m3u8 与 tsFolder 同级，使用相对路径 tsFolder/
         String segmentEntryPrefix = Constants.TS_FOLDER_NAME + "/";
         // 将TS分片，并生成m3u8
+        // 有 B 帧时关键帧的时间戳会比 10 秒整差一点点，不留容差会跳过它、拖到下一个关键帧才切（10 秒的分片变成 15 秒）。
+        // 容差 0.01 秒小于 60 帧的一帧间隔，不会切到边界前面那一帧
         cmd = """
-                ffmpeg -i "%s" -c copy -map 0 -f segment -segment_list "%s" -segment_list_entry_prefix %s -segment_time 10 %s/%%4d.ts
+                ffmpeg -i "%s" -c copy -map 0 -f segment -segment_list "%s" -segment_list_entry_prefix %s -segment_time 10 -segment_time_delta 0.01 %s/%%4d.ts
                 """.formatted(tsPathStr, m3u8PathStr, segmentEntryPrefix, tsFolderPathStr);
         ProcessUtil.executeCommand(cmd, showLogs);
 

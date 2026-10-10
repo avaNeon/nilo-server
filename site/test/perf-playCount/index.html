@@ -6,45 +6,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>播放统计压测结果</title>
   <meta name="description" content="Nilo 播放统计链路各版本的压测结果对比">
-  <!-- 页面结构：页头 → 版本说明 → 关键数字 → 运行详情 → 01 总体性能 → 02 生产端性能 → 03 消费端性能 → 04 资源与误差 → 05 数据明细。
+  <!-- 页面结构：左侧目录（宽屏才显示）＋ 正文：页头 → 简介与版本说明 → 关键数字 → 运行详情 → 01 总体性能 → 02 生产端性能 → 03 消费端性能 → 04 资源与误差 → 05 数据明细 → 页脚。
      数据在 data/ 下，由 docker/integration/perf/report_to_json.py 从压测报告生成，页面打开时读取；图表用 ECharts 绘制。
      本地预览要通过 HTTP 打开（浏览器不允许直接打开的本地文件读取 data/ 下的 JSON）：在本目录运行 python -m http.server -->
+  <!-- 字体表异步加载：Google Fonts 在部分网络下打不开，同步加载会卡住整个页面；加载不到时退回系统字体 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" media="print" onload="this.media='all'"
+    href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap">
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js"></script>
   <style>
     /* 颜色都定义成变量，深色模式只需要在下面换一组值；图表的颜色在脚本里的 THEMES */
     :root {
-      --page: #FFFFFF;
-      --on: #0B0C12;
-      --on-sub: #4A4D58;
-      --on-well: #F3F4F7;
-      --card: #FFFFFF;
-      --ink: #0B0C12;
-      --ink2: #3A3D48;
-      --muted: #6B6F7B;
-      --well: #F3F4F7;
-      --line: #EEF0F4;
-      --accent: #0000F2;
-      --accent-soft: #EBEBFE;
-      --shadow: 0 0 0 1px #E3E5EC, 0 14px 32px -26px rgba(11, 12, 18, 0.22);
-      --sans: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      --page: #FAF9F6;
+      --ink: #141413;
+      --body: #2D2C29;
+      --ink2: #4A4945;
+      --muted: #6F6D67;
+      --line: #E7E4DD;
+      --line-strong: #CFCBC2;
+      --well: #F0EEE8;
+      --hover: #E8E5DE;
+      --accent: #2433E0;
+      --sans: "Geist", system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     }
 
     @media (prefers-color-scheme: dark) {
       :root {
-        --page: #08080F;
-        --on: #FFFFFF;
-        --on-sub: #A3A6B8;
-        --on-well: rgba(255, 255, 255, 0.07);
-        --card: #14151C;
-        --ink: #F4F5F8;
-        --ink2: #C2C5D0;
-        --muted: #8A8E9A;
-        --well: #1D1E27;
-        --line: #23252F;
-        --accent: #8C8CFF;
-        --accent-soft: #22234A;
-        --shadow: none;
+        --page: #121211;
+        --ink: #F3F2EE;
+        --body: #DEDCD5;
+        --ink2: #C6C4BD;
+        --muted: #8F8D86;
+        --line: #2A2A27;
+        --line-strong: #3E3D39;
+        --well: #222220;
+        --hover: #2C2C29;
+        --accent: #9AA2FF;
       }
     }
 
@@ -78,39 +77,105 @@
     button {
       font: inherit;
       color: inherit;
+      background: none;
       border: 0;
+      padding: 0;
+      cursor: pointer;
     }
 
-    .page {
-      padding: 0 16px 56px;
-    }
-
-    .wrap {
-      max-width: 1200px;
-      margin: 0 auto;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
+    h1,
+    h2,
+    h3,
+    p,
+    figure {
+      margin: 0;
     }
 
     .mono {
       font-family: var(--mono);
     }
 
-    /* ---------- 页头 ---------- */
-    .top {
-      padding-top: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 28px;
-      color: var(--on);
+    /* ---------- 整体布局：目录 ＋ 正文 ---------- */
+    .page {
+      min-height: 100vh;
+      padding: 0 20px 72px;
     }
 
-    .brand-row {
+    .layout {
+      max-width: 1024px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: center;
+      gap: 64px;
+    }
+
+    main {
+      flex: 1 1 760px;
+      min-width: 0;
+      max-width: 760px;
+    }
+
+    /* 目录只在宽屏显示，窄屏正文占满 */
+    .toc {
+      display: none;
+      width: 200px;
+      flex-shrink: 0;
+      padding-top: 136px;
+    }
+
+    @media (min-width: 1100px) {
+      .toc {
+        display: block;
+      }
+    }
+
+    .toc nav {
+      position: sticky;
+      top: 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .toc a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 0;
+      font-size: 13.5px;
+      line-height: 1.4;
+      color: var(--muted);
+    }
+
+    .toc a::before {
+      content: "";
+      width: 12px;
+      height: 1.5px;
+      flex-shrink: 0;
+      background: transparent;
+    }
+
+    .toc a:hover,
+    .toc a.active {
+      color: var(--ink);
+    }
+
+    .toc a.active {
+      font-weight: 500;
+    }
+
+    .toc a.active::before {
+      background: var(--ink);
+    }
+
+    /* ---------- 页头 ---------- */
+    .top {
+      height: 64px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 16px;
+      border-bottom: 1px solid var(--line);
     }
 
     .brand {
@@ -121,203 +186,243 @@
 
     .logo {
       position: relative;
-      width: 26px;
-      height: 26px;
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
-      background: var(--accent);
+      background: var(--ink);
       flex-shrink: 0;
     }
 
     .logo::after {
       content: "";
       position: absolute;
-      left: 14px;
-      top: 5.5px;
-      width: 6.5px;
-      height: 6.5px;
+      left: 12px;
+      top: 4.5px;
+      width: 5.5px;
+      height: 5.5px;
       border-radius: 50%;
-      background: var(--card);
+      background: var(--page);
     }
 
     .brand-name {
-      font-size: 16px;
-      font-weight: 800;
-      letter-spacing: 0.01em;
-    }
-
-    .brand-tag {
-      font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: 0.18em;
-      color: var(--on-sub);
-      padding-top: 2px;
+      font-size: 15px;
+      font-weight: 600;
     }
 
     .gh {
-      height: 36px;
-      padding: 0 16px;
-      border-radius: 999px;
-      background: var(--on-well);
-      color: var(--on);
-      font-size: 13px;
-      font-weight: 500;
       display: flex;
       align-items: center;
-      gap: 6px;
-      flex-shrink: 0;
+      gap: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    .gh span {
+      font-size: 12px;
     }
 
     .gh:hover {
-      background: var(--accent-soft);
       color: var(--accent);
     }
 
-    .intro {
+    /* ---------- 正文区块 ---------- */
+    article {
+      padding-top: 72px;
+      display: flex;
+      flex-direction: column;
+      gap: 88px;
+    }
+
+    section {
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    h2 {
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      line-height: 1.3;
+    }
+
+    /* 区块编号：小号等宽字，放在标题前面 */
+    h2 .num {
+      margin-right: 12px;
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--muted);
+      vertical-align: 0.2em;
+    }
+
+    .sec-intro {
       display: flex;
       flex-direction: column;
       gap: 14px;
-      max-width: 780px;
     }
 
-    h1 {
-      margin: 0;
-      font-size: clamp(32px, 6vw, 52px);
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      line-height: 1.08;
+    .sec-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
     }
 
-    .intro p {
-      margin: 0;
-      font-size: 15px;
-      line-height: 1.75;
-      color: var(--on-sub);
+    .sec-sub,
+    .note {
+      font-size: 16px;
+      line-height: 1.85;
+      color: var(--body);
       text-wrap: pretty;
     }
 
-    .flow {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      color: var(--on-sub);
+    .note {
+      font-size: 14px;
+      color: var(--muted);
     }
 
-    .flow .chip {
-      height: 32px;
-      padding: 0 14px;
-      border-radius: 999px;
-      background: var(--accent-soft);
-      color: var(--accent);
+    .blocks {
+      display: flex;
+      flex-direction: column;
+      gap: 64px;
+    }
+
+    .block {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    /* ---------- 简介与版本说明 ---------- */
+    .intro {
+      gap: 24px;
+    }
+
+    .title {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .eyebrow {
       font-family: var(--mono);
-      font-size: 13px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      color: var(--muted);
     }
 
-    .flow .chip.control {
-      background: none;
-      box-shadow: inset 0 0 0 1.5px var(--accent);
-      color: var(--accent);
+    h1 {
+      font-size: clamp(30px, 4.4vw, 40px);
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      line-height: 1.25;
+    }
+
+    .intro p {
+      font-size: 16px;
+      line-height: 1.85;
+      color: var(--body);
+      text-wrap: pretty;
     }
 
     .status {
-      margin: 0;
-      padding: 14px 18px;
-      border-radius: 18px;
-      background: var(--card);
-      box-shadow: var(--shadow);
-      color: var(--ink);
-      font-size: 14px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      box-shadow: inset 0 0 0 1px var(--line-strong);
     }
 
-    /* ---------- 版本说明 ---------- */
-    .versions {
-      padding: 8px;
-      border-radius: 28px;
-      background: var(--card);
-      box-shadow: var(--shadow);
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
-      gap: 8px;
+    .flow {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
     }
 
-    /* 两个一组：宽屏 4 个一行，中等宽度 2×2，窄屏一列 */
-    .pair {
+    .flow figcaption {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .scroll-x {
+      overflow-x: auto;
+    }
+
+    /* 五个版本排成一行，中间用箭头连接；窄屏时这一行横向滚动 */
+    .flow-row {
+      min-width: 680px;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
-      gap: 8px;
+      grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr) 20px minmax(0, 1fr) 20px minmax(0, 1fr) 20px minmax(0, 1fr);
     }
 
     .ver {
-      padding: 16px 18px;
-      border-radius: 22px;
-      background: var(--well);
+      padding: 12px 12px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--line-strong);
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 6px;
+      min-width: 0;
     }
 
     .ver.now {
-      background: var(--accent-soft);
+      border-color: var(--ink);
+    }
+
+    .ver.control {
+      border-style: dashed;
     }
 
     .ver-head {
       display: flex;
-      align-items: center;
-      gap: 10px;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 4px 8px;
     }
 
     .ver-name {
       font-family: var(--mono);
-      font-size: 20px;
-      font-weight: 700;
+      font-size: 14px;
+      font-weight: 600;
     }
 
     .tag {
-      height: 22px;
-      padding: 0 9px;
-      border-radius: 999px;
-      background: var(--card);
-      color: var(--ink2);
-      font-size: 11px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
     }
 
     .ver.now .tag {
-      background: var(--accent);
-      color: var(--card);
+      color: var(--accent);
     }
 
     .ver p {
-      margin: 0;
-      font-size: 13px;
-      line-height: 1.65;
+      font-size: 12.5px;
+      line-height: 1.6;
       color: var(--ink2);
-      text-wrap: pretty;
+    }
+
+    .arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      color: var(--muted);
     }
 
     /* ---------- 关键数字 ---------- */
     .stats {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
-      gap: 12px;
-    }
-
-    .stats .pair {
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+      gap: 36px 40px;
     }
 
     .stat {
-      padding: 22px 22px 20px;
-      border-radius: 28px;
-      background: var(--card);
-      box-shadow: var(--shadow);
+      padding-top: 16px;
+      border-top: 1px solid var(--line-strong);
       display: flex;
       flex-direction: column;
       gap: 6px;
@@ -326,104 +431,134 @@
 
     .stat-label {
       font-size: 13px;
-      font-weight: 700;
+      font-weight: 600;
       color: var(--ink2);
     }
 
     .stat-value {
       margin-top: 6px;
-      font-size: clamp(28px, 3.4vw, 36px);
-      font-weight: 800;
+      font-size: 32px;
+      font-weight: 600;
       letter-spacing: -0.02em;
-      line-height: 1.1;
+      line-height: 1.15;
       white-space: nowrap;
     }
 
     .stat-caption {
-      font-size: 13px;
+      font-size: 14px;
       color: var(--ink2);
     }
 
     .stat-foot {
-      margin-top: 10px;
-      padding-top: 12px;
-      border-top: 1px solid var(--line);
-      font-size: 12px;
-      line-height: 1.6;
+      margin-top: 4px;
+      font-size: 12.5px;
+      line-height: 1.65;
       color: var(--muted);
       text-wrap: pretty;
     }
 
-    /* ---------- 区块 ---------- */
-    .sec {
-      padding: 26px 28px 24px;
-      border-radius: 28px;
-      background: var(--card);
-      box-shadow: var(--shadow);
+    /* ---------- 运行详情 ---------- */
+    .run-table {
+      width: 100%;
+      min-width: 600px;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 13px;
+      line-height: 1.6;
+      text-align: left;
+    }
+
+    .run-table th,
+    .run-table td {
+      padding: 12px 20px 12px 0;
+      vertical-align: top;
+      font-weight: 400;
+    }
+
+    .run-table thead th {
+      padding-top: 0;
+      vertical-align: bottom;
+      border-bottom: 1px solid var(--ink);
+    }
+
+    /* 第一列是"被测机"这类行名：56px 文字宽度加上 20px 右边距 */
+    .run-table th:first-child {
+      width: 76px;
+      white-space: nowrap;
+    }
+
+    .run-table tbody tr {
+      border-bottom: 1px solid var(--line);
+    }
+
+    .run-table tbody th {
+      color: var(--muted);
+    }
+
+    .run-table td {
+      color: var(--ink2);
+    }
+
+    .run-table td a {
+      font-weight: 500;
+    }
+
+    .run-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .run-head .shape {
+      width: 10px;
+      height: 10px;
+    }
+
+    .run-id {
+      display: block;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* ---------- 图表 ---------- */
+    figure {
+      margin-bottom: 8px;
       display: flex;
       flex-direction: column;
-      gap: 22px;
-    }
-
-    .sec.minor {
-      padding: 22px 28px;
       gap: 16px;
+      min-width: 0;
     }
 
-    .sec-head {
+    .fig-head {
       display: flex;
-      align-items: center;
+      align-items: flex-end;
       justify-content: space-between;
-      gap: 10px 16px;
       flex-wrap: wrap;
+      gap: 12px 24px;
     }
 
-    .sec-title {
+    .fig-title {
       display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .num {
-      width: 34px;
-      height: 34px;
-      border-radius: 12px;
-      background: var(--accent-soft);
-      color: var(--accent);
-      font-family: var(--mono);
-      font-size: 12px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-
-    .minor .num {
-      width: 30px;
-      height: 30px;
-      border-radius: 10px;
-      background: var(--well);
-      color: var(--ink2);
-      font-size: 11px;
-    }
-
-    h2 {
-      margin: 0;
-      font-size: 22px;
-      font-weight: 800;
-      letter-spacing: -0.01em;
-    }
-
-    .minor h2 {
-      font-size: 18px;
-      letter-spacing: 0;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
     }
 
     h3 {
-      margin: 0;
       font-size: 17px;
-      font-weight: 800;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .fig-sub {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px 14px;
     }
 
     .unit {
@@ -432,109 +567,21 @@
       color: var(--muted);
     }
 
-    .sec-sub {
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    /* 区块里的一个指标：标题行（左边标题，右边运行开关或切换）+ 图 + 说明；divided 表示与上一个指标之间画一条分隔线 */
-    .block {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      min-width: 0;
-    }
-
-    .block.divided {
-      padding-top: 22px;
-      border-top: 1px solid var(--line);
-    }
-
-    .block-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px 16px;
-      flex-wrap: wrap;
-    }
-
-    .block-title {
-      display: flex;
-      align-items: center;
-      gap: 6px 14px;
-      flex-wrap: wrap;
-    }
-
-    /* 一个指标下的几张小图（如"开销"下的合计与拆解） */
-    .subs {
-      display: flex;
-      flex-direction: column;
-      gap: 26px;
-    }
-
-    .sub {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      min-width: 0;
-    }
-
-    .sub-title {
-      display: flex;
-      align-items: baseline;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .sub-title b {
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--ink2);
-    }
-
-    /* 04 区块里的两张图并排 */
-    .charts {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr));
-      gap: 28px;
-    }
-
-    .chart {
-      width: 100%;
-    }
-
-    /* 每张图下面的分析：先是指标的含义，再是趋势的成因，以及它来自哪一项改动 */
-    .explain {
-      margin: 2px 0 0;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      font-size: 13px;
-      line-height: 1.7;
-      color: var(--ink2);
-    }
-
-    .explain p {
-      margin: 0;
-      text-wrap: pretty;
-    }
-
-    .explain b {
-      margin-right: 8px;
-      font-weight: 700;
-      color: var(--ink);
-    }
-
-    /* 标题旁的线型、色块说明 */
+    /* 图例：线条（实线、虚线、淡色）或色块 */
     .keys {
       display: flex;
       align-items: center;
-      gap: 12px;
+      flex-wrap: wrap;
+      gap: 6px 12px;
       font-size: 12px;
       color: var(--ink2);
     }
 
-    .keys span {
+    .keys.muted {
+      color: var(--muted);
+    }
+
+    .keys>span {
       display: flex;
       align-items: center;
       gap: 6px;
@@ -543,7 +590,7 @@
     .keys i {
       width: 20px;
       height: 0;
-      border-top: 2.5px solid var(--ink2);
+      border-top: 2px solid currentColor;
     }
 
     .keys i.dashed {
@@ -551,12 +598,7 @@
     }
 
     .keys i.faint {
-      border-top: 2px solid var(--muted);
-      opacity: 0.45;
-    }
-
-    .keys.muted {
-      color: var(--muted);
+      opacity: 0.5;
     }
 
     .keys .box {
@@ -565,36 +607,30 @@
       border-radius: 3px;
     }
 
-    /* 运行的标记：颜色加形状，形状用圆角、裁剪和旋转画出来 */
-    .shape {
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      flex-shrink: 0;
+    .chart {
+      width: 100%;
     }
 
-    /* 每张折线图右上角的运行开关：点击隐藏或显示这张图里的某次运行，至少保留一个 */
+    /* 运行开关：显示中的有底色，隐藏的只留细边框、名字划掉 */
     .chips {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-end;
       gap: 4px;
     }
 
     .run-chip {
-      cursor: pointer;
-      height: 32px;
-      padding: 0 12px 0 10px;
+      height: 28px;
+      padding: 0 11px 0 9px;
       border-radius: 999px;
       background: var(--well);
       color: var(--ink);
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 500;
       display: flex;
       align-items: center;
-      gap: 8px;
-      user-select: none;
+      gap: 7px;
       white-space: nowrap;
+      user-select: none;
     }
 
     .run-chip[aria-checked="false"] {
@@ -608,167 +644,61 @@
     }
 
     .run-chip:hover {
-      background: var(--accent-soft);
+      background: var(--hover);
     }
 
-    .run-chip .shape {
+    .shape {
+      display: inline-block;
       width: 9px;
       height: 9px;
+      flex-shrink: 0;
     }
 
-    /* 分段切换（选一次运行看拆解、队列、明细） */
+    /* 分段切换：下划线标出选中的运行 */
     .tabs {
       display: flex;
-      flex-wrap: nowrap;
+      gap: 24px;
+      border-bottom: 1px solid var(--line);
       overflow-x: auto;
-      max-width: 100%;
-      gap: 2px;
-      padding: 4px;
-      border-radius: 999px;
-      background: var(--well);
     }
 
     .tab {
-      cursor: pointer;
       flex-shrink: 0;
+      padding: 6px 0 9px;
+      margin-bottom: -1px;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      font-size: 13.5px;
+      font-weight: 500;
       white-space: nowrap;
-      height: 32px;
-      padding: 0 13px 0 11px;
-      border-radius: 999px;
-      background: transparent;
-      color: var(--ink2);
-      font-size: 12px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      user-select: none;
     }
 
-    .tabs.large .tab {
-      height: 34px;
-      padding: 0 14px 0 12px;
-      font-size: 13px;
+    .tab:hover,
+    .tab[aria-selected="true"] {
+      color: var(--ink);
     }
 
     .tab[aria-selected="true"] {
-      background: var(--card);
-      box-shadow: 0 6px 16px -8px rgba(11, 12, 18, 0.35);
-      color: var(--ink);
+      border-bottom-color: var(--ink);
     }
 
-    .tab .shape {
-      width: 9px;
-      height: 9px;
-    }
-
-    .pill {
-      cursor: pointer;
-      height: 36px;
-      padding: 0 14px;
-      border-radius: 999px;
-      background: var(--well);
-      font-size: 13px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      flex-shrink: 0;
-    }
-
-    .pill:hover {
-      background: var(--accent-soft);
-      color: var(--accent);
-    }
-
-    /* ---------- 运行详情 ---------- */
-    .hollow-note {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    .hollow-note::before {
-      content: "";
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      box-shadow: inset 0 0 0 2px var(--muted);
-    }
-
-    .run-details {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
-      gap: 8px;
-    }
-
-    .run-detail {
-      padding: 14px 16px;
-      border-radius: 18px;
-      background: var(--well);
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      min-width: 0;
-      font-size: 12px;
-      color: var(--ink2);
-    }
-
-    .run-detail-head {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--ink);
-    }
-
-    .run-id {
-      margin-left: auto;
-      font-family: var(--mono);
-      font-size: 11px;
-      font-weight: 400;
-      color: var(--muted);
-    }
-
-    .kv {
-      margin: 0;
-      display: grid;
-      grid-template-columns: 52px minmax(0, 1fr);
-      gap: 4px 10px;
-      line-height: 1.5;
-    }
-
-    .kv dt {
-      color: var(--muted);
-    }
-
-    .kv dd {
-      margin: 0;
-    }
-
-    .run-detail a {
-      align-self: flex-start;
-      font-weight: 600;
-    }
-
-    /* ---------- 按组件拆解：左边堆叠柱状图，旁边各组件从第一个版本到最后一个版本的变化 ---------- */
+    /* 按组件拆解：左边柱状图，右边组件列表；窄屏时列表换到下面 */
     .stack-row {
       display: flex;
       flex-wrap: wrap;
-      gap: 24px 32px;
       align-items: center;
+      gap: 20px 32px;
     }
 
     .stack-chart {
-      flex: 999 1 420px;
-      height: 340px;
+      flex: 999 1 400px;
       min-width: 0;
+      height: 320px;
     }
 
     .stack-legend {
-      flex: 1 1 260px;
+      flex: 1 1 240px;
       display: flex;
       flex-direction: column;
       min-width: 0;
@@ -776,24 +706,24 @@
 
     .legend-row {
       display: grid;
-      grid-template-columns: 14px minmax(0, 1fr) auto;
-      gap: 10px;
+      grid-template-columns: 12px minmax(0, 1fr) auto;
       align-items: center;
-      padding: 9px 4px;
+      gap: 10px;
+      padding: 8px 0;
       border-top: 1px solid var(--line);
     }
 
     .legend-row.head {
-      padding: 0 4px 8px;
+      padding: 0 0 8px;
       border-top: 0;
       font-size: 11px;
       color: var(--muted);
     }
 
     .legend-swatch {
-      width: 14px;
-      height: 14px;
-      border-radius: 4px;
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
     }
 
     .legend-name {
@@ -805,7 +735,7 @@
 
     .legend-name b {
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 500;
     }
 
     .legend-name small {
@@ -820,145 +750,165 @@
       white-space: nowrap;
     }
 
-    /* ---------- 可折叠区块 ---------- */
-    .sec.fold {
-      padding: 18px 20px 18px 28px;
-      gap: 18px;
-    }
-
-    .fold-head {
-      cursor: pointer;
+    /* 图下面的分析文字 */
+    .explain {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      width: 100%;
-      padding: 0;
-      background: none;
-      text-align: left;
+      flex-direction: column;
+      gap: 14px;
     }
 
-    .fold-head:hover .pill {
-      background: var(--accent-soft);
-      color: var(--accent);
-    }
-
-    .fold-body {
-      padding-right: 8px;
-    }
-
-    .fold-body .sub-title b {
-      color: var(--ink);
-    }
-
-    /* ---------- 数据明细 ---------- */
-    .tbl-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px 16px;
-      font-size: 12px;
+    .explain-label {
+      font-size: 13px;
+      font-weight: 600;
       color: var(--ink2);
     }
 
-    .report-btn {
+    .explain p {
+      font-size: 16px;
+      line-height: 1.85;
+      color: var(--body);
+      text-wrap: pretty;
+    }
+
+    /* ---------- 按钮 ---------- */
+    .pill {
+      flex-shrink: 0;
       align-self: flex-start;
-      height: 40px;
-      padding: 0 18px;
+      height: 34px;
+      padding: 0 16px;
       border-radius: 999px;
-      background: var(--accent);
-      color: var(--card);
+      box-shadow: inset 0 0 0 1px var(--line-strong);
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      user-select: none;
+    }
+
+    .sec-head .pill {
+      align-self: center;
+      height: 32px;
+      padding: 0 14px;
+    }
+
+    .pill:hover {
+      background: var(--well);
+    }
+
+    .report-btn {
+      flex-shrink: 0;
+      height: 34px;
+      padding: 0 16px;
+      border-radius: 999px;
+      background: var(--ink);
+      color: var(--page);
+      font-size: 13px;
+      font-weight: 500;
       display: flex;
       align-items: center;
       gap: 6px;
     }
 
+    .report-btn span {
+      font-size: 12px;
+    }
+
     .report-btn:hover {
-      opacity: 0.88;
-      color: var(--card);
+      color: var(--page);
+      opacity: 0.85;
     }
 
-    .tbl-wrap {
-      overflow-x: auto;
-      margin: 0 -8px;
-      padding: 0 8px;
+    /* ---------- 数据明细 ---------- */
+    .detail {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-width: 0;
     }
 
-    table {
-      border-collapse: separate;
-      border-spacing: 0;
+    .tbl-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px 20px;
+    }
+
+    .tbl-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 16px;
+      font-size: 12.5px;
+      color: var(--ink2);
+    }
+
+    .data-table {
       width: 100%;
-      font-size: 13px;
+      border-collapse: collapse;
+      font-size: 13.5px;
     }
 
-    th,
-    td {
-      padding: 8px 12px;
+    .data-table th,
+    .data-table td {
+      padding: 9px 0 9px 12px;
       text-align: right;
+      font-weight: 400;
+    }
+
+    .data-table thead th {
+      padding-top: 0;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--ink);
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink2);
+    }
+
+    .data-table thead th:first-child {
+      font-family: var(--sans);
+    }
+
+    .data-table th:first-child {
+      padding-left: 0;
+      text-align: left;
+    }
+
+    .data-table tbody th {
+      color: var(--ink2);
+      min-width: 170px;
+    }
+
+    .data-table tbody th.indent {
+      padding-left: 14px;
+    }
+
+    .data-table tbody tr:not(.group) {
+      border-top: 1px solid var(--line);
+    }
+
+    .data-table tr.group th {
+      padding: 22px 0 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .data-table td {
+      font-family: var(--mono);
+      font-size: 12.5px;
       white-space: nowrap;
     }
 
-    td {
-      font-family: var(--mono);
-      font-size: 12.5px;
-      border-top: 1px solid var(--line);
-    }
-
-    tbody th {
-      text-align: left;
-      font-weight: 400;
-      color: var(--ink2);
-      border-top: 1px solid var(--line);
-    }
-
-    tbody th.indent {
-      padding-left: 26px;
-    }
-
-    thead th {
-      padding: 10px 12px;
-      background: var(--well);
-      font-family: var(--mono);
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    thead th:first-child {
-      text-align: left;
-      font-family: var(--sans);
-      font-size: 13px;
-      border-radius: 14px 0 0 14px;
-    }
-
-    thead th:last-child {
-      border-radius: 0 14px 14px 0;
-    }
-
-    tr.group th {
-      padding: 16px 12px 6px;
-      text-align: left;
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--muted);
-      border-top: 0;
-    }
-
-    .more {
-      align-self: center;
-      height: 40px;
-      padding: 0 20px;
-    }
-
-    /* ---------- 页脚：左边是数据来源的链接，右下角是设计署名 ---------- */
+    /* ---------- 页脚 ---------- */
     .foot {
-      padding: 12px 4px 0;
+      padding-top: 28px;
+      border-top: 1px solid var(--line);
       display: flex;
       flex-wrap: wrap;
       align-items: flex-end;
       justify-content: space-between;
       gap: 20px 24px;
-      color: var(--on-sub);
     }
 
     .foot-links {
@@ -968,292 +918,349 @@
     }
 
     .foot-link {
-      height: 40px;
-      padding: 0 16px;
+      height: 36px;
+      padding: 0 14px;
       border-radius: 999px;
-      background: var(--on-well);
-      color: var(--on);
+      box-shadow: inset 0 0 0 1px var(--line-strong);
+      color: var(--ink);
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 500;
       display: flex;
       align-items: center;
       gap: 8px;
     }
 
-    .foot-link:hover {
-      background: var(--accent-soft);
-      color: var(--accent);
-    }
-
     .foot-link small {
       font-family: var(--mono);
       font-size: 11px;
-      font-weight: 400;
       color: var(--muted);
+    }
+
+    .foot-link span {
+      font-size: 12px;
+    }
+
+    .foot-link:hover {
+      background: var(--well);
+      color: var(--ink);
     }
 
     .sign {
       margin-left: auto;
       display: flex;
+      flex-direction: column;
       font-size: 12px;
       line-height: 1.5;
       text-align: right;
+      color: var(--muted);
     }
 
-    .sign-text {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .sign-text b {
-      color: var(--on);
-      font-weight: 600;
+    .sign b {
+      font-weight: 500;
+      color: var(--ink);
     }
   </style>
 </head>
 
 <body>
   <div class="page">
-    <div class="wrap">
+    <div class="layout">
 
-      <header class="top">
-        <div class="brand-row">
+      <aside class="toc">
+        <nav aria-label="目录">
+          <a href="#intro">播放统计压测结果</a>
+          <a href="#summary">关键数字</a>
+          <a href="#runs">运行详情</a>
+          <a href="#overall">总体性能</a>
+          <a href="#producer">生产端性能</a>
+          <a href="#consumer">消费端性能</a>
+          <a href="#resource">资源与误差</a>
+          <a href="#breakdown">数据明细</a>
+        </nav>
+      </aside>
+
+      <main>
+        <header class="top">
           <div class="brand">
             <span class="logo"></span>
             <span class="brand-name">nilo-server</span>
-            <span class="brand-tag">PERF · PLAY COUNT</span>
           </div>
           <a class="gh" href="https://github.com/avaNeon/nilo-server">GitHub<span>↗</span></a>
-        </div>
-        <div class="intro">
-          <h1>播放统计压测结果</h1>
-          <p>在三台不同配置的 GitHub 提供的云主机上分别运行一次测试，每台主机上的不同版本的测试都是在相同配置下进行的。</p>
-          <p>并且，被测机中间件和服务的资源限制和配置与线上相同，压测机用 k6 按固定速率发送请求，每轮结束后把 MySQL、Redis 的播放量增量与放行请求数逐条对账。</p>
-          <p>由于不同运行分到的硬件不同，相对于比较绝对值来说，比较趋势更为合适。</p>
-        </div>
-        <div class="flow">
-          <span>每次运行</span>
-          <span class="chip">V0</span><span>→</span><span class="chip">V1</span><span>→</span>
-          <span class="chip">V2</span><span>→</span><span class="chip">V3</span><span>→</span>
-          <span class="chip control">V0 对照</span>
-          <span>同一对机器，对照轮用来估计误差</span>
-        </div>
-        <p class="status" id="status" hidden></p>
-      </header>
+        </header>
 
-      <section class="versions" aria-label="版本说明">
-        <div class="pair">
-          <div class="ver">
-            <div class="ver-head"><span class="ver-name">V0</span><span class="tag">基线</span></div>
-            <p>请求线程内依次写 MySQL 和 Redis</p>
-          </div>
-          <div class="ver">
-            <div class="ver-head"><span class="ver-name">V1</span><span class="tag">异步</span></div>
-            <p>请求只放入本地队列，每 5 秒聚合为（视频，增量）后经 MQ 异步写入</p>
-          </div>
-        </div>
-        <div class="pair">
-          <div class="ver">
-            <div class="ver-head"><span class="ver-name">V2</span><span class="tag">批量</span></div>
-            <p>MySQL 每 100 个视频合成一条 UPDATE，Redis 用一次 Lua 脚本写完整条消息</p>
-          </div>
-          <div class="ver now">
-            <div class="ver-head"><span class="ver-name">V3</span><span class="tag">当前线上</span></div>
-            <p>消费端并行写入 MySQL 与 Redis</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="stats" id="stats" aria-label="关键数字"></section>
-
-      <section class="sec minor">
-        <div class="sec-head">
-          <h2>运行详情</h2>
-          <span class="hollow-note">图中空心点 = 对照轮</span>
-        </div>
-        <div class="run-details" id="run-details"></div>
-      </section>
-
-      <section class="sec">
-        <div class="sec-title"><span class="num">01</span>
-          <h2>总体性能</h2>
-        </div>
-        <div class="block">
-          <div class="block-head">
-            <div class="block-title">
-              <h3>吞吐</h3><span class="unit">放行吞吐 · 次/秒 · 线性</span>
-              <span class="keys muted"><span><i class="faint"></i>V0 → V0 对照</span></span>
+        <article>
+          <section class="intro" id="intro">
+            <div class="title">
+              <span class="eyebrow">PERF · PLAY COUNT</span>
+              <h1>播放统计压测结果</h1>
             </div>
-            <div class="chips" id="chips-thr"></div>
-          </div>
-          <div class="chart" id="chart-thr" style="height: 300px"></div>
-          <div class="explain" id="analysis-thr">
-            <p><b>分析</b><br>放行吞吐 = 放行请求数 ÷ 压测时长，虚线为目标速率。吞吐接近目标速率时，数值受目标速率限制，不再反映处理能力的上限。
-              淡色细线连接第 1 轮与对照轮（二者为同一版本），两点越接近，说明该次运行的重复性越好。</p>
-          </div>
-        </div>
-        <div class="block divided">
-          <div class="block-head">
-            <div class="block-title">
-              <h3>开销</h3>
-            </div>
-          </div>
-          <div class="subs">
-            <div class="sub">
-              <div class="block-head">
-                <div class="sub-title"><b>每个放行请求的 CPU 合计</b><span class="unit">ms · 线性</span></div>
-                <div class="chips" id="chips-cpu"></div>
+            <p>在三台不同配置的 GitHub 提供的云主机上分别运行一次测试，每台主机上的不同版本的测试都是在相同配置下进行的。</p>
+            <p>并且，被测机中间件和服务的资源限制和配置与线上相同，压测机用 k6 按固定速率发送请求，每轮结束后把 MySQL、Redis 的播放量增量与放行请求数逐条对账。</p>
+            <p>由于不同运行分到的硬件不同，相对于比较绝对值来说，比较趋势更为合适。</p>
+            <figure class="flow" aria-label="版本说明">
+              <figcaption>每次运行</figcaption>
+              <div class="scroll-x">
+                <div class="flow-row">
+                  <div class="ver">
+                    <div class="ver-head"><span class="ver-name">V0</span><span class="tag">基线</span></div>
+                    <p>请求线程内依次写 MySQL 和 Redis</p>
+                  </div>
+                  <span class="arrow">→</span>
+                  <div class="ver">
+                    <div class="ver-head"><span class="ver-name">V1</span><span class="tag">异步</span></div>
+                    <p>请求只放入本地队列，每 5 秒聚合为（视频，增量）后经 MQ 异步写入</p>
+                  </div>
+                  <span class="arrow">→</span>
+                  <div class="ver">
+                    <div class="ver-head"><span class="ver-name">V2</span><span class="tag">批量</span></div>
+                    <p>MySQL 每 100 个视频合成一条 UPDATE，Redis 用一次 Lua 脚本写完整条消息</p>
+                  </div>
+                  <span class="arrow">→</span>
+                  <div class="ver now">
+                    <div class="ver-head"><span class="ver-name">V3</span><span class="tag">当前线上</span></div>
+                    <p>消费端并行写入 MySQL 与 Redis</p>
+                  </div>
+                  <span class="arrow">→</span>
+                  <div class="ver control">
+                    <div class="ver-head"><span class="ver-name">V0 对照</span></div>
+                    <p>同一对机器，对照轮用来估计误差</p>
+                  </div>
+                </div>
               </div>
-              <div class="chart" id="chart-cpu" style="height: 260px"></div>
-              <div class="explain" id="analysis-cpu">
-                <p><b>分析</b><br>每个放行请求的 CPU = 测试窗口内全部组件消耗的 CPU 秒数 ÷ 放行请求数。窗口包含压测结束后的排空阶段，
-                  因此该指标与压测时长及排空快慢无关，同一次运行内的各版本可直接比较；在对照轮中，其波动小于吞吐。</p>
+            </figure>
+            <p class="status" id="status" hidden></p>
+          </section>
+
+          <section id="summary">
+            <h2>关键数字</h2>
+            <div class="stats" id="stats"></div>
+          </section>
+
+          <section id="runs">
+            <div class="sec-intro">
+              <h2>运行详情</h2>
+              <p class="note">图中空心点 = 对照轮</p>
+            </div>
+            <div class="scroll-x">
+              <table class="run-table" id="run-details"></table>
+            </div>
+          </section>
+
+          <section id="overall">
+            <h2><span class="num">01</span>总体性能</h2>
+            <div class="blocks">
+              <div class="block">
+                <figure>
+                  <div class="fig-head">
+                    <div class="fig-title">
+                      <h3>吞吐</h3>
+                      <div class="fig-sub">
+                        <span class="unit">放行吞吐 · 次/秒 · 线性</span>
+                        <span class="keys muted"><span><i class="faint"></i>V0 → V0 对照</span></span>
+                      </div>
+                    </div>
+                    <div class="chips" id="chips-thr"></div>
+                  </div>
+                  <div class="chart" id="chart-thr" style="height: 300px"></div>
+                </figure>
+                <div class="explain" id="analysis-thr">
+                  <span class="explain-label">分析</span>
+                  <p>放行吞吐 = 放行请求数 ÷ 压测时长，虚线为目标速率。吞吐接近目标速率时，数值受目标速率限制，不再反映处理能力的上限。淡色细线连接第 1 轮与对照轮（二者为同一版本），两点越接近，说明该次运行的重复性越好。</p>
+                </div>
+              </div>
+
+              <div class="block">
+                <figure>
+                  <div class="fig-head">
+                    <div class="fig-title">
+                      <h3>开销 · 每个放行请求的 CPU 合计</h3>
+                      <div class="fig-sub"><span class="unit">ms · 线性</span></div>
+                    </div>
+                    <div class="chips" id="chips-cpu"></div>
+                  </div>
+                  <div class="chart" id="chart-cpu" style="height: 260px"></div>
+                </figure>
+                <div class="explain" id="analysis-cpu">
+                  <span class="explain-label">分析</span>
+                  <p>每个放行请求的 CPU = 测试窗口内全部组件消耗的 CPU 秒数 ÷ 放行请求数。窗口包含压测结束后的排空阶段，因此该指标与压测时长及排空快慢无关，同一次运行内的各版本可直接比较；在对照轮中，其波动小于吞吐。</p>
+                </div>
+              </div>
+
+              <div class="block">
+                <figure>
+                  <div class="fig-title">
+                    <h3>开销 · 按组件拆解</h3>
+                    <div class="fig-sub"><span class="unit">ms / 请求</span></div>
+                  </div>
+                  <div class="tabs" id="stack-tabs" role="tablist" aria-label="选择运行"></div>
+                  <div class="stack-row">
+                    <div class="stack-chart" id="chart-stack"></div>
+                    <div class="stack-legend" id="stack-legend"></div>
+                  </div>
+                </figure>
+                <div class="explain" id="analysis-stack">
+                  <span class="explain-label">分析</span>
+                  <p>将上图的每请求 CPU 按组件拆分，柱顶为合计，图例列出各组件由第一个版本到最后一个版本的变化。</p>
+                </div>
               </div>
             </div>
-            <div class="sub">
-              <div class="block-head">
-                <div class="sub-title"><b>按组件拆解</b><span class="unit">ms / 请求</span></div>
-                <div class="tabs" id="stack-tabs" role="tablist" aria-label="选择运行"></div>
+          </section>
+
+          <section id="producer">
+            <h2><span class="num">02</span>生产端性能</h2>
+            <div class="blocks">
+              <div class="block">
+                <figure>
+                  <div class="fig-head">
+                    <div class="fig-title">
+                      <h3>服务端响应时间</h3>
+                      <div class="fig-sub">
+                        <span class="keys"><span><i></i>平均</span><span><i class="dashed"></i>P99</span></span>
+                        <span class="unit">ms · 对数刻度</span>
+                      </div>
+                    </div>
+                    <div class="chips" id="chips-slat"></div>
+                  </div>
+                  <div class="chart" id="chart-slat" style="height: 280px"></div>
+                </figure>
+                <div class="explain" id="analysis-slat">
+                  <span class="explain-label">分析</span>
+                  <p>由 nilo-web 自行统计，不含网络往返，也不含在 nginx 排队的时间。实线为平均值，虚线为 P99（99% 的请求不超过该值）。纵轴为对数刻度，相邻刻度相差 10 倍。</p>
+                </div>
               </div>
-              <div class="stack-row">
-                <div class="stack-chart" id="chart-stack"></div>
-                <div class="stack-legend" id="stack-legend"></div>
+            </div>
+          </section>
+
+          <section id="consumer">
+            <h2><span class="num">03</span>消费端性能</h2>
+            <div class="blocks">
+              <div class="block">
+                <figure>
+                  <div class="fig-title">
+                    <h3>队列积压</h3>
+                    <div class="fig-sub">
+                      <span class="keys" id="queue-keys"></span>
+                      <span class="unit">条</span>
+                    </div>
+                  </div>
+                  <div class="tabs" id="queue-tabs" role="tablist" aria-label="选择运行"></div>
+                  <div class="chart" id="chart-queue" style="height: 240px"></div>
+                </figure>
+                <div class="explain" id="analysis-queue">
+                  <span class="explain-label">分析</span>
+                  <p>播放量队列在测试窗口内的消息数峰值。待投递指尚未交付消费端的消息，未确认指已交付消费端、尚未处理完成的消息。</p>
+                </div>
               </div>
-              <div class="explain" id="analysis-stack">
-                <p><b>分析</b><br>将上图的每请求 CPU 按组件拆分，柱顶为合计，图例列出各组件由第一个版本到最后一个版本的变化。</p>
+
+              <div class="block">
+                <figure>
+                  <div class="fig-head">
+                    <div class="fig-title">
+                      <h3>写入完成延迟</h3>
+                      <div class="fig-sub"><span class="unit">秒 · 对数刻度</span></div>
+                    </div>
+                    <div class="chips" id="chips-wlat"></div>
+                  </div>
+                  <div class="chart" id="chart-wlat" style="height: 250px"></div>
+                </figure>
+                <div class="explain" id="analysis-wlat">
+                  <span class="explain-label">分析</span>
+                  <p>从压测机收到最后一个响应起，到被测机 MySQL 与 Redis 的播放量不再变化止的时间，即最后一批播放量落库所需的时间。纵轴为对数刻度，相邻刻度相差 10 倍。</p>
+                </div>
+              </div>
+
+              <div class="block">
+                <figure>
+                  <div class="fig-head">
+                    <div class="fig-title">
+                      <h3>MySQL 每秒查询数峰值</h3>
+                      <div class="fig-sub"><span class="unit">次/秒 · 对数刻度</span></div>
+                    </div>
+                    <div class="chips" id="chips-mysql"></div>
+                  </div>
+                  <div class="chart" id="chart-mysql" style="height: 250px"></div>
+                </figure>
+                <div class="explain" id="analysis-mysql">
+                  <span class="explain-label">分析</span>
+                  <p>测试窗口内 MySQL 每秒执行语句数的最大值，含写入监控自身每秒 10 次的查询。纵轴为对数刻度，相邻刻度相差 10 倍。</p>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
 
-      <section class="sec">
-        <div class="sec-title"><span class="num">02</span>
-          <h2>生产端性能</h2>
-        </div>
-        <div class="block">
-          <div class="block-head">
-            <div class="block-title">
-              <h3>服务端响应时间</h3>
-              <span class="keys"><span><i></i>平均</span><span><i class="dashed"></i>P99</span></span>
-              <span class="unit">ms · 对数刻度</span>
+          <section id="resource">
+            <div class="sec-intro">
+              <div class="sec-head">
+                <h2><span class="num">04</span>资源与误差</h2>
+                <button class="pill" id="sec4-toggle" aria-expanded="false" aria-controls="sec4-body"><span id="sec4-label">展开</span></button>
+              </div>
+              <p class="sec-sub">被测机整机 CPU · 吞吐倍数</p>
             </div>
-            <div class="chips" id="chips-slat"></div>
-          </div>
-          <div class="chart" id="chart-slat" style="height: 280px"></div>
-          <div class="explain" id="analysis-slat">
-            <p><b>分析</b><br>由 nilo-web 自行统计，不含网络往返，也不含在 nginx 排队的时间。实线为平均值，虚线为 P99（99% 的请求不超过该值）。
-              纵轴为对数刻度，相邻刻度相差 10 倍。</p>
-          </div>
-        </div>
-      </section>
+            <div class="blocks" id="sec4-body" hidden>
+              <div class="block">
+                <figure>
+                  <div class="fig-head">
+                    <div class="fig-title">
+                      <h3>被测机整机 CPU 平均</h3>
+                      <div class="fig-sub"><span class="unit">% · 上限 100</span></div>
+                    </div>
+                    <div class="chips" id="chips-sutcpu"></div>
+                  </div>
+                  <div class="chart" id="chart-sutcpu" style="height: 230px"></div>
+                </figure>
+                <div class="explain" id="analysis-sutcpu">
+                  <span class="explain-label">分析</span>
+                  <p>压测期间被测机全部核的平均使用率，包含容器之外的开销（Tailscale、内核收发网络包等）。接近 100% 表示 CPU 已饱和，此时的放行吞吐即该机器的处理上限；使用率较低而吞吐未达目标速率，则瓶颈位于其他资源。</p>
+                </div>
+              </div>
 
-      <section class="sec">
-        <div class="sec-title"><span class="num">03</span>
-          <h2>消费端性能</h2>
-        </div>
-        <div class="block">
-          <div class="block-head">
-            <div class="block-title">
-              <h3>队列积压</h3>
-              <span class="keys" id="queue-keys"></span>
-              <span class="unit">条</span>
+              <div class="block">
+                <figure>
+                  <div class="fig-head">
+                    <div class="fig-title">
+                      <h3>吞吐倍数（相对第 1 轮）</h3>
+                      <div class="fig-sub"><span class="unit">倍 · 线性</span></div>
+                    </div>
+                    <div class="chips" id="chips-mult"></div>
+                  </div>
+                  <div class="chart" id="chart-mult" style="height: 230px"></div>
+                </figure>
+                <div class="explain" id="analysis-mult">
+                  <span class="explain-label">分析</span>
+                  <p>各轮放行吞吐 ÷ 第 1 轮放行吞吐。对照轮与第 1 轮为同一版本，其偏离 1 的程度即本次运行的误差范围；版本之间的差距小于该范围时，不宜据此下结论。</p>
+                </div>
+              </div>
             </div>
-            <div class="tabs" id="queue-tabs" role="tablist" aria-label="选择运行"></div>
-          </div>
-          <div class="chart" id="chart-queue" style="height: 240px"></div>
-          <div class="explain" id="analysis-queue">
-            <p><b>分析</b><br>播放量队列在测试窗口内的消息数峰值。待投递指尚未交付消费端的消息，未确认指已交付消费端、尚未处理完成的消息。</p>
-          </div>
-        </div>
-        <div class="block divided">
-          <div class="block-head">
-            <div class="block-title">
-              <h3>写入完成延迟</h3><span class="unit">秒 · 对数刻度</span>
-            </div>
-            <div class="chips" id="chips-wlat"></div>
-          </div>
-          <div class="chart" id="chart-wlat" style="height: 250px"></div>
-          <div class="explain" id="analysis-wlat">
-            <p><b>分析</b><br>从压测机收到最后一个响应起，到被测机 MySQL 与 Redis 的播放量不再变化止的时间，即最后一批播放量落库所需的时间。
-              纵轴为对数刻度，相邻刻度相差 10 倍。</p>
-          </div>
-        </div>
-        <div class="block divided">
-          <div class="block-head">
-            <div class="block-title">
-              <h3>MySQL 每秒查询数峰值</h3><span class="unit">次/秒 · 对数刻度</span>
-            </div>
-            <div class="chips" id="chips-mysql"></div>
-          </div>
-          <div class="chart" id="chart-mysql" style="height: 250px"></div>
-          <div class="explain" id="analysis-mysql">
-            <p><b>分析</b><br>测试窗口内 MySQL 每秒执行语句数的最大值，含写入监控自身每秒 10 次的查询。纵轴为对数刻度，相邻刻度相差 10 倍。</p>
-          </div>
-        </div>
-      </section>
+          </section>
 
-      <section class="sec minor fold">
-        <button class="fold-head" id="sec4-toggle" aria-expanded="false">
-          <span class="sec-title"><span class="num">04</span>
-            <h2>资源与误差</h2><span class="sec-sub">被测机整机 CPU · 吞吐倍数</span>
-          </span>
-          <span class="pill" id="sec4-label">展开</span>
-        </button>
-        <div class="charts fold-body" id="sec4-body" hidden>
-          <div class="sub">
-            <div class="block-head">
-              <div class="sub-title"><b>被测机整机 CPU 平均</b><span class="unit">% · 上限 100</span></div>
-              <div class="chips" id="chips-sutcpu"></div>
+          <section id="breakdown">
+            <h2><span class="num">05</span>数据明细</h2>
+            <div class="detail">
+              <div class="tabs" id="table-tabs" role="tablist" aria-label="选择运行"></div>
+              <div class="tbl-bar">
+                <div class="tbl-meta" id="table-meta"></div>
+                <a class="report-btn" id="table-report" target="_blank" rel="noopener">查看报告<span>↗</span></a>
+              </div>
+              <div class="scroll-x">
+                <table class="data-table" id="table"></table>
+              </div>
+              <button class="pill" id="table-more"></button>
             </div>
-            <div class="chart" id="chart-sutcpu" style="height: 230px"></div>
-            <div class="explain" id="analysis-sutcpu">
-              <p><b>分析</b><br>压测期间被测机全部核的平均使用率，包含容器之外的开销（Tailscale、内核收发网络包等）。接近 100% 表示 CPU 已饱和，
-                此时的放行吞吐即该机器的处理上限；使用率较低而吞吐未达目标速率，则瓶颈位于其他资源。</p>
-            </div>
-          </div>
-          <div class="sub">
-            <div class="block-head">
-              <div class="sub-title"><b>吞吐倍数（相对第 1 轮）</b><span class="unit">倍 · 线性</span></div>
-              <div class="chips" id="chips-mult"></div>
-            </div>
-            <div class="chart" id="chart-mult" style="height: 230px"></div>
-            <div class="explain" id="analysis-mult">
-              <p><b>分析</b><br>各轮放行吞吐 ÷ 第 1 轮放行吞吐。对照轮与第 1 轮为同一版本，其偏离 1 的程度即本次运行的误差范围；
-                版本之间的差距小于该范围时，不宜据此下结论。</p>
-            </div>
-          </div>
-        </div>
-      </section>
+          </section>
 
-      <section class="sec minor">
-        <div class="sec-head">
-          <div class="sec-title"><span class="num">05</span>
-            <h2>数据明细</h2>
-          </div>
-          <div class="tabs large" id="table-tabs" role="tablist" aria-label="选择运行"></div>
-        </div>
-        <div class="tbl-meta" id="table-meta"></div>
-        <a class="report-btn" id="table-report" target="_blank" rel="noopener">查看报告<span>↗</span></a>
-        <div class="tbl-wrap">
-          <table id="table"></table>
-        </div>
-        <button class="pill more" id="table-more"></button>
-      </section>
-
-      <footer class="foot">
-        <div class="foot-links">
-          <a class="foot-link"
-            href="https://github.com/avaNeon/nilo-server/blob/master/docker/integration/perf/report_to_json.py"
-            target="_blank" rel="noopener">压测报告生成脚本<small>report_to_json.py</small><span>↗</span></a>
-          <a class="foot-link"
-            href="https://github.com/avaNeon/nilo-server/blob/master/.github/workflows/perf-play-count.yml"
-            target="_blank" rel="noopener">压测流程<small>perf-play-count.yml</small><span>↗</span></a>
-        </div>
-        <div class="sign">
-          <span class="sign-text"><b>Designed with Claude Design</b><span>本页面设计过程中使用了 Claude Opus 5.5</span></span>
-        </div>
-      </footer>
+          <footer class="foot">
+            <div class="foot-links">
+              <a class="foot-link"
+                href="https://github.com/avaNeon/nilo-server/blob/master/docker/integration/perf/report_to_json.py"
+                target="_blank" rel="noopener">压测报告生成脚本<small>report_to_json.py</small><span>↗</span></a>
+              <a class="foot-link"
+                href="https://github.com/avaNeon/nilo-server/blob/master/.github/workflows/perf-play-count.yml"
+                target="_blank" rel="noopener">压测流程<small>perf-play-count.yml</small><span>↗</span></a>
+            </div>
+            <div class="sign"><b>Designed with Claude Design</b><span>本页面设计过程中使用了 Claude Opus 5.5</span></div>
+          </footer>
+        </article>
+      </main>
     </div>
   </div>
 
@@ -1263,6 +1270,7 @@
     /** 读取数据 → 绑定按钮 → 画出全部内容；系统切换深浅色时重画 */
     async function main()
     {
+      setupToc();
       if (!window.echarts) return showStatus('图表库加载失败，请检查网络后刷新。');
       try
       {
@@ -1276,7 +1284,7 @@
       bindControls();
       renderAll();
       darkQuery.addEventListener('change', renderAll);
-      // 图表容器大小变化（窗口缩放、展开折叠区块）时，图表跟着重新排版
+      // 图表容器大小变化（窗口缩放、展开折叠区块、宽屏目录出现或消失）时，图表跟着重新排版
       state.resizer = new ResizeObserver(entries => entries.forEach(e => state.charts[e.target.id]?.resize()));
       Object.values(state.charts).forEach(c => state.resizer.observe(c.getDom()));
     }
@@ -1304,7 +1312,7 @@
       renderLineCharts(T);
       renderStack(T);
       renderQueue(T);
-      renderTable(T);
+      renderTable();
     }
 
     /** 页面上固定的几个按钮：04 区块折叠、数据明细展开全部 */
@@ -1312,6 +1320,28 @@
     {
       document.getElementById('sec4-toggle').onclick = () => { state.open4 = !state.open4; renderAll(); };
       document.getElementById('table-more').onclick = () => { state.tableAll = !state.tableAll; renderAll(); };
+    }
+
+    /** 宽屏左侧的目录：点击平滑滚动到对应区块，滚动时高亮当前所在的区块 */
+    function setupToc()
+    {
+      const links = [...document.querySelectorAll('.toc a')];
+      const sections = links.map(a => document.getElementById(a.getAttribute('href').slice(1)));
+      const update = () =>
+      {
+        let current = 0;
+        sections.forEach((el, i) => { if (el.getBoundingClientRect().top <= 140) current = i; });
+        // 滚到页面底部时，最后一个区块到不了顶部，直接高亮最后一项
+        if (innerHeight + scrollY >= document.documentElement.scrollHeight - 4) current = sections.length - 1;
+        links.forEach((a, i) => a.classList.toggle('active', i === current));
+      };
+      links.forEach((a, i) => a.onclick = e =>
+      {
+        e.preventDefault();
+        scrollTo({ top: sections[i].getBoundingClientRect().top + scrollY - 32, behavior: 'smooth' });
+      });
+      addEventListener('scroll', update, { passive: true });
+      update();
     }
 
     // ---------------- 关键数字 ----------------
@@ -1344,10 +1374,9 @@
           foot: `V3 最长 ${seconds(wMax('V3'))}；V0 同步写入，约 ${seconds(wMax('V0'))}`
         },
       ];
-      const card = c => `<div class="stat"><span class="stat-label">${c.label}</span><span class="stat-value">${c.value}</span>
-        <span class="stat-caption">${c.caption}</span><span class="stat-foot">${c.foot}</span></div>`;
-      document.getElementById('stats').innerHTML =
-        `<div class="pair">${cards.slice(0, 2).map(card).join('')}</div><div class="pair">${cards.slice(2).map(card).join('')}</div>`;
+      document.getElementById('stats').innerHTML = cards.map(c => `
+        <div class="stat"><span class="stat-label">${c.label}</span><span class="stat-value">${c.value}</span>
+          <span class="stat-caption">${c.caption}</span><span class="stat-foot">${c.foot}</span></div>`).join('');
     }
 
     /** 关键数字下面的误差说明：对照轮与第 1 轮的最大差距，和版本之间的最小差距比 */
@@ -1645,21 +1674,24 @@
 
     // ---------------- 运行详情 ----------------
 
-    /** 每次运行一张卡片：时间、负载、往返、两台机器，以及这次运行的报告链接 */
+    // 运行详情的各行：[名称, 取值函数]；最后一行是报告链接，不写名称
+    const DETAIL_ROWS = [
+      ['时间', run => fmtDate(run.date)],
+      ['负载', loadText],
+      ['往返', rttText],
+      ['被测机', run => machineText(run.sut)],
+      ['压测机', run => machineText(run.load)],
+      ['', run => run.url ? `<a href="${run.url}" target="_blank" rel="noopener">查看报告 ↗</a>` : '-'],
+    ];
+
+    /** 每次运行一列：时间、负载、往返、两台机器，以及这次运行的报告链接 */
     function renderDetails(T)
     {
-      document.getElementById('run-details').innerHTML = state.runs.map(run => `
-        <div class="run-detail">
-          <div class="run-detail-head">${shape(run.idx, runColor(T, run))}${run.name}<span class="run-id">#${run.id}</span></div>
-          <dl class="kv">
-            <dt>时间</dt><dd>${fmtDate(run.date)}</dd>
-            <dt>负载</dt><dd>${loadText(run)}</dd>
-            <dt>往返</dt><dd>${rttText(run)}</dd>
-            <dt>被测机</dt><dd>${machineText(run.sut)}</dd>
-            <dt>压测机</dt><dd>${machineText(run.load)}</dd>
-          </dl>
-          ${run.url ? `<a href="${run.url}" target="_blank" rel="noopener">查看报告 ↗</a>` : ''}
-        </div>`).join('');
+      document.getElementById('run-details').innerHTML =
+        `<thead><tr><th></th>${state.runs.map(run =>
+          `<th><span class="run-head">${shape(run.idx, runColor(T, run))}${run.name}</span><span class="run-id">#${run.id}</span></th>`).join('')}</tr></thead>` +
+        `<tbody>${DETAIL_ROWS.map(([label, get]) =>
+          `<tr><th>${label}</th>${state.runs.map(run => `<td>${get(run)}</td>`).join('')}</tr>`).join('')}</tbody>`;
     }
 
     // ---------------- 折线图 ----------------
@@ -1812,7 +1844,7 @@
     function renderStack(T)
     {
       const run = pickRun('stackRun');
-      renderTabs('stack-tabs', 'stackRun', T);
+      renderTabs('stack-tabs', 'stackRun');
       const cats = run.rounds.map(r => r.label);
       const totals = run.rounds.map(cpuTotal);
       const values = GROUPS.map(g => run.rounds.map(r => groupCpu(r, g)));
@@ -1834,8 +1866,8 @@
       opt.yAxis = yAxis(T, {});
       opt.series = GROUPS.map((g, gi) => ({
         type: 'bar', name: g.name, stack: 'cpu', data: values[gi], barWidth: '52%', barMaxWidth: 76, emphasis: { disabled: true },
-        // 边框用卡片底色画：相邻两段之间留出一道缝
-        itemStyle: { color: T.ramp[gi], borderColor: T.card, borderWidth: 2, borderRadius: 6 },
+        // 边框用页面底色画：相邻两段之间留出一道缝
+        itemStyle: { color: T.ramp[gi], borderColor: T.card, borderWidth: 1.5, borderRadius: 2 },
         label: gi === GROUPS.length - 1
           ? { show: true, position: 'top', distance: 8, formatter: p => fmtN(totals[p.dataIndex], 3), color: T.ink, fontFamily: MONO, fontSize: 12, fontWeight: 700 }
           : { show: false },
@@ -1867,7 +1899,7 @@
     function renderQueue(T)
     {
       const run = pickRun('queueRun');
-      renderTabs('queue-tabs', 'queueRun', T);
+      renderTabs('queue-tabs', 'queueRun');
       document.getElementById('queue-keys').innerHTML = QUEUE_SERIES
         .map(([name, , color]) => `<span><span class="box" style="background:${T[color]}"></span>${name}</span>`).join('');
 
@@ -1889,7 +1921,7 @@
       opt.series = QUEUE_SERIES.map(([name, field, color]) => ({
         type: 'bar', name, data: run.rounds.map(r => ok(r[field]) ? r[field] : null),
         barWidth: '22%', barMaxWidth: 30, barGap: '18%', emphasis: { disabled: true },
-        itemStyle: { color: T[color], borderRadius: [6, 6, 0, 0] },
+        itemStyle: { color: T[color], borderRadius: [3, 3, 0, 0] },
         label: { show: true, position: 'top', distance: 6, color: T.ink2, fontFamily: MONO, fontSize: 11 },
       }));
       chart('chart-queue').setOption(opt, true);
@@ -1924,10 +1956,10 @@
     const TABLE_ROW_COUNT = TABLE.reduce((n, [, rows]) => n + rows.length, 0);
 
     /** 数据明细：选一次运行，列出它每一轮的全部指标；默认只显示前两组，可展开全部 */
-    function renderTable(T)
+    function renderTable()
     {
       const run = pickRun('tableRun');
-      renderTabs('table-tabs', 'tableRun', T);
+      renderTabs('table-tabs', 'tableRun');
       document.getElementById('table-meta').innerHTML =
         `<span>${fmtDate(run.date)}</span><span>${loadText(run)}</span><span>往返 ${rttText(run)}</span>` +
         `<span>被测机 ${machineText(run.sut)}</span>`;
@@ -1950,7 +1982,7 @@
     }
 
     /** 分段切换：每次运行一个按钮，点击后 state[key] 改为这次运行 */
-    function renderTabs(id, key, T)
+    function renderTabs(id, key)
     {
       const current = pickRun(key);
       const box = document.getElementById(id);
@@ -1961,7 +1993,7 @@
         btn.className = 'tab';
         btn.setAttribute('role', 'tab');
         btn.setAttribute('aria-selected', String(run === current));
-        btn.innerHTML = `${shape(run.idx, runColor(T, run))}${run.name}`;
+        btn.textContent = run.name;
         btn.onclick = () => { state[key] = run.idx; renderAll(); };
         box.appendChild(btn);
       }
@@ -1975,11 +2007,11 @@
       return {
         animationDuration: 350,
         textStyle: { fontFamily: SANS, color: T.ink2 },
-        grid: { left: 4, right: 14, top: 20, bottom: 4, containLabel: true },
+        grid: { left: 0, right: 8, top: 20, bottom: 4, containLabel: true },
         tooltip: {
           trigger: 'axis', confine: true, backgroundColor: T.tipBg, borderWidth: 0, padding: [10, 14],
           textStyle: { color: T.tipInk, fontSize: 12, fontFamily: SANS },
-          extraCssText: 'border-radius:14px;box-shadow:0 18px 40px -18px rgba(0,0,0,.5)',
+          extraCssText: 'border-radius:10px;box-shadow:0 18px 40px -18px rgba(0,0,0,.5)',
           axisPointer: { type: 'line', lineStyle: { color: T.axis, type: 'dashed' } },
         },
         xAxis: {
@@ -2117,23 +2149,24 @@
 
     // ---------------- 配色与形状 ----------------
 
-    // 图表用的颜色：runs 是各次运行（按顺序固定分配），ramp 是按组件拆解的各组，q 开头的是队列积压的两组柱子，tip 开头的是悬停提示
+    // 图表用的颜色：runs 是各次运行（按顺序固定分配），ramp 是按组件拆解的各组，q 开头的是队列积压的两组柱子，tip 开头的是悬停提示。
+    // card 与页面底色一致，用来画对照轮的空心点和堆叠柱之间的缝
     const THEMES = {
       light: {
-        card: '#FFFFFF', ink: '#0B0C12', ink2: '#3A3D48', muted: '#6B6F7B', grid: '#EEF0F4', axis: '#C9CCD6', off: '#C9CCD6',
-        tipBg: '#0B0C12', tipInk: '#FFFFFF', tipSub: '#B5B8C4', shade: 'rgba(11,12,18,0.04)', qReady: '#2F2FF2', qUnacked: '#eda100',
+        card: '#FAF9F6', ink: '#141413', ink2: '#4A4945', muted: '#6F6D67', grid: '#ECEAE4', axis: '#CFCBC2', off: '#CFCBC2',
+        tipBg: '#141413', tipInk: '#FFFFFF', tipSub: '#B3B1AA', shade: 'rgba(20,20,19,0.04)', qReady: '#2433E0', qUnacked: '#e09a00',
         runs: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'],
-        ramp: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#8a5cd0', '#e87ba4', '#8d93a3'],
+        ramp: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#d65d9a', '#7a5ccf', '#b3aea3'],
       },
       dark: {
-        card: '#14151C', ink: '#F4F5F8', ink2: '#C2C5D0', muted: '#8A8E9A', grid: '#23252F', axis: '#3A3D48', off: '#3A3D48',
-        tipBg: '#F4F5F8', tipInk: '#0B0C12', tipSub: '#4A4D58', shade: 'rgba(255,255,255,0.04)', qReady: '#8384FF', qUnacked: '#c98500',
-        runs: ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'],
-        ramp: ['#3987e5', '#d95926', '#199e70', '#c98500', '#9a7be8', '#d55181', '#8a8e9a'],
+        card: '#121211', ink: '#F3F2EE', ink2: '#C6C4BD', muted: '#8F8D86', grid: '#2A2A27', axis: '#3E3D39', off: '#3E3D39',
+        tipBg: '#F3F2EE', tipInk: '#121211', tipSub: '#5A5953', shade: 'rgba(255,255,255,0.04)', qReady: '#8C95FF', qUnacked: '#c98500',
+        runs: ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#3a9a28', '#9085e9', '#e66767'],
+        ramp: ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9', '#6e6b64'],
       },
     };
-    const SANS = "system-ui,-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif";
-    const MONO = "ui-monospace,'SF Mono',Menlo,Consolas,monospace";
+    const SANS = "'Geist',system-ui,-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif";
+    const MONO = "'Geist Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace";
 
     // 每次运行一种形状（与折线上的点一致），颜色之外再用形状区分，色弱读者也能分清。
     // SHAPE_CSS 用 CSS 画出同样的形状：[圆角, 裁剪路径, 变换]

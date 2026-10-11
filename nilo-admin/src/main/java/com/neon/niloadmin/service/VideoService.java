@@ -32,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
@@ -307,6 +308,8 @@ public class VideoService
             // 把新上传视频信息复制到videoInfo中
             BeanUtils.copyProperties(infoUpload, newVideoInfo);
 
+            // 审核通过后把最新更新时间设置为审核通过的时间
+            newVideoInfo.setLastUpdateTime(LocalDateTime.now());
 
             // 删除旧的video_info_file记录（DB层面）
             List <VideoInfoFile> oldFileList = videoInfoFileMapper.selectByVideoId(videoId);

@@ -99,7 +99,7 @@ public class VideoService
     {
 
         VideoInfoQuery infoQuery = new VideoInfoQuery();
-        infoQuery.setOrderBy("create_time desc");
+        infoQuery.setOrderBy("last_update_time desc");
         if (isRecommend != null)
         {
             infoQuery.setRecommendType(isRecommend ? RecommendType.RECOMMENDED.getType() : RecommendType.UNRECOMMENDED.getType());

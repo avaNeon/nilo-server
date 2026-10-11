@@ -65,6 +65,10 @@ on:
         description: '部署 nilo-canal-client'
         type: boolean
         default: true
+      nilo-bot:
+        description: '部署 nilo-bot'
+        type: boolean
+        default: true
 
 # 同一时间只跑一个部署，后点的排队等前一个结束
 concurrency:

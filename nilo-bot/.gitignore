@@ -1,0 +1,3 @@
+# 本地 go build、IDE 运行生成的可执行文件
+/nilo-bot
+*.exe

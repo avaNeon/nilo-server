@@ -27,7 +27,7 @@ jobs:
       contents: read
       packages: write   # 推镜像到 GHCR（只在 push 到 master 时用到）
     env:
-      # 需要构建镜像的服务。新增服务时在这里加一项，并同步 deploy.yml 里的勾选项
+      # 需要构建镜像的 Java 服务。新增服务时在这里加一项，并同步 deploy.yml 里的勾选项（nilo-bot 在下面单独构建）
       SERVICES: nilo-web nilo-ai nilo-admin nilo-comment nilo-storage nilo-mq-consumer nilo-canal-client
     steps:
       - name: Checkout
@@ -42,6 +42,16 @@ jobs:
 
       - name: Build (compile + package, skip tests)
         run: mvn -B -DskipTests package
+
+      # nilo-bot 是 Go 写的，不在 Maven 里，单独做编译检查
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: nilo-bot/go.mod
+          cache: false   # 没有第三方依赖，没有可缓存的东西
+
+      - name: Build nilo-bot
+        run: go -C nilo-bot vet ./... && go -C nilo-bot build ./...
 
       # 登录 GHCR
       - name: Log in to GHCR
@@ -67,3 +77,14 @@ jobs:
               -t "$image:$IMAGE_TAG" -t "$image:${{ github.sha }}" .
             docker push --all-tags "$image"
           done
+
+      # nilo-bot 用自己的 Dockerfile（Go 编译），只在 master 上构建：压测用不到它
+      - name: Build and push nilo-bot image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          image="ghcr.io/$owner/nilo-bot"
+          docker build -f nilo-bot/Dockerfile \
+            --label org.opencontainers.image.source="https://github.com/${{ github.repository }}" \
+            -t "$image:latest" -t "$image:${{ github.sha }}" nilo-bot
+          docker push --all-tags "$image"

@@ -10,7 +10,7 @@ import (
 )
 
 // 每轮之间的间隔。播放统计对同一 sessionId 有 30 秒的限流，1 分钟足够宽裕
-const interval = time.Minute
+const interval = time.Minute / 2
 
 func main() {
 	baseURL := os.Getenv("NILO_WEB_URL")

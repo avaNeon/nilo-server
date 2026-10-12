@@ -117,10 +117,10 @@ public class VideoService
             orderBy.append("v.status ").append(orderByStatusAsc ? "asc" : "desc");
         }
 
-        // 如果都没有，默认按照创建时间排序
+        // 如果都没有，默认按照最后更新时间和创建时间排序
         if (orderBy.isEmpty())
         {
-            orderBy.append("v.create_time desc");
+            orderBy.append("v.last_update_time desc, v.create_time desc");
         }
 
         infoUploadQuery.setOrderBy(orderBy.toString());

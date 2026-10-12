@@ -12,20 +12,6 @@
     <name>nilo-comment</name>
     <description>nilo-comment</description>
 
-    <url/>
-    <licenses>
-        <license/>
-    </licenses>
-    <developers>
-        <developer/>
-    </developers>
-    <scm>
-        <connection/>
-        <developerConnection/>
-        <tag/>
-        <url/>
-    </scm>
-
     <properties>
         <java.version>17</java.version>
         <!-- 灌主库数据的测试会写复制表，默认跳过；要跑时加 -Dtest.excluded.groups=none -->

@@ -12,20 +12,6 @@
     <name>nilo-mq-consumer</name>
     <description>nilo-mq-consumer</description>
 
-    <url/>
-    <licenses>
-        <license/>
-    </licenses>
-    <developers>
-        <developer/>
-    </developers>
-    <scm>
-        <connection/>
-        <developerConnection/>
-        <tag/>
-        <url/>
-    </scm>
-
     <properties>
         <!-- 打 manual 标签的测试会上传文件、调收费接口，默认跳过；命令行要跑时加 -Dtest.excluded.groups=none -->
         <test.excluded.groups>manual</test.excluded.groups>

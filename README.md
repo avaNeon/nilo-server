@@ -12,3 +12,7 @@
 | [组件配置](docs/md/config/README.md)   | 各组件配置信息                                 |
 | [部署](docs/md/deploy/README.md)       | 部署方式与线上配置信息                         |
 | [测试与评估](docs/md/eval/README.md)   | 测试方法与评估结果                             |
+
+## 许可证
+
+本项目基于 [Apache License 2.0](LICENSE) 开源，版权声明见 [NOTICE](NOTICE)。

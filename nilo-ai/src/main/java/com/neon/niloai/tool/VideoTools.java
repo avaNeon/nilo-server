@@ -19,11 +19,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * 注册给视频检索模型的工具<hr/>
@@ -131,16 +127,17 @@ public class VideoTools
     @Tool(description = """
             按 videoId 查询视频详情，包括时长 duration（单位：秒）、播放量 playCount、弹幕数 danmakuCount、收藏数 collectCount。
             只能传 searchVideo 返回过、或者之前对话里出现过的 videoId。站内查不到时返回 null。""")
-    public VideoInfoDoc getVideoDetail(@ToolParam(description = "视频 id，取自 searchVideo 的返回结果或之前的对话") Long videoId,
+    public VideoInfoDoc getVideoDetail(@ToolParam(description = "视频 id，取自 searchVideo 的返回结果或之前的对话") String videoId,
                                        ToolContext toolContext)
     {
         log.info("工具调用 getVideoDetail, videoId={}", videoId);
-        VideoInfoDoc video = findVideo(videoId);
+        Long id = parseVideoId(videoId);
+        VideoInfoDoc video = findVideo(id);
         // 追问「第二个多长」时这一轮不会检索，这里也记一笔，返回的 videos 才不会是空的
         CitedVideoCollector cited = citedVideos(toolContext);
         if (video != null && cited != null)
         {
-            cited.add(new CitedVideoVO(videoId, video.getVideoName()));
+            cited.add(new CitedVideoVO(id, video.getVideoName()));
         }
         return video;
     }
@@ -155,11 +152,11 @@ public class VideoTools
             @ToolParam(description = "检索词。写成字幕的语言，英文视频用英文关键词；不确定视频是什么语言时，中英文关键词写在一起")
             String query,
             @ToolParam(description = "只在这个视频里搜，取自 searchVideo 的返回结果或之前的对话；不传就搜全站。用户在视频页提问时系统会自动限定为当前视频",
-                       required = false) Long videoId,
+                       required = false) String videoId,
             ToolContext toolContext)
     {
         Long scopeVideoId = scopeVideoId(toolContext);
-        Long searchVideoId = scopeVideoId != null ? scopeVideoId : videoId;
+        Long searchVideoId = scopeVideoId != null ? scopeVideoId : parseVideoId(videoId);
         log.info("工具调用 searchTranscript, query={}, videoId={}, scopeVideoId={}", query, videoId, scopeVideoId);
         if (!StringUtils.hasText(query))
         {
@@ -227,6 +224,27 @@ public class VideoTools
             return null;
         }
         return toolContext.getContext().get(CTX_SCOPE_VIDEO_ID) instanceof Long videoId ? videoId : null;
+    }
+
+    /**
+     * 把模型传来的 videoId 转成 Long<hr/>
+     * 参数用 String 而不是 Long：19 位的 id 超出 JS 数字的精度，JS 写的 MCP 客户端解析参数时会把末几位变成 0。
+     * 没传或传了空串时返回 null；不是数字时抛异常，异常信息会交给模型，让它换一个正确的 id 重试
+     */
+    private static Long parseVideoId(String videoId)
+    {
+        if (!StringUtils.hasText(videoId))
+        {
+            return null;
+        }
+        try
+        {
+            return Long.valueOf(videoId.trim());
+        }
+        catch (NumberFormatException e)
+        {
+            throw new IllegalArgumentException("videoId 必须是纯数字，取自 searchVideo 的返回结果，收到的是：" + videoId);
+        }
     }
 
     /**

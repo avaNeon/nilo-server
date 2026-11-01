@@ -155,12 +155,6 @@ public class RedisKey
     public static final String EMAIL_CODE_FREQ_PREFIX = REDIS_KEY_PREFIX + "email:freq:";
 
     /**
-     * AI 助手对话记忆前缀<hr/>
-     * <p>key: nilo:ai:chat:memory:{conversationId}</p>
-     */
-    public static final String AI_CHAT_MEMORY_PREFIX = REDIS_KEY_PREFIX + "ai:chat:memory:";
-
-    /**
      * AI 助手每日提问次数前缀<hr/>
      * <p>key: nilo:ai:ask:quota:{userId}:{yyyyMMdd}</p>
      */

@@ -1,7 +1,6 @@
 package com.neon.niloai.tool;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
-import com.neon.niloai.entity.vo.CitedVideoVO;
 import com.neon.niloai.entity.vo.TranscriptHitVO;
 import com.neon.niloai.entity.vo.VideoHitVO;
 import com.neon.niloai.repository.es.SubtitleChunkRepository;
@@ -9,7 +8,6 @@ import com.neon.niloai.service.VideoVectorIndexService;
 import com.neon.nilocommon.entity.po.document.VideoInfoDoc;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -35,20 +33,6 @@ import java.util.*;
 @Component
 public class VideoTools
 {
-    /**
-     * toolContext 里存放本次请求检索到的视频，调用结束后由调用方取出填进返回值
-     */
-    public static final String CTX_CITED_VIDEOS = "citedVideos";
-
-    /**
-     * toolContext 里存放本次请求命中的字幕块，调用结束后用来核对回答里的时间点
-     */
-    public static final String CTX_CITED_TRANSCRIPTS = "citedTranscripts";
-
-    /**
-     * toolContext 里存放视频页当前的 videoId。有它时字幕检索强制只搜这个视频，模型改不了
-     */
-    public static final String CTX_SCOPE_VIDEO_ID = "scopeVideoId";
 
     private static final int SEARCH_SIZE = 5;
 
@@ -72,8 +56,7 @@ public class VideoTools
             在 Nilo 站内按语义检索视频，返回最相关的最多 5 条，每条包含 videoId、标题和检索原文（标题、标签、简介）。
             检索按意思匹配，同义说法也能命中，比如"垃圾回收"能找到讲 GC 的视频。""")
     public List <VideoHitVO> searchVideo(
-            @ToolParam(description = "检索词。用你从用户问题里提炼出的主题，不要原样照抄整句话") String query,
-            ToolContext toolContext)
+            @ToolParam(description = "检索词。用你从用户问题里提炼出的主题，不要原样照抄整句话") String query)
     {
         log.info("工具调用 searchVideo, query={}", query);
         if (!StringUtils.hasText(query))
@@ -97,7 +80,6 @@ public class VideoTools
             return List.of();
         }
 
-        CitedVideoCollector cited = citedVideos(toolContext);
         List <VideoHitVO> hits = new ArrayList <>(SEARCH_SIZE);
         Set <Long> seen = new HashSet <>();
         for (Document document : documents)
@@ -112,10 +94,6 @@ public class VideoTools
             Object name = metadata.get(VideoVectorIndexService.META_VIDEO_NAME);
             String videoName = name == null ? null : String.valueOf(name);
             hits.add(new VideoHitVO(videoId, videoName, snippet(document.getText())));
-            if (cited != null)
-            {
-                cited.add(new CitedVideoVO(videoId, videoName));
-            }
             if (hits.size() >= SEARCH_SIZE)
             {
                 break;
@@ -127,19 +105,11 @@ public class VideoTools
     @Tool(description = """
             按 videoId 查询视频详情，包括时长 duration（单位：秒）、播放量 playCount、弹幕数 danmakuCount、收藏数 collectCount。
             只能传 searchVideo 返回过、或者之前对话里出现过的 videoId。站内查不到时返回 null。""")
-    public VideoInfoDoc getVideoDetail(@ToolParam(description = "视频 id，取自 searchVideo 的返回结果或之前的对话") String videoId,
-                                       ToolContext toolContext)
+    public VideoInfoDoc getVideoDetail(@ToolParam(description = "视频 id，取自 searchVideo 的返回结果或之前的对话") String videoId)
     {
         log.info("工具调用 getVideoDetail, videoId={}", videoId);
         Long id = parseVideoId(videoId);
-        VideoInfoDoc video = findVideo(id);
-        // 追问「第二个多长」时这一轮不会检索，这里也记一笔，返回的 videos 才不会是空的
-        CitedVideoCollector cited = citedVideos(toolContext);
-        if (video != null && cited != null)
-        {
-            cited.add(new CitedVideoVO(id, video.getVideoName()));
-        }
-        return video;
+        return findVideo(id);
     }
 
     @Tool(description = """
@@ -151,13 +121,11 @@ public class VideoTools
     public List <TranscriptHitVO> searchTranscript(
             @ToolParam(description = "检索词。写成字幕的语言，英文视频用英文关键词；不确定视频是什么语言时，中英文关键词写在一起")
             String query,
-            @ToolParam(description = "只在这个视频里搜，取自 searchVideo 的返回结果或之前的对话；不传就搜全站。用户在视频页提问时系统会自动限定为当前视频",
-                       required = false) String videoId,
-            ToolContext toolContext)
+            @ToolParam(description = "只在这个视频里搜，取自 searchVideo 的返回结果或之前的对话；不传就搜全站",
+                       required = false) String videoId)
     {
-        Long scopeVideoId = scopeVideoId(toolContext);
-        Long searchVideoId = scopeVideoId != null ? scopeVideoId : parseVideoId(videoId);
-        log.info("工具调用 searchTranscript, query={}, videoId={}, scopeVideoId={}", query, videoId, scopeVideoId);
+        Long searchVideoId = parseVideoId(videoId);
+        log.info("工具调用 searchTranscript, query={}, videoId={}", query, videoId);
         if (!StringUtils.hasText(query))
         {
             return List.of();
@@ -193,10 +161,6 @@ public class VideoTools
                                          toInteger(metadata.get(SubtitleChunkRepository.META_END_SEC)),
                                          String.valueOf(metadata.get(SubtitleChunkRepository.META_LINES))));
         }
-        if (toolContext != null && toolContext.getContext().get(CTX_CITED_TRANSCRIPTS) instanceof CitedTranscriptCollector cited)
-        {
-            cited.addAll(hits);
-        }
         return hits;
     }
 
@@ -215,15 +179,6 @@ public class VideoTools
             log.error("查询视频详情失败, videoId={}", videoId, e);
             throw new IllegalStateException("视频详情暂时不可用");
         }
-    }
-
-    private Long scopeVideoId(ToolContext toolContext)
-    {
-        if (toolContext == null)
-        {
-            return null;
-        }
-        return toolContext.getContext().get(CTX_SCOPE_VIDEO_ID) instanceof Long videoId ? videoId : null;
     }
 
     /**
@@ -258,15 +213,6 @@ public class VideoTools
     private static Integer toInteger(Object value)
     {
         return value == null ? null : Integer.valueOf(String.valueOf(value));
-    }
-
-    private CitedVideoCollector citedVideos(ToolContext toolContext)
-    {
-        if (toolContext == null)
-        {
-            return null;
-        }
-        return toolContext.getContext().get(CTX_CITED_VIDEOS) instanceof CitedVideoCollector cited ? cited : null;
     }
 
     /**

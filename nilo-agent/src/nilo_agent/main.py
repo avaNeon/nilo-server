@@ -12,7 +12,8 @@ from nilo_agent.lifespan import lifespan
 
 load_dotenv()
 
-app = FastAPI(title="nilo-agent", lifespan=lifespan)
+# 和 Java 服务一样，不开放接口文档页（/docs、/redoc、/openapi.json）
+app = FastAPI(title="nilo-agent", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 app.include_router(ask.router)
 register_exception_handlers(app)
 

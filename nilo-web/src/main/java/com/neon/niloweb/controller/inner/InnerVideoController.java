@@ -54,7 +54,8 @@ public class InnerVideoController
     }
 
     /**
-     * 分页提供已发布视频的分P文件，供 AI 服务读字幕切块
+     * 分页提供已发布视频的分P文件，供 AI 服务读字幕切块<hr/>
+     * 按照视频ID、文件索引正序排序
      *
      * @param videoId 只查这一个视频；不传就是全部
      */

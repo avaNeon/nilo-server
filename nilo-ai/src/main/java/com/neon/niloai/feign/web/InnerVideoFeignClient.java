@@ -21,12 +21,14 @@ public interface InnerVideoFeignClient
                                                                             Long videoId);
 
     /**
-     * 分页拉取已发布视频的分P文件，用于字幕切块灌入
+     * 分页拉取已发布视频的分P文件，用于字幕切块灌入<hr/>
+     * 返回视频信息的按照视频ID、文件索引正序排序
      *
      * @param videoId 只拉这一个视频；传 null 拉全部
      */
     @GetMapping("/file-source")
     ResponseVO <PaginationResponseVO <VideoFileSourceDTO>> listFileSource(@RequestParam(name = "pageNo") Integer pageNo,
                                                                           @RequestParam(name = "pageSize") Integer pageSize,
-                                                                          @RequestParam(name = "videoId", required = false) Long videoId);
+                                                                          @RequestParam(name = "videoId", required = false)
+                                                                          Long videoId);
 }

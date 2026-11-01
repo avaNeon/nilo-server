@@ -1,0 +1,4 @@
+# 构建只用到 pyproject.toml、uv.lock 和 src。CI 里先跑过 uv 检查，目录下会有 .venv，不传给 docker
+.venv
+**/__pycache__
+.env

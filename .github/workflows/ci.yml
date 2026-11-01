@@ -27,7 +27,7 @@ jobs:
       contents: read
       packages: write   # 推镜像到 GHCR（只在 push 到 master 时用到）
     env:
-      # 需要构建镜像的 Java 服务。新增服务时在这里加一项，并同步 deploy.yml 里的勾选项（nilo-bot 在下面单独构建）
+      # 需要构建镜像的 Java 服务。新增服务时在这里加一项，并同步 deploy.yml 里的勾选项（nilo-bot、nilo-agent 在下面单独构建）
       SERVICES: nilo-web nilo-ai nilo-admin nilo-comment nilo-storage nilo-mq-consumer nilo-canal-client
     steps:
       - name: Checkout
@@ -52,6 +52,17 @@ jobs:
 
       - name: Build nilo-bot
         run: go -C nilo-bot vet ./... && go -C nilo-bot build ./...
+
+      # nilo-agent 是 Python 写的，用 uv 管理依赖，单独检查
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: '0.11.8'   # 和本地开发、nilo-agent/Dockerfile 用的 uv 版本一致
+
+      # --locked：uv.lock 和 pyproject.toml 对不上就直接失败；导入 main 会把所有模块都加载一遍
+      - name: Check nilo-agent
+        working-directory: nilo-agent
+        run: uv run --locked python -c "import nilo_agent.main"
 
       # 登录 GHCR
       - name: Log in to GHCR
@@ -87,4 +98,15 @@ jobs:
           docker build -f nilo-bot/Dockerfile \
             --label org.opencontainers.image.source="https://github.com/${{ github.repository }}" \
             -t "$image:latest" -t "$image:${{ github.sha }}" nilo-bot
+          docker push --all-tags "$image"
+
+      # nilo-agent 用自己的 Dockerfile（uv 安装依赖），只在 master 上构建：压测用不到它
+      - name: Build and push nilo-agent image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          image="ghcr.io/$owner/nilo-agent"
+          docker build -f nilo-agent/Dockerfile \
+            --label org.opencontainers.image.source="https://github.com/${{ github.repository }}" \
+            -t "$image:latest" -t "$image:${{ github.sha }}" nilo-agent
           docker push --all-tags "$image"

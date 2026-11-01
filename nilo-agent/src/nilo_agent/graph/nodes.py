@@ -22,6 +22,7 @@ from nilo_agent.graph.prompts import build_initial_video_context, build_classifi
 from nilo_agent.graph.search_verify import verify_videos, verify_segments, render_search_answer
 from nilo_agent.graph.state import AskState
 from nilo_agent.graph.tools import get_search_tools, SearchContext, get_discuss_tools
+from nilo_agent.metrics import TOOL_CALLS
 from nilo_agent.schemas.ask import CitedVideo, CitedSegment
 
 TOOL_ACTIONS = {
@@ -276,11 +277,12 @@ def _write_tool_steps(stream_writer: StreamWriter, reply: AIMessage) -> None:
     """
     模型这次回复要调用工具时，每次调用给前端推一步，比如「联网搜索：Navicat 收费」
 
-    结构化输出也是借工具调用实现的，不在 TOOL_ACTIONS 里的工具不推
+    结构化输出也是借工具调用实现的，不在 TOOL_ACTIONS 里的工具不推，也不计入工具调用次数
     """
     for tool_call in reply.tool_calls:
         action = TOOL_ACTIONS.get(tool_call["name"])
         if action is not None:
+            TOOL_CALLS.labels(tool_call["name"]).inc()
             stream_writer({
                 "event": "status",
                 "text": _build_tool_step(action, tool_call)

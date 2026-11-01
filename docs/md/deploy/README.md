@@ -15,7 +15,8 @@
 | [nginx.md](nginx.md)           | 对外访问：站点与路由、静态文件托管、控制台限制 |
 | [faq.md](faq.md)               | 常见问题：部署中遇到的问题与处理方法           |
 
-前端（用户端主站与后台管理站）在独立的仓库 [nilo-webpage](https://github.com/avaNeon/nilo-webpage) 中，其部署文档位于该仓库的 `docs/md/deploy`。
+前端（用户端主站与后台管理站）在独立的仓库 [nilo-webpage](https://github.com/avaNeon/nilo-webpage) 中，其部署文档位于该仓库的
+`docs/md/deploy`。
 
 ## 整体结构
 
@@ -33,15 +34,15 @@
 
 ## 组成
 
-|          | 中间件 / DB                                                                 | 微服务                                                                                         |
-|----------|-----------------------------------------------------------------------------|------------------------------------------------------------------------------------------------|
-| 组件     | MySQL、Redis、Elasticsearch、MinIO、RabbitMQ、Canal、Nacos、Seata、Sentinel | nilo-web、nilo-admin、nilo-storage、nilo-comment、nilo-mq-consumer、nilo-canal-client、nilo-ai |
-| 部署方式 | 版本固定，手动部署                                                          | 通过 CI/CD 发布                                                                                |
+|          | 中间件 / DB                                                                 | 微服务                                                                                                     |
+|----------|-----------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| 组件     | MySQL、Redis、Elasticsearch、MinIO、RabbitMQ、Canal、Nacos、Seata、Sentinel | nilo-web、nilo-admin、nilo-storage、nilo-comment、nilo-mq-consumer、nilo-canal-client、nilo-ai、nilo-agent |
+| 部署方式 | 版本固定，手动部署                                                          | 通过 CI/CD 发布                                                                                            |
 
 | 组件          | 职责                                                       |
 |---------------|------------------------------------------------------------|
 | MySQL         | 储存主要数据                                               |
-| Redis         | 存储缓存、有时效性的数据、验权数据                         |
+| Redis         | 存储缓存、有时效性的数据、验权数据、Agent 会话             |
 | Elasticsearch | 储存用于查询的数据并提供查询操作，如视频信息副本、向量数据 |
 | MinIO         | 提供和保存二进制数据，如图片、视频                         |
 | RabbitMQ      | 消息队列                                                   |
@@ -58,7 +59,8 @@
 | nilo-storage      | 文件存储与处理                      |
 | nilo-mq-consumer  | 消息消费（邮件、字幕识别、AI 索引） |
 | nilo-canal-client | MySQL 变更同步至 Elasticsearch      |
-| nilo-ai           | AI 问答与 MCP 服务                  |
+| nilo-ai           | Agent 检索工具、提问额度、MCP 服务  |
+| nilo-agent        | Agent 问答接口与编排                |
 
 ## 发布流程
 
@@ -70,5 +72,6 @@
 
 ## 当前状态
 
-- **已完成**：中间件与微服务的容器化部署；CI（编译打包、构建并推送镜像）；持续交付（镜像随提交自动构建，手动触发发布）与部署后检查；业务站点的 nginx 路由与前端托管；管理控制台的访问限制。
+- **已完成**：中间件与微服务的容器化部署；CI（编译打包、构建并推送镜像）；持续交付（镜像随提交自动构建，手动触发发布）与部署后检查；业务站点的
+  nginx 路由与前端托管；管理控制台的访问限制。
 - **待完成**：CI 中的单元测试与集成测试；按提交号部署与回滚；监控；表结构变更方案。

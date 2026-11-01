@@ -57,9 +57,12 @@ switch 操作
 文档在生产环境通过配置关闭（关闭文档接口与页面，并启用 Knife4j 的生产模式）拦截相关路径。这些配置位于
 Nacos，而本地配置默认开启文档，因此一旦配置未生效（例如配置中心读取失败），文档就会暴露。该检查用于发现这类问题。
 
+nilo-agent 不接入 Nacos，直接在代码中关闭了 FastAPI 自带的文档页面与数据。
+
 ### 方式
 
-发布完成后，对每个服务访问 6 个路径（接口文档数据、Swagger 页面、Knife4j 页面）。只有下列三种响应视为 **已拦截**，其余一律判定为失败：
+发布完成后，对每个服务访问 9 个路径（接口文档数据、Swagger 页面、Knife4j 页面，以及 FastAPI 的文档页面与数据）。只有下列三种响应视为
+**已拦截**，其余一律判定为失败：
 
 | 响应                                       | 来源                                       |
 |--------------------------------------------|--------------------------------------------|
@@ -67,7 +70,8 @@ Nacos，而本地配置默认开启文档，因此一旦配置未生效（例如
 | 项目统一的错误 JSON（`status` 为 `error`） | 项目对不存在的路径返回 HTTP 200 与错误信息 |
 | Knife4j 的拦截提示                         | 生产模式拦截                               |
 
-对于不存在的路径，此项目采用了全局拦截器处理，HTTP 状态码仍然是 200，此外 Knife4j 的拦截提示会返回：You do not have permission
+对于不存在的路径，此项目采用了全局拦截器处理，HTTP 状态码仍然是 200，此外 Knife4j 的拦截提示会返回：You do not have
+permission
 to access this page
 
 ### 执行流程
@@ -83,4 +87,5 @@ to access this page
 - 检查在部署之后执行，发现问题时服务已经上线。
 - 对外入口（nginx）层面的检查，以及管理端点、内部接口是否对外暴露，尚未覆盖。
 
-管理控制台的访问限制见 [nginx.md](nginx.md)。前端上传账户的权限限制见前端仓库 [nilo-webpage](https://github.com/avaNeon/nilo-webpage) 的 `docs/md/deploy`。
+管理控制台的访问限制见 [nginx.md](nginx.md)
+。前端上传账户的权限限制见前端仓库 [nilo-webpage](https://github.com/avaNeon/nilo-webpage) 的 `docs/md/deploy`。

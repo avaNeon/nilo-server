@@ -20,6 +20,9 @@
 
 此外，Sentinel 的限流规则也以 JSON 形式存放在 Nacos，由 Sentinel 直接读取。
 
+nilo-agent（Python）不接入 Nacos，全部配置通过环境变量提供（本地为 `.env`），包括模型与联网搜索的密钥、调用内部接口的令牌，以及
+Java 服务与 Redis 的地址。
+
 ### 加载顺序
 
 ```

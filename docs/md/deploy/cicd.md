@@ -1,6 +1,7 @@
 # CI/CD
 
-本文说明微服务的持续集成与持续交付流程，前端的发布见前端仓库 [nilo-webpage](https://github.com/avaNeon/nilo-webpage) 的 `docs/md/deploy`
+本文说明微服务的持续集成与持续交付流程，前端的发布见前端仓库 [nilo-webpage](https://github.com/avaNeon/nilo-webpage) 的
+`docs/md/deploy`
 
 > 注意：文中的 **GitHub 云服务器**指 GitHub Actions 执行任务时临时分配的运行环境； **服务器**指运行 Nilo 的机器
 
@@ -24,6 +25,7 @@
 ### CI
 
 - 每次 push 与 Pull Request 自动编译并打包。
+- nilo-agent 是 Python 项目，检查依赖锁文件与 `pyproject.toml` 是否一致，并导入全部模块，作用相当于编译检查。
 - 目前跳过本地测试（这些测试仅在本地开发时使用），单元测试与集成测试有待补充。
 - 推送到 master 时，编译通过后为每个服务构建镜像并推送到镜像仓库，与发布无关。PR 与其他分支只做编译检查，不推送镜像。
 - master 上的运行排队依次执行，保证 `latest` 始终指向最后一次提交。
@@ -52,10 +54,10 @@
 
 ## 构建镜像（CI）
 
-- 所有服务共用一个 Dockerfile，通过构建参数指定模块。
+- Java 服务共用一个 Dockerfile，通过构建参数指定模块；nilo-agent 使用单独的 Dockerfile，按依赖锁文件安装依赖，运行镜像中只保留虚拟环境。
 - 镜像同时打 `latest` 与提交号 (sha) 两个标签，后者用于追溯版本。
-- 镜像中不包含大部分配置，这些配置由 nacos 管理。
-- 镜像内置 FFmpeg（转码与缩略图通过命令行调用它，需要装在容器里，而不是宿主机上）。构建时会检查其可用，缺失则构建失败。
+- 镜像中不包含大部分配置，这些配置由 nacos 管理；nilo-agent 不接入 nacos，配置与密钥通过容器的环境变量传入。
+- Java 服务的镜像内置 FFmpeg（转码与缩略图通过命令行调用它，需要装在容器里，而不是宿主机上）。构建时会检查其可用，缺失则构建失败。
 - 每次推送到 master 都构建全部服务的镜像，不区分改动了哪个模块。
 
 ## 发布流程
@@ -79,14 +81,15 @@
 ### server
 
 GitHub 云服务器通过 SSH 向服务器发送一条指令（如 `deploy nilo-web nilo-storage`
-），由服务器上的**部署脚本**解析并执行。该连接的权限受到限制，**限制**与**部署脚本**详见 [security.md](security.md)。
+），由服务器上的 **部署脚本**解析并执行。该连接的权限受到限制， **限制**与 **部署脚本**详见 [security.md](security.md)。
 
 服务器拉取的是 `latest`，即 master 上最近一次 CI 构建的镜像。
 
 ### verify
 
 `deploy` 或 `up` 完成后自动执行：`deploy` 操作下仅检查本次发布的服务，`up`
-操作则检查全部服务。检查失败时任务标记为失败，已部署的服务不自动回滚。**检查内容**详见 [security.md](security.md)中的**部署脚本**的 **check 操作**。
+操作则检查全部服务。检查失败时任务标记为失败，已部署的服务不自动回滚。 **检查内容**详见 [security.md](security.md)中的
+**部署脚本**的 **check 操作**。
 
 ## 新增微服务的扩展方式
 

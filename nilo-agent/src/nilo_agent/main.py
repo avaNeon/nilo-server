@@ -1,0 +1,26 @@
+import logging
+
+import uvicorn
+from dotenv import load_dotenv
+from fastapi import FastAPI
+
+from nilo_agent.api.exception_handlers import register_exception_handlers
+from nilo_agent.api.routes import ask
+from nilo_agent.config import get_settings
+from nilo_agent.lifespan import lifespan
+
+load_dotenv()
+
+app = FastAPI(title="nilo-agent", lifespan=lifespan)
+app.include_router(ask.router)
+register_exception_handlers(app)
+
+
+def run() -> None:
+    """
+    启动服务，`uv run nilo-agent` 会调用这里
+    """
+    # 不配的话只输出 WARNING 以上，代码里的 log.info 都看不到
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s - %(message)s")
+    settings = get_settings()
+    uvicorn.run(app, host=settings.host, port=settings.port)
